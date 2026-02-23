@@ -1,0 +1,108 @@
+MinIO 图片上传与动态发布流程说明
+==================================
+
+一、服务配置
+1. MinIO 容器启动：
+   `docker run -d --name minio -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=admin -e MINIO_ROOT_PASSWORD=admin12345 -v minio-data:/data minio/minio:latest server /data --console-address ":9001"`
+2. 控制台创建桶：`community-feed`，配置 CORS 允许前端域名的 GET/PUT/HEAD，允许 `Content-Type`。
+3. 后端配置（application.yml）：
+```
+minio:
+  endpoint: http://localhost:9000      # 宿主机访问；同网段容器可用 http://minio:9000
+  access-key: admin
+  secret-key: admin12345
+  bucket: community-feed
+```
+
+二、后端代码要点
+1. 属性/配置：
+   - MinioProperties (config/MinioProperties.java)
+   - MinioConfig      (config/MinioConfig.java)  // 提供 MinioClient Bean
+2. 上传接口（后端接收文件写入 MinIO）：
+```
+POST /api/community-feed/upload  (CommunityFeedUploadController)
+  入参: multipart/form-data file
+  逻辑: MinioClient.putObject -> 返回 { key, url(预签名GET) }
+```
+3. 预签名直传接口（前端直接 PUT 到 MinIO）：
+```
+POST /api/community-feed/upload-url
+  入参: filename
+  逻辑: 生成 PUT 预签名 { key, putUrl }，前端用 fetch/axios PUT 文件
+  作用: 减少后端中转大文件的压力，前端携带短时效授权直传 MinIO，后端只负责记录 key，适合大图/高并发。
+```
+4. 动态发布接口（只存图片 key，不再传二进制）：
+```
+POST /api/community-feed/posts
+  入参示例:
+  {
+    "userId": 1,
+    "content": "社区新鲜事",
+    "images": ["feed/uuid-xxx.jpg", "..."],  // MinIO 对象 key 列表
+    "locationText": "未知位置",
+    "visibility": "PUBLIC"
+  }
+  逻辑: images 列表序列化为 JSON 字符串入库 (CommunityFeedServiceImpl)
+```
+
+三、前端调用流程示例
+1) 用户选择图片 -> 调 `/api/community-feed/upload`，得到 `key`、预览 `url`（或本地 URL）。
+2) 将 `key` 保存到待发布的数组（预览用返回的 url）。
+3) 点“发布”时，将 `images: [key1, key2...]` 连同内容提交到 `/api/community-feed/posts`。
+
+四、注意事项
+- 数据库存储的是 MinIO 对象 key，必须先上传成功才能保证 key 可用。
+- 限制图片类型与大小（可在上传接口增加校验）。
+- 桶若私有，读取可使用返回的 GET 预签名 url；公共桶可直接用 endpoint + key。
+- 若使用预签名直传，前端 PUT 成功后再调用发布接口，避免发布空 key。
+
+
+
+前端选择文件并发起上传
+位置：front/aaljt/src/components/Home/CommunityFeed/publishPost.vue
+交互：用户点击“添加图片”选择文件，handleFileChange 被触发。
+请求：POST ${API_BASE}/api/community-feed/upload，Content-Type: multipart/form-data，body 包含 file。
+期望响应：{ key: "feed/uuid-filename.jpg", url: "预签名GET或空" }。
+前端处理：把 { key, url } push 到 uploads 数组，url 用于预览，key 待会随发布提交。
+后端接收并写入 MinIO
+位置：backend/demo1/src/main/java/com/example/demo/demos/CommunityFeed/Controller/CommunityFeedUploadController.java
+Bean：MinioClient 来自 config/MinioConfig.java，配置读取 MinioProperties（minio.endpoint/access-key/secret-key/bucket）。
+逻辑：
+构造对象名：feed/{UUID}-{原文件名}
+minioClient.putObject(...) 写入桶 community-feed。
+生成 7 天 GET 预签名：minioClient.getPresignedObjectUrl(..., Method.GET, 7 days)
+返回 { key, url }。
+直传方案：/api/community-feed/upload-url 生成 PUT 预签名 { key, putUrl }，前端用 putUrl 直接 PUT 文件，减轻后端流量。
+发布动态时仅提交图片 key
+位置：同 publishPost.vue，点击发布触发 submitPost。
+请求：POST ${API_BASE}/api/community-feed/posts，payload 示例：
+{
+  "userId": 1,
+  "content": "社区新鲜事",
+  "images": ["feed/uuid-filename.jpg"],  // 仅 MinIO 对象 key
+  "locationText": "未知位置",
+  "visibility": "PUBLIC"
+}
+注意：不再传文件二进制，必须确保上传成功后才有有效 key。
+后端发布接口存储 key
+位置：CommunityFeedController → CommunityFeedServiceImpl#createPost
+逻辑：
+校验 userId/content/图片数量。
+使用 ObjectMapper 将 images 列表序列化为 JSON 字符串存入表 community_feed.images。
+其它字段（content/visibility/locationText/status 等）一并入库。
+数据库存储的只是 key 的 JSON 字符串，不含文件数据。
+读取/展示
+读取时从 images 列反序列化出 key 列表。
+访问文件方式：
+如果桶是私有，需用 MinIO 生成 GET 预签名，或使用上传时返回的 url。
+如果桶是公共，可直接拼接 endpoint + "/" + key。
+配置与前置条件
+桶 community-feed 已创建；CORS 允许前端域名的 GET/PUT/HEAD、Header: Content-Type。
+application.yml 中 minio.endpoint/access-key/secret-key/bucket 与 MinIO 控制台一致；若后端与 MinIO 在同一 Docker 网络，可用 http://minio:9000。
+依赖：MinIO 库 + okhttp4（避免 okhttp3.14 冲突，已在 pom 强制覆盖）+ configuration-processor（IDE 提示）。
+常见错误与排查
+数据库 images 为 null：前端未将 key 随发布请求传递，或字段名用错（应为 images）。
+上传 404/访问失败：对象 key 不存在（上传失败或 PUT 预签名未执行），或桶私有但未用预签名 GET。
+CORS 报错：确认桶 CORS 配置和前端域名；预签名 URL 过期也会导致访问失败。
+okhttp 方法缺失：确保 pom 覆盖到 okhttp 4.12.0（已处理）。
+链路总结：前端先上传（拿 key），再发布（传 key），后端只存 key，文件真实存在 MinIO。

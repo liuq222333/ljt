@@ -1,0 +1,29 @@
+@import './base.css';
+
+#app {
+  /* 覆盖模板默认宽度限制，确保登录页背景可全屏显示 */
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  font-weight: normal;
+}
+
+a,
+.green {
+  text-decoration: none;
+  color: hsla(160, 100%, 37%, 1);
+  transition: 0.4s;
+  padding: 3px;
+}
+
+@media (hover: hover) {
+  a:hover {
+    background-color: hsla(160, 100%, 37%, 0.2);
+  }
+}
+
+/* 移除桌面端模板网格布局，避免限制页面宽度和高度 */
+@media (min-width: 1024px) {
+  body { display: block; }
+  #app { display: block; padding: 0; }
+}

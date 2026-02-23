@@ -1,0 +1,273 @@
+-- 活动主表
+CREATE TABLE local_activity (
+    id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+    organizer_user_id INT NOT NULL AUTO_INCREMENT,
+    title             VARCHAR(120) NOT NULL,
+    subtitle          VARCHAR(200),
+    category_code     VARCHAR(50)  NOT NULL,
+    description       TEXT,
+    location_text     VARCHAR(255),
+    address           VARCHAR(255),
+    latitude          DOUBLE,
+    longitude         DOUBLE,
+    cover_url         VARCHAR(500),
+    fee_type          ENUM('FREE','AA','PAID') DEFAULT 'FREE',
+    fee_amount        DECIMAL(10,2) DEFAULT 0,
+    capacity          INT          DEFAULT 0,
+    allow_waitlist    TINYINT(1)   DEFAULT 1,
+    require_checkin   TINYINT(1)   DEFAULT 1,
+    status            ENUM('DRAFT','REVIEWING','PUBLISHED','CANCELLED') DEFAULT 'DRAFT',
+    start_at          DATETIME     NOT NULL,
+    end_at            DATETIME     NOT NULL,
+    contact_phone     VARCHAR(20),
+    reminder_minutes  INT          DEFAULT 1440,
+    review_note       VARCHAR(255),
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_activity_user FOREIGN KEY (organizer_user_id) REFERENCES users(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 用户表（已存在，仅作参考）
+-- CREATE TABLE `users` ( ... ) ENGINE=InnoDB ...
+
+-- 本地活动表
+DROP TABLE IF EXISTS `local_activity-admin`;
+CREATE TABLE `local_activity-admin` (
+    `id`                BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `organizer_user_id` INT          NOT NULL COMMENT '活动组织者 = users.user_id',
+    `title`             VARCHAR(120) NOT NULL COMMENT '活动标题',
+    `subtitle`          VARCHAR(200)          COMMENT '副标题',
+    `category_code`     VARCHAR(50)  NOT NULL COMMENT '分类编码',
+    `description`       TEXT                  COMMENT '详细描述',
+    `location_text`     VARCHAR(255)          COMMENT '位置文字（如“星巴克·天河店”）',
+    `address`           VARCHAR(255)          COMMENT '具体地址',
+    `latitude`          DOUBLE                COMMENT '纬度',
+    `longitude`         DOUBLE                COMMENT '经度',
+    `cover_url`         VARCHAR(500)          COMMENT '封面图 URL',
+    `fee_type`          ENUM('FREE','AA','PAID') DEFAULT 'FREE' COMMENT '收费类型',
+    `fee_amount`        DECIMAL(10,2) DEFAULT 0.00 COMMENT '费用（元）',
+    `capacity`          INT           DEFAULT 0 COMMENT '人数上限（0=不限）',
+    `allow_waitlist`    TINYINT(1)    DEFAULT 1 COMMENT '是否允许候补',
+    `require_checkin`   TINYINT(1)    DEFAULT 1 COMMENT '是否需要签到',
+    `status`            ENUM('DRAFT','REVIEWING','PUBLISHED','CANCELLED') DEFAULT 'DRAFT' COMMENT '状态',
+    `start_at`          DATETIME     NOT NULL COMMENT '活动开始时间',
+    `end_at`            DATETIME     NOT NULL COMMENT '活动结束时间',
+    `contact_phone`     VARCHAR(20)           COMMENT '联系电话',
+    `reminder_minutes`  INT           DEFAULT 1440 COMMENT '提前提醒分钟数',
+    `review_note`       VARCHAR(255)          COMMENT '审核备注',
+    `created_at`        DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`        DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+
+    -- 外键：与 users 表完全镜像（int ≠ int unsigned）
+    CONSTRAINT `fk_activity_user1`
+        FOREIGN KEY (`organizer_user_id`)
+        REFERENCES `users` (`user_id`)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_general_ci
+  COMMENT = '本地活动主表';
+
+-- 常用二级索引
+CREATE INDEX idx_activity_start          ON local_activity (`start_at`);
+CREATE INDEX idx_activity_status_start   ON local_activity (`status`, `start_at`);
+CREATE INDEX activity_organizer_idx      ON local_activity (`organizer_user_id`);-- 用户表（已存在，仅作参考）
+-- CREATE TABLE `users` ( ... ) ENGINE=InnoDB ...
+
+-- 本地活动表
+DROP TABLE IF EXISTS `local_activity`;
+CREATE TABLE `local_activity` (
+    `id`                BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `organizer_user_id` INT          NOT NULL COMMENT '活动组织者 = users.user_id',
+    `title`             VARCHAR(120) NOT NULL COMMENT '活动标题',
+    `subtitle`          VARCHAR(200)          COMMENT '副标题',
+    `category_code`     VARCHAR(50)  NOT NULL COMMENT '分类编码',
+    `description`       TEXT                  COMMENT '详细描述',
+    `location_text`     VARCHAR(255)          COMMENT '位置文字（如“星巴克·天河店”）',
+    `address`           VARCHAR(255)          COMMENT '具体地址',
+    `latitude`          DOUBLE                COMMENT '纬度',
+    `longitude`         DOUBLE                COMMENT '经度',
+    `cover_url`         VARCHAR(500)          COMMENT '封面图 URL',
+    `fee_type`          ENUM('FREE','AA','PAID') DEFAULT 'FREE' COMMENT '收费类型',
+    `fee_amount`        DECIMAL(10,2) DEFAULT 0.00 COMMENT '费用（元）',
+    `capacity`          INT           DEFAULT 0 COMMENT '人数上限（0=不限）',
+    `allow_waitlist`    TINYINT(1)    DEFAULT 1 COMMENT '是否允许候补',
+    `require_checkin`   TINYINT(1)    DEFAULT 1 COMMENT '是否需要签到',
+    `status`            ENUM('DRAFT','REVIEWING','PUBLISHED','CANCELLED') DEFAULT 'DRAFT' COMMENT '状态',
+    `start_at`          DATETIME     NOT NULL COMMENT '活动开始时间',
+    `end_at`            DATETIME     NOT NULL COMMENT '活动结束时间',
+    `contact_phone`     VARCHAR(20)           COMMENT '联系电话',
+    `reminder_minutes`  INT           DEFAULT 1440 COMMENT '提前提醒分钟数',
+    `review_note`       VARCHAR(255)          COMMENT '审核备注',
+    `created_at`        DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`        DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+
+    -- 外键：与 users 表完全镜像（int ≠ int unsigned）
+    CONSTRAINT `fk_activity_user1`
+        FOREIGN KEY (`organizer_user_id`)
+        REFERENCES `users` (`user_id`)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_general_ci
+  COMMENT = '本地活动主表';
+
+-- 常用二级索引
+CREATE INDEX idx_activity_start          ON local_activity (`start_at`);
+CREATE INDEX idx_activity_status_start   ON local_activity (`status`, `start_at`);
+CREATE INDEX activity_organizer_idx      ON local_activity (`organizer_user_id`);
+
+
+
+-- 活动标签
+CREATE TABLE local_activity_tag (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    activity_id BIGINT      NOT NULL,
+    tag         VARCHAR(40) NOT NULL,
+    CONSTRAINT fk_activity_tag FOREIGN KEY (activity_id) REFERENCES local_activity(id),
+    UNIQUE KEY uniq_activity_tag (activity_id, tag)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 活动图片 / 附件
+CREATE TABLE local_activity_media (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    activity_id BIGINT NOT NULL,
+    media_type  ENUM('COVER','GALLERY','DOC') DEFAULT 'GALLERY',
+    media_url   VARCHAR(500) NOT NULL,
+    sort_order  INT DEFAULT 0,
+    CONSTRAINT fk_activity_media FOREIGN KEY (activity_id) REFERENCES local_activity(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 固定日程模板
+CREATE TABLE local_activity_schedule_template (
+    id               BIGINT AUTO_INCREMENT PRIMARY KEY,
+    owner_user_id    INT         NOT NULL,
+    title            VARCHAR(120) NOT NULL,
+    category_code    VARCHAR(50),
+    weekday          TINYINT      NOT NULL COMMENT '0=周日 … 6=周六',
+    start_time       TIME         NOT NULL,
+    end_time         TIME         NOT NULL,
+    location_text    VARCHAR(255),
+    recurrence_rule  VARCHAR(255),
+    default_capacity INT          DEFAULT 0,
+    default_fee_type ENUM('FREE','AA','PAID') DEFAULT 'FREE',
+    reminder_minutes INT          DEFAULT 1440,
+    status           ENUM('ACTIVE','INACTIVE') DEFAULT 'ACTIVE',
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_schedule_user FOREIGN KEY (owner_user_id) REFERENCES users(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 报名 / 候补
+CREATE TABLE local_activity_enrollment (
+    id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+    activity_id    BIGINT NOT NULL,
+    user_id        INT    NOT NULL,
+    status         ENUM('PENDING','CONFIRMED','WAITLIST','CANCELLED','CHECKED_IN') DEFAULT 'PENDING',
+    waitlist_rank  INT,
+    extra_fields   JSON,
+    checkin_code   VARCHAR(16),
+    checkin_at     DATETIME,
+    cancelled_at   DATETIME,
+    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_enrollment_activity FOREIGN KEY (activity_id) REFERENCES local_activity(id),
+    CONSTRAINT fk_enrollment_user FOREIGN KEY (user_id) REFERENCES users(user_id),
+    UNIQUE KEY uniq_activity_user (activity_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 通知规则
+CREATE TABLE local_activity_notification_rule (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    activity_id     BIGINT NULL,
+    created_by      INT    NOT NULL,
+    trigger_event   ENUM('ON_APPROVED','BEFORE_START','ON_WAITLIST_PROMOTE','POST_EVENT') NOT NULL,
+    channel         ENUM('INBOX','SMS','EMAIL','WECHAT') DEFAULT 'INBOX',
+    offset_minutes  INT DEFAULT 0,
+    template_title  VARCHAR(120),
+    template_body   TEXT,
+    status          ENUM('ACTIVE','INACTIVE') DEFAULT 'ACTIVE',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_notify_activity FOREIGN KEY (activity_id) REFERENCES local_activity(id),
+    CONSTRAINT fk_notify_user FOREIGN KEY (created_by) REFERENCES users(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 活动故事
+CREATE TABLE local_activity_story (
+    id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+    activity_id    BIGINT NULL,
+    author_user_id INT    NOT NULL,
+    title          VARCHAR(150) NOT NULL,
+    cover_url      VARCHAR(500),
+    summary        VARCHAR(300),
+    content        TEXT,
+    visibility     ENUM('PUBLIC','COMMUNITY','PRIVATE') DEFAULT 'PUBLIC',
+    likes          INT DEFAULT 0,
+    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_story_activity FOREIGN KEY (activity_id) REFERENCES local_activity(id),
+    CONSTRAINT fk_story_user FOREIGN KEY (author_user_id) REFERENCES users(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 邻里互助任务
+CREATE TABLE neighbor_support_task (
+    id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+    requester_user_id  INT    NOT NULL,
+    assignee_user_id   INT    NULL,
+    title              VARCHAR(120) NOT NULL,
+    category_code      VARCHAR(50) NOT NULL,
+    description        TEXT,
+    location_text      VARCHAR(255),
+    latitude           DOUBLE,
+    longitude          DOUBLE,
+    start_time         DATETIME,
+    end_time           DATETIME,
+    volunteer_slots    INT DEFAULT 1,
+    filled_slots       INT DEFAULT 0,
+    priority           ENUM('LOW','MEDIUM','HIGH') DEFAULT 'MEDIUM',
+    reward_points      INT DEFAULT 0,
+    status             ENUM('OPEN','ASSIGNED','COMPLETED','CANCELLED') DEFAULT 'OPEN',
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_task_requester1 FOREIGN KEY (requester_user_id) REFERENCES users(user_id),
+    CONSTRAINT fk_task_assignee1 FOREIGN KEY (assignee_user_id) REFERENCES users(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE neighbor_support_task_admin (
+    id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+    requester_user_id  INT    NOT NULL,
+    assignee_user_id   INT    NULL,
+    title              VARCHAR(120) NOT NULL,
+    category_code      VARCHAR(50) NOT NULL,
+    description        TEXT,
+    location_text      VARCHAR(255),
+    latitude           DOUBLE,
+    longitude          DOUBLE,
+    start_time         DATETIME,
+    end_time           DATETIME,
+    volunteer_slots    INT DEFAULT 1,
+    filled_slots       INT DEFAULT 0,
+    priority           ENUM('LOW','MEDIUM','HIGH') DEFAULT 'MEDIUM',
+    reward_points      INT DEFAULT 0,
+    status             ENUM('OPEN','ASSIGNED','COMPLETED','CANCELLED') DEFAULT 'OPEN',
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_task_requester FOREIGN KEY (requester_user_id) REFERENCES users(user_id),
+    CONSTRAINT fk_task_assignee FOREIGN KEY (assignee_user_id) REFERENCES users(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 邻里互助报名
+CREATE TABLE neighbor_support_assignment (
+    id        BIGINT AUTO_INCREMENT PRIMARY KEY,
+    task_id   BIGINT NOT NULL,
+    user_id   INT    NOT NULL,
+    status    ENUM('APPLIED','CONFIRMED','REJECTED','DONE') DEFAULT 'APPLIED',
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME,
+    CONSTRAINT fk_assignment_task FOREIGN KEY (task_id) REFERENCES neighbor_support_task(id),
+    CONSTRAINT fk_assignment_user FOREIGN KEY (user_id) REFERENCES users(user_id),
+    UNIQUE KEY uniq_task_user (task_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

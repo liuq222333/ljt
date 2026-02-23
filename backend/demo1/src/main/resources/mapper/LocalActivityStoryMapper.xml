@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.demos.LocalActive.Dao.LocalActivityStoryMapper">
+
+    <resultMap id="ListItemMap" type="com.example.demo.demos.LocalActive.DTO.LocalStoryListItem">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="summary" column="summary"/>
+        <result property="coverUrl" column="cover_url"/>
+        <result property="author" column="author"/>
+        <result property="visibility" column="visibility"/>
+        <result property="likes" column="likes"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="listStories" resultMap="ListItemMap">
+        SELECT s.id,
+               s.title,
+               s.summary,
+               s.cover_url,
+               s.visibility,
+               s.likes,
+               s.created_at,
+               u.userName AS author
+        FROM local_activity_story s
+                 LEFT JOIN users u ON s.author_user_id = u.user_id
+        <where>
+            <if test="visibility != null and visibility != ''">
+                s.visibility = #{visibility}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (s.title LIKE CONCAT('%', #{keyword}, '%') OR s.summary LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY s.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <resultMap id="DetailMap" type="com.example.demo.demos.LocalActive.DTO.LocalStoryDetail">
+        <id property="id" column="id"/>
+        <result property="activityId" column="activity_id"/>
+        <result property="title" column="title"/>
+        <result property="coverUrl" column="cover_url"/>
+        <result property="summary" column="summary"/>
+        <result property="content" column="content"/>
+        <result property="author" column="author"/>
+        <result property="visibility" column="visibility"/>
+        <result property="likes" column="likes"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="findById" resultMap="DetailMap">
+        SELECT s.id,
+               s.activity_id,
+               s.title,
+               s.cover_url,
+               s.summary,
+               s.content,
+               s.visibility,
+               s.likes,
+               s.created_at,
+               u.userName AS author
+        FROM local_activity_story s
+                 LEFT JOIN users u ON s.author_user_id = u.user_id
+        WHERE s.id = #{id}
+    </select>
+
+    <insert id="insertStory"
+            parameterType="com.example.demo.demos.LocalActive.Pojo.LocalActivityStory"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO local_activity_story
+        (activity_id, author_user_id, title, cover_url, summary, content, visibility, likes, created_at, updated_at)
+        VALUES
+        (#{activityId}, #{authorUserId}, #{title}, #{coverUrl}, #{summary}, #{content}, #{visibility}, #{likes}, NOW(), NOW())
+    </insert>
+</mapper>

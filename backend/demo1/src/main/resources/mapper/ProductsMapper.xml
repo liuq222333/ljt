@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.demos.CommunityMarket.Dao.ProductsMapper">
+
+    <!-- 结果映射：驼峰字段映射到 POJO 属性 -->
+    <resultMap id="ProductResultMap" type="com.example.demo.demos.CommunityMarket.Pojo.Product">
+        <id column="id" property="id"/>
+        <result column="seller_id" property="sellerId"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="title" property="title"/>
+        <result column="description" property="description"/>
+        <result column="price" property="price"/>
+        <result column="stock_quantity" property="stockQuantity"/>
+        <result column="condition" property="condition"/>
+        <result column="location" property="location"/>
+        <result column="image_urls" property="imageUrls"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="latitude" property="latitude"/>
+        <result column="longitude" property="longitude"/>
+    </resultMap>
+<!--    添加商品-->
+    <insert id="addProduct" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO products (seller_id, category_id, title, description, price, stock_quantity, `condition`, location, image_urls, `status`, created_at, updated_at,latitude,longitude)
+        VALUES (#{sellerId}, #{categoryId}, #{title}, #{description}, #{price}, #{stockQuantity}, #{condition}, #{location}, #{imageUrls}, #{status}, #{createdAt}, #{updatedAt},#{latitude},#{longitude})
+    </insert>
+<!--    将商品信息添加到我的商品表-->
+    <insert id="addToMyProducts">
+        INSERT INTO user_products
+            (user_id, product_id, created_at, updated_at)
+        VALUES
+            (#{userId}, #{productId}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <!-- 获取所有商品 -->
+    <select id="getAllProducts" resultMap="ProductResultMap">
+        SELECT
+            id, seller_id, category_id, title, description, price,
+            stock_quantity, `condition`, location, image_urls, `status`,
+            created_at, updated_at,latitude,longitude
+        FROM products
+        ORDER BY created_at DESC
+    </select>
+
+    <!-- 动态筛选商品 -->
+    <select id="getProducts" resultMap="ProductResultMap">
+        SELECT
+            id, seller_id, category_id, title, description, price,
+            stock_quantity, `condition`, location, image_urls, `status`,
+            created_at, updated_at,latitude,longitude
+        FROM products
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND title LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+            <if test="categoryId != null and categoryId != ''">
+                AND category_id = #{categoryId}
+            </if>
+            <if test="subCategoryId != null and subCategoryId != ''">
+                AND sub_category_id = #{subCategoryId}
+            </if>
+            <if test="brand != null and brand != ''">
+                AND brand = #{brand}
+            </if>
+            <if test="priceMin != null">
+                AND price &gt;= #{priceMin}
+            </if>
+            <if test="priceMax != null">
+                AND price &lt;= #{priceMax}
+            </if>
+            <if test="withImage != null and withImage">
+                AND image_urls IS NOT NULL AND image_urls &lt;&gt; ''
+            </if>
+            <if test="freeShipping != null and freeShipping">
+                AND free_shipping = 1
+            </if>
+            <if test="invoice != null and invoice">
+                AND invoice = 1
+            </if>
+            <if test="minRating != null">
+                AND rating &gt;= #{minRating}
+            </if>
+        </where>
+        <choose>
+            <when test="sort == 'latest'">
+                ORDER BY created_at DESC
+            </when>
+            <when test="sort == 'price'">
+                <choose>
+                    <when test="order == 'asc'">ORDER BY price ASC</when>
+                    <otherwise>ORDER BY price DESC</otherwise>
+                </choose>
+            </when>
+            <otherwise>
+                ORDER BY created_at DESC, id DESC
+            </otherwise>
+        </choose>
+    </select>
+    <select id="getProductById" resultType="com.example.demo.demos.CommunityMarket.Pojo.Product">
+        SELECT
+            id, seller_id, category_id, title, description, price,
+            stock_quantity, `condition`, location, image_urls, `status`,
+            created_at, updated_at,latitude,longitude
+        FROM products
+        WHERE id = #{id}
+    </select>
+    <select id="getProductsBySellerId" resultMap="ProductResultMap">
+        SELECT
+            id, seller_id, category_id, title, description, price,
+            stock_quantity, `condition`, location, image_urls, `status`,
+            created_at, updated_at
+        FROM products
+        WHERE seller_id = #{sellerId}
+        ORDER BY updated_at DESC
+    </select>
+
+    <!-- 根据经纬度与半径筛选附近商品，并返回按距离排序的结果（单位：公里） -->
+    <select id="getNearbyProducts" resultType="com.example.demo.demos.CommunityMarket.DTO.ProductNearbyDTO">
+        SELECT
+            id, seller_id, category_id, title, description, price,
+            stock_quantity, `condition`, location, image_urls, `status`,
+            created_at, updated_at,
+            latitude, longitude,
+            6371 * ACOS(
+                COS(RADIANS(#{lat})) * COS(RADIANS(latitude)) *
+                COS(RADIANS(longitude) - RADIANS(#{lng})) +
+                SIN(RADIANS(#{lat})) * SIN(RADIANS(latitude))
+            ) AS distanceKm
+        FROM products
+        WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+        <if test="categoryId != null">AND category_id = #{categoryId}</if>
+        <if test="minPrice != null">AND price &gt;= #{minPrice}</if>
+        <if test="maxPrice != null">AND price &lt;= #{maxPrice}</if>
+        <if test="keyword != null and keyword != ''">AND title LIKE CONCAT('%', #{keyword}, '%')</if>
+        <if test="radiusKm != null">
+        HAVING distanceKm &lt;= #{radiusKm}
+        </if>
+        ORDER BY distanceKm ASC, updated_at DESC
+        <if test="limit != null">LIMIT #{limit}</if>
+        <if test="offset != null">OFFSET #{offset}</if>
+    </select>
+    <select id="getProductAndSellerById" resultType="com.example.demo.demos.CommunityMarket.DTO.ProductAndSellerQueryDTO">
+        SELECT
+            p.id, p.seller_id, p.category_id, p.title, p.description, p.price,
+            p.stock_quantity, p.`condition`, p.location, p.image_urls, p.`status`,
+            p.created_at, p.updated_at, p.latitude, p.longitude,
+            s.username, s.email, s.phone, s.address,s.user_id,s.avatar_url
+        FROM products p
+        LEFT JOIN users s ON p.seller_id = s.user_id
+        WHERE p.id = #{id}
+    </select>
+    <select id="getProductImage" resultType="com.example.demo.demos.CommunityMarket.Pojo.ProductImages">
+        SELECT
+            pi.id,
+            pi.product_id,
+            pi.image_url,
+            pi.sort_order,
+            pi.created_at
+        FROM
+            product_images pi
+        JOIN
+            products p ON pi.product_id = p.id
+        WHERE
+            p.id = #{id}
+    </select>
+
+    <update id="takeDownProduct">
+        UPDATE products
+        SET `status` = #{status}, updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+    <update id="increaseStock">
+        UPDATE products
+        SET stock_quantity = stock_quantity + #{delta},
+            `status` = CASE WHEN stock_quantity + #{delta} > 0 THEN '在售' ELSE `status` END,
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+    <update id="updatePrice">
+        UPDATE products
+        SET price = #{price}, updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+    <update id="updateLocation">
+        UPDATE products
+        SET location = #{location}, updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateCoordinates">
+        UPDATE products
+        SET latitude = #{latitude}, longitude = #{longitude}, updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="decreaseStockAndMaybeDown">
+        UPDATE products
+        SET stock_quantity = stock_quantity - #{delta},
+            `status` = CASE
+                           WHEN stock_quantity - #{delta} &lt;= 0 THEN '下架'
+                           ELSE `status`
+                END,
+            updated_at = NOW()
+        WHERE id = #{id} AND stock_quantity &gt;= #{delta}
+
+    </update>
+
+    <update id="setStockZero">
+        UPDATE products
+        SET stock_quantity = 0,
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>

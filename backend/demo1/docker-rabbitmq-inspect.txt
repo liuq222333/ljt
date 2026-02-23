@@ -1,0 +1,256 @@
+{
+	"Id": "0efad55a940e875deb997dab13ce677c81be2351a06ecbeb6f0ec720477785bb",
+	"Created": "2025-11-21T06:27:21.145978501Z",
+	"Path": "docker-entrypoint.sh",
+	"Args": [
+		"rabbitmq-server"
+	],
+	"State": {
+		"Status": "running",
+		"Running": true,
+		"Paused": false,
+		"Restarting": false,
+		"OOMKilled": false,
+		"Dead": false,
+		"Pid": 1352,
+		"ExitCode": 0,
+		"Error": "",
+		"StartedAt": "2025-11-21T06:27:21.27175931Z",
+		"FinishedAt": "0001-01-01T00:00:00Z"
+	},
+	"Image": "sha256:23abfd791c05664073bcdeac6a5926ff57294a350dfcccfc7b9fc30327144353",
+	"ResolvConfPath": "/var/lib/docker/containers/0efad55a940e875deb997dab13ce677c81be2351a06ecbeb6f0ec720477785bb/resolv.conf",
+	"HostnamePath": "/var/lib/docker/containers/0efad55a940e875deb997dab13ce677c81be2351a06ecbeb6f0ec720477785bb/hostname",
+	"HostsPath": "/var/lib/docker/containers/0efad55a940e875deb997dab13ce677c81be2351a06ecbeb6f0ec720477785bb/hosts",
+	"LogPath": "/var/lib/docker/containers/0efad55a940e875deb997dab13ce677c81be2351a06ecbeb6f0ec720477785bb/0efad55a940e875deb997dab13ce677c81be2351a06ecbeb6f0ec720477785bb-json.log",
+	"Name": "/rabbitmq",
+	"RestartCount": 0,
+	"Driver": "overlayfs",
+	"Platform": "linux",
+	"MountLabel": "",
+	"ProcessLabel": "",
+	"AppArmorProfile": "",
+	"ExecIDs": null,
+	"HostConfig": {
+		"Binds": [],
+		"ContainerIDFile": "",
+		"LogConfig": {
+			"Type": "json-file",
+			"Config": {}
+		},
+		"NetworkMode": "bridge",
+		"PortBindings": {},
+		"RestartPolicy": {
+			"Name": "no",
+			"MaximumRetryCount": 0
+		},
+		"AutoRemove": false,
+		"VolumeDriver": "",
+		"VolumesFrom": null,
+		"ConsoleSize": [
+			0,
+			0
+		],
+		"CapAdd": null,
+		"CapDrop": null,
+		"CgroupnsMode": "private",
+		"Dns": null,
+		"DnsOptions": null,
+		"DnsSearch": null,
+		"ExtraHosts": null,
+		"GroupAdd": null,
+		"IpcMode": "private",
+		"Cgroup": "",
+		"Links": null,
+		"OomScoreAdj": 0,
+		"PidMode": "",
+		"Privileged": false,
+		"PublishAllPorts": false,
+		"ReadonlyRootfs": false,
+		"SecurityOpt": null,
+		"UTSMode": "",
+		"UsernsMode": "",
+		"ShmSize": 67108864,
+		"Runtime": "runc",
+		"Isolation": "",
+		"CpuShares": 0,
+		"Memory": 0,
+		"NanoCpus": 0,
+		"CgroupParent": "",
+		"BlkioWeight": 0,
+		"BlkioWeightDevice": null,
+		"BlkioDeviceReadBps": null,
+		"BlkioDeviceWriteBps": null,
+		"BlkioDeviceReadIOps": null,
+		"BlkioDeviceWriteIOps": null,
+		"CpuPeriod": 0,
+		"CpuQuota": 0,
+		"CpuRealtimePeriod": 0,
+		"CpuRealtimeRuntime": 0,
+		"CpusetCpus": "",
+		"CpusetMems": "",
+		"Devices": null,
+		"DeviceCgroupRules": null,
+		"DeviceRequests": null,
+		"MemoryReservation": 0,
+		"MemorySwap": 0,
+		"MemorySwappiness": null,
+		"OomKillDisable": null,
+		"PidsLimit": null,
+		"Ulimits": null,
+		"CpuCount": 0,
+		"CpuPercent": 0,
+		"IOMaximumIOps": 0,
+		"IOMaximumBandwidth": 0,
+		"MaskedPaths": [
+			"/proc/asound",
+			"/proc/acpi",
+			"/proc/interrupts",
+			"/proc/kcore",
+			"/proc/keys",
+			"/proc/latency_stats",
+			"/proc/timer_list",
+			"/proc/timer_stats",
+			"/proc/sched_debug",
+			"/proc/scsi",
+			"/sys/firmware",
+			"/sys/devices/virtual/powercap"
+		],
+		"ReadonlyPaths": [
+			"/proc/bus",
+			"/proc/fs",
+			"/proc/irq",
+			"/proc/sys",
+			"/proc/sysrq-trigger"
+		]
+	},
+	"GraphDriver": {
+		"Data": null,
+		"Name": "overlayfs"
+	},
+	"Mounts": [
+		{
+			"Type": "volume",
+			"Name": "b89ceac1a1e475d0726f230b2f6241d5ebf6ad60f5cdcce61bbb8e81fb03d447",
+			"Source": "/var/lib/docker/volumes/b89ceac1a1e475d0726f230b2f6241d5ebf6ad60f5cdcce61bbb8e81fb03d447/_data",
+			"Destination": "/var/lib/rabbitmq",
+			"Driver": "local",
+			"Mode": "",
+			"RW": true,
+			"Propagation": ""
+		}
+	],
+	"Config": {
+		"Hostname": "0efad55a940e",
+		"Domainname": "",
+		"User": "",
+		"AttachStdin": false,
+		"AttachStdout": false,
+		"AttachStderr": false,
+		"ExposedPorts": {
+			"15691/tcp": {},
+			"15692/tcp": {},
+			"25672/tcp": {},
+			"4369/tcp": {},
+			"5671/tcp": {},
+			"5672/tcp": {}
+		},
+		"Tty": false,
+		"OpenStdin": false,
+		"StdinOnce": false,
+		"Env": [
+			"PATH=/opt/rabbitmq/sbin:/opt/erlang/bin:/opt/openssl/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+			"ERLANG_INSTALL_PATH_PREFIX=/opt/erlang",
+			"OPENSSL_INSTALL_PATH_PREFIX=/opt/openssl",
+			"RABBITMQ_DATA_DIR=/var/lib/rabbitmq",
+			"RABBITMQ_VERSION=4.2.1",
+			"RABBITMQ_PGP_KEY_ID=0x0A9AF2115F4687BD29803A206B73A36E6026DFCA",
+			"RABBITMQ_HOME=/opt/rabbitmq",
+			"HOME=/var/lib/rabbitmq",
+			"LANG=C.UTF-8",
+			"LANGUAGE=C.UTF-8",
+			"LC_ALL=C.UTF-8"
+		],
+		"Cmd": [
+			"rabbitmq-server"
+		],
+		"Image": "rabbitmq:latest",
+		"Volumes": {
+			"/var/lib/rabbitmq": {}
+		},
+		"WorkingDir": "",
+		"Entrypoint": [
+			"docker-entrypoint.sh"
+		],
+		"OnBuild": null,
+		"Labels": {
+			"org.opencontainers.image.ref.name": "ubuntu",
+			"org.opencontainers.image.version": "24.04"
+		},
+		"StopTimeout": 1
+	},
+	"NetworkSettings": {
+		"Bridge": "",
+		"SandboxID": "a422ebd5a83e4251fd2fe997208aeae7ba6f5f5cfeb1ff8a950635be850ef83e",
+		"SandboxKey": "/var/run/docker/netns/a422ebd5a83e",
+		"Ports": {
+			"15691/tcp": null,
+			"15692/tcp": null,
+			"25672/tcp": null,
+			"4369/tcp": null,
+			"5671/tcp": null,
+			"5672/tcp": null
+		},
+		"HairpinMode": false,
+		"LinkLocalIPv6Address": "",
+		"LinkLocalIPv6PrefixLen": 0,
+		"SecondaryIPAddresses": null,
+		"SecondaryIPv6Addresses": null,
+		"EndpointID": "e58a0573d589ffe56c22ab88ff295798065180ecf0ba6051cd25cb96850c400a",
+		"Gateway": "172.17.0.1",
+		"GlobalIPv6Address": "",
+		"GlobalIPv6PrefixLen": 0,
+		"IPAddress": "172.17.0.3",
+		"IPPrefixLen": 16,
+		"IPv6Gateway": "",
+		"MacAddress": "2a:81:8c:7f:01:72",
+		"Networks": {
+			"bridge": {
+				"IPAMConfig": null,
+				"Links": null,
+				"Aliases": null,
+				"MacAddress": "2a:81:8c:7f:01:72",
+				"DriverOpts": null,
+				"GwPriority": 0,
+				"NetworkID": "5569a463498a21949989639d313265a9330fe4ac17e4e2b3a5c5a81abb576e9d",
+				"EndpointID": "e58a0573d589ffe56c22ab88ff295798065180ecf0ba6051cd25cb96850c400a",
+				"Gateway": "172.17.0.1",
+				"IPAddress": "172.17.0.3",
+				"IPPrefixLen": 16,
+				"IPv6Gateway": "",
+				"GlobalIPv6Address": "",
+				"GlobalIPv6PrefixLen": 0,
+				"DNSNames": null
+			}
+		}
+	},
+	"ImageManifestDescriptor": {
+		"mediaType": "application/vnd.oci.image.manifest.v1+json",
+		"digest": "sha256:649d8a95d62ed2f42ff043301dc3a8a5457fa0155390b631fe6887837f7a3b65",
+		"size": 2670,
+		"annotations": {
+			"com.docker.official-images.bashbrew.arch": "amd64",
+			"org.opencontainers.image.base.digest": "sha256:4fdf0125919d24aec972544669dcd7d6a26a8ad7e6561c73d5549bd6db258ac2",
+			"org.opencontainers.image.base.name": "ubuntu:24.04",
+			"org.opencontainers.image.created": "2025-11-18T02:52:47Z",
+			"org.opencontainers.image.revision": "5c5e73a1273c42f1eea7c2a66ac97dcb31145f7c",
+			"org.opencontainers.image.source": "https://github.com/docker-library/rabbitmq.git#5c5e73a1273c42f1eea7c2a66ac97dcb31145f7c:4.2/ubuntu",
+			"org.opencontainers.image.url": "https://hub.docker.com/_/rabbitmq",
+			"org.opencontainers.image.version": "4.2.1"
+		},
+		"platform": {
+			"architecture": "amd64",
+			"os": "linux"
+		}
+	}
+}

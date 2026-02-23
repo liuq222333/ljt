@@ -1,0 +1,66 @@
+通知公告发布流程（在任意接口的成功逻辑里发全员/定向公告）
+场景：在某个接口的业务成功后（例如发布商品、审核通过等），需要向用户发送站内通知或广播公告。
+
+后端已有能力
+------------
+- 控制器：`AdminNotificationController` 暴露 `POST /api/admin/notifications/add`。
+- 服务：`AdminNotificationServiceImpl` 校验并调用 `NotificationSender` 发送消息到 RabbitMQ 通知交换机。
+- 通用消息体：`com.example.demo.demos.Notification.Pojo.NotificationMessage`，字段：
+  - `kind`：业务类型标识（如 PRODUCT_PUBLISHED、SYSTEM 等）
+  - `title` / `content`
+  - `targetType`：USER / GROUP / BROADCAST
+  - `targetUserId`（非 BROADCAST 时必填）
+  - `groupKey`（GROUP 时填）
+  - `priority`、`ttlMs`、`actionUrl`、`payload` 等可选
+  - `msgId`、`createdAt` 会在服务层自动补全（如未指定）
+- 发送：`NotificationSender.send(...)` 将消息按路由键推到 MQ（用户/分组/广播），监听器消费入库/推送。
+
+在业务接口中发布通知的步骤
+--------------------------
+1) 在业务成功分支中构造消息体：
+```java
+import com.example.demo.demos.Notification.Pojo.NotificationMessage;
+import com.example.demo.demos.Notification.Service.NotificationSender;
+
+@Autowired
+private NotificationSender notificationSender;
+
+// 示例：商品发布成功后通知发布者
+private void sendProductPublishNotification(Long userId, String productTitle, Long productId) {
+    NotificationMessage msg = new NotificationMessage();
+    msg.setKind("PRODUCT_PUBLISHED");
+    msg.setTitle("商品已发布");
+    msg.setContent("您的商品已发布：" + productTitle);
+    msg.setTargetType("USER");        // 单用户
+    msg.setTargetUserId(userId);      // 必填
+    msg.setActionUrl("/product/" + productId); // 可选，点击跳转
+    msg.setPriority(5);               // 可选
+    notificationSender.send(msg);
+}
+```
+
+2) 在接口/服务的成功逻辑中调用上述方法。确保只在业务成功时发送，失败/回滚不要发送。
+
+3) 如需广播公告：`msg.setTargetType("BROADCAST");`，无需 targetUserId。
+   如需分组：`msg.setTargetType("GROUP"); msg.setGroupKey("groupKey");`
+
+4) 前端消费：已有通知列表/推送会收到消息，无需额外改动。
+
+若不在代码中直接调用，可调用管理端接口
+----------------------------------------
+- 通过 HTTP 调用 `POST /api/admin/notifications/add`，传入 JSON：
+```json
+{
+  "kind": "SYSTEM",
+  "title": "系统公告",
+  "content": "这里是内容",
+  "targetType": "BROADCAST"
+}
+```
+- USER 时需带 `targetUserId`，GROUP 时需带 `groupKey`。
+
+注意事项
+--------
+- `targetType=BROADCAST` 时不要传 targetUserId；USER/GROUP 时必须传相应字段。
+- 如果希望去重，请自行控制 msgId（否则服务会自动生成）。
+- 避免在失败/异常路径发送通知。

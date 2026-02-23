@@ -1,0 +1,67 @@
+附近热力图实现（优化版）
+========================
+
+整体分层
+--------
+1. 前端（Vue + TS + 高德）：负责地图/热力图展示，监听视野，收集筛选条件，调用后端；不做全量本地过滤，不做复杂地理计算。
+2. 应用层（Spring Boot）：暴露 REST API，组织 Redisearch + MySQL。
+3. 高速查询（Redis + RediSearch）：地理/条件搜索索引。
+4. 主数据（MySQL）：权威存储，可重建索引。
+
+核心数据模型（Redis Hash + 索引）
+------------------------------
+- Key：`event:{id}`
+- 字段建议：
+  - `title`, `category`, `status`, `location_text`, `cover_url`
+  - `capacity`, `signup_cnt`
+  - `start_ts`, `end_ts`（时间戳，NUMERIC），`startAt`, `endAt`（可选文本）
+  - `lat`, `lon`（NUMERIC），`loc` = `"lon,lat"`（GEO）
+
+- 索引示例（单行执行）：
+```
+FT.CREATE idx:event ON HASH PREFIX 1 event: SCHEMA \
+  status TAG category TAG title TEXT location_text TEXT cover_url TEXT \
+  capacity NUMERIC signup_cnt NUMERIC start_ts NUMERIC end_ts NUMERIC \
+  lat NUMERIC lon NUMERIC loc GEO
+```
+
+写路径（同步/重建）
+------------------
+1. 活动写 MySQL 成功后，双写 Redis：
+   - 计算 `loc=lon,lat`，写 Hash `event:{id}`。
+   - RediSearch 自动索引；写失败记录日志并重试（可异步）。
+2. 提供重建/批量同步接口：从 MySQL 全量读，重建索引，写入 Hash。
+
+读路径（热力/附近查询）
+----------------------
+1. 前端传视野 bounds 或中心+半径 + 筛选条件（类别、时间段等）。
+2. Service 将 bounds 转中心+半径（或用 GEO 多边形），构造 RediSearch 查询：
+   - 位置：`@loc:[lon lat radius km]`
+   - 类型：`@category:{...}`
+   - 时间：`@start_ts [..now] @end_ts [now..]` 或限定未来 N 天
+   - 限制返回条数，字段裁剪。
+3. 计算权重（示例）：`weight = log(signup_cnt+1)` 或 `signup_cnt * 时间衰减`，返回 `{lat,lng,weight}`。
+4. 返回点集给前端渲染热力图。
+
+前端策略
+-------
+- 远距离：仅热力层；近距离：可叠加 marker/列表。
+- 监听 moveend/zoomend，防抖请求；将筛选条件直接传后端。
+- 不做全量本地过滤；定位失败用默认中心。
+
+缓存与性能
+---------
+- 可选短 TTL 缓存（Redis/Caffeine），key = 视野 + 条件，TTL 30~120 秒。
+- 参数校验：radius/size 上限，避免大范围拖动造成大查询。
+
+鲁棒性与一致性
+--------------
+- 降级：RediSearch 异常时回退 MySQL 简化查询（性能下降）。
+- 一致性：默认最终一致；高一致场景可写操作强制同步索引。
+- 重建：索引可随时 drop + 重建，数据以 MySQL 为准。
+
+排查要点
+--------
+- 确认 Redis 连接正确（host/port/db），`SCAN event:*`、`FT.INFO` 验证 num_docs。
+- Hash 字段与索引定义一致（loc/lat/lon/status/category 等）。
+- 写入后抽样 `HGETALL event:{id}` 检查字段完整；如缺失，修正写入。

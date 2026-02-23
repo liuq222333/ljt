@@ -1,0 +1,181 @@
+### 一、技术选型 & 端口
+| 组件 | 版本/命令 |
+|---|---|
+| Spring Boot | 3.x |
+| RabbitMQ | `docker run -d --name mq -p 5672:5672 -p 15672:15672 rabbitmq:3.12-management` |
+| Redis | `docker run -d --name redis -p 6379:6379 redis:7` |
+| 前端 | Vue3 + Pinia + SockJS |
+
+---
+
+### 二、后端步骤（Spring Boot）
+
+#### ① 基础配置（application.yml）
+```yaml
+spring:
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+  redis:
+    host: localhost
+    port: 6379
+```
+
+#### ② 声明交换机 & 队列（Config 类）
+```java
+@Configuration
+public class NoticeMqConfig {
+    @Bean
+    public TopicExchange noticeExchange() {
+        return new TopicExchange("notice.event", true, false);
+    }
+    @Bean
+    public Queue createdQueue() {
+        return QueueBuilder.durable("notice.created.queue").build();
+    }
+    @Bean
+    public Binding createdBinding(Queue createdQueue, TopicExchange ex) {
+        return BindingBuilder.bind(createdQueue).to(ex).with("notice.created");
+    }
+}
+```
+
+#### ③ 发消息（运营后台）
+```java
+@PostMapping("/admin/notice")
+public void publish(@RequestBody NoticeDTO dto) {
+    Notice n = noticeRepo.save(dto.convert());
+    // 1. 落库  2. MQ
+    rabbitTemplate.convertAndSend("notice.event", "notice.created",
+            new NoticeCreatedEvent(n.getId(), dto.getScope()));
+}
+```
+
+#### ④ MQ 消费（累加未读 + WebSocket 推）
+```java
+@RabbitListener(queues = "notice.created.queue")
+public void onCreated(NoticeCreatedEvent evt) {
+    // 1. 解析范围 → 用户ID列表
+    List<Long> userIds = scopeResolver.resolve(evt.getScope());
+    // 2. Redis 管道 +1
+    redisTemplate.executePipelined(p -> {
+        userIds.forEach(uid -> p.increment("notice:unread:" + uid, 1));
+        return null;
+    });
+    // 3. WebSocket 推 delta
+    userIds.forEach(uid -> wsTemplate.convertAndSendToUser(
+            uid.toString(), "/queue/notify",
+            Map.of("userId", uid, "delta", 1)));
+}
+```
+
+#### ⑤ WebSocket 配置（STOMP）
+```java
+@Configuration
+@EnableWebSocketMessageBroker
+public class WsConfig implements WebSocketMessageBrokerConfigurer {
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        config.enableSimpleBroker("/queue");
+        config.setUserDestinationPrefix("/user");
+    }
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws-notice").setAllowedOriginPatterns("*").withSockJS();
+    }
+}
+```
+
+#### ⑥ 已读接口（前端点“全部已读”）
+```java
+@PostMapping("/notice/read")
+public void read(@AuthenticationPrincipal Long userId) {
+    UserReadOffset off = offsetRepo.select(userId);
+    long latest = noticeRepo.maxId();
+    if (latest > off.getMaxReadId()) {
+        off.setMaxReadId(latest);
+        off.setUnreadCount(0);
+        offsetRepo.update(off);
+        redisTemplate.delete("notice:unread:" + userId);
+        // 广播 0 给所有端
+        wsTemplate.convertAndSendToUser(userId.toString(),
+                "/queue/notify", Map.of("userId", userId, "unread", 0));
+    }
+}
+```
+
+#### ⑦ 初始快照（前端第一次进来）
+```java
+@GetMapping("/notice/unread")
+public R<Integer> unread(@AuthenticationPrincipal Long userId) {
+    String key = "notice:unread:" + userId;
+    String v = redisTemplate.opsForValue().get(key);
+    if (v != null) return R.ok(Integer.parseInt(v));
+    // Redis 没有 → 查 DB
+    int cnt = offsetRepo.select(userId).getUnreadCount();
+    redisTemplate.opsForValue().set(key, String.valueOf(cnt), 7, TimeUnit.DAYS);
+    return R.ok(cnt);
+}
+```
+
+---
+
+### 三、前端步骤（Vue3 + Pinia）
+
+#### ① Pinia store
+```ts
+export const useNotifyStore = defineStore('notify', () => {
+  const unread = ref(0);
+  function incr(delta: number) { unread.value += delta; }
+  function clear() { unread.value = 0; }
+  return { unread, incr, clear };
+});
+```
+
+#### ② 连接 WebSocket（SockJS）
+```ts
+import Stomp from 'stompjs';
+
+let stomp = Stomp.over(new SockJS('/ws-notice'));
+stomp.connect({}, () => {
+  stomp.subscribe('/user/queue/notify', (msg) => {
+    const { userId, delta, unread } = JSON.parse(msg.body);
+    if (userId !== currentUser.id) return;
+    if (unread !== undefined) useNotifyStore().clear();      // 全量
+    else if (delta)         useNotifyStore().incr(delta);   // 增量
+  });
+});
+```
+
+#### ③ 首次拉快照
+```ts
+onMounted(async () => {
+  const { data } = await axios.get('/api/notice/unread');
+  useNotifyStore().unread = data;
+});
+```
+
+#### ④ 全部已读
+```ts
+function readAll() {
+  axios.post('/api/notice/read');
+  useNotifyStore().clear();   // 立即清零，无闪烁
+}
+```
+
+---
+
+### 四、跑通验证
+
+1. 浏览器 `http://localhost:15672` 登录 guest/guest → 观察队列  
+2. 调用 `POST /admin/notice` 发一条消息  
+3. 前端小红点 **立即 +1**；Redis `notice:unread:{userId}` 值同步变  
+4. 点“全部已读” → 小红点 **瞬间归零** → 管理后台队列消息被 ACK  
+5. 多开两个标签/浏览器，**所有窗口未读数同步变化**
+
+---
+
+### 五、一句话总结
+
+> **“消息落库 → MQ广播 → Redis先累加 → WebSocket推增量 → 前端立即+1；用户已读即清Redis并广播0，多端同步不刷新。”**  
+> **按上面 5 段代码抄完，未读功能直接上线！**

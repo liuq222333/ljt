@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.demos.LocalActive.Dao.LocalActivityMapper">
+
+    <insert id="insertActivity" parameterType="com.example.demo.demos.LocalActive.Pojo.LocalActivity"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO local_activity_admin
+        (organizer_user_id, title, subtitle, category_code, description, location_text, capacity,
+         fee_type, fee_amount, allow_waitlist, require_checkin, status, start_at, end_at,
+         reminder_minutes,review_note, created_at, updated_at)
+        VALUES
+        (#{organizerUserId}, #{title}, #{subtitle}, #{categoryCode}, #{description}, #{locationText}, #{capacity},
+         #{feeType}, #{feeAmount}, #{allowWaitlist}, #{requireCheckin}, #{status}, #{startAt}, #{endAt},
+         #{reminderMinutes}, #{reviewNote}, NOW(), NOW())
+    </insert>
+
+    <insert id="insertTags">
+        INSERT INTO local_activity_tag(activity_id, tag)
+        VALUES
+        <foreach collection="tags" item="tag" separator=",">
+            (#{activityId}, #{tag})
+        </foreach>
+    </insert>
+
+    <select id="listActivities" resultType="com.example.demo.demos.LocalActive.Pojo.LocalActivity">
+        SELECT id, organizer_user_id, title, subtitle, category_code, description, location_text,
+               capacity, fee_type, fee_amount, allow_waitlist, require_checkin, status,
+               start_at, end_at, reminder_minutes, review_note
+        FROM local_activity
+        <where>
+            <if test="status != null and status != ''">
+                status = #{status}
+            </if>
+        </where>
+        ORDER BY created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="listAll" resultType="com.example.demo.demos.LocalActive.Pojo.LocalActivity">
+        SELECT id, organizer_user_id, title, subtitle, category_code, description, location_text,
+               capacity, fee_type, fee_amount, allow_waitlist, require_checkin, status,
+               start_at, end_at, reminder_minutes, review_note, address, latitude, longitude, cover_url
+        FROM local_activity
+    </select>
+</mapper>

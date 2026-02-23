@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.demos.CommunityMarket.Dao.CartMapper">
+    <insert id="addToCart">
+        INSERT INTO cart_item
+            (user_name, product_id, quantity, price, created_at)
+        VALUES
+            (#{userName}, #{productId}, #{quantity}, #{price}, #{createdAt})
+    </insert>
+    <insert id="buyCartItems">
+        INSERT INTO orders
+            (user_id, product_id,order_id,total_amount,created_at,
+            status,delivery_time,receiver_address, updated_at,
+             receiver_name,receiver_phone, payment_time,
+             completed_at, cancel_reason, cancelled_at, remark)
+        VALUES
+            (#{userId}, #{productId},#{orderId},#{totalAmount},#{createdAt},
+            #{status},#{deliveryTime},#{receiverAddress}, #{updatedAt},
+            #{receiverName},#{receiverPhone}, #{paymentTime},
+            #{completedTime}, #{cancelReason}, #{cancelledAt}, #{remark})
+    </insert>
+
+    <update id="updateCart">
+        UPDATE cart_item
+        SET quantity = #{quantity}
+        WHERE user_name = #{userName} AND product_id = #{productId}
+    </update>
+<!--    // 删除购物车中的某一项-->
+    <delete id="deleteCartItem">
+        DELETE FROM cart_item
+        WHERE user_name = #{userName} AND product_id = #{productId}
+    </delete>
+
+    <select id="getCartItemByUserNameAndProductId" resultType="com.example.demo.demos.CommunityMarket.Pojo.Cart">
+        SELECT
+            id,
+            user_name AS userName,
+            product_id AS productId,
+            quantity,
+            price,
+            created_at AS createdAt
+        FROM cart_item
+        WHERE user_name = #{userName} AND product_id = #{productId}
+    </select>
+<!--    获取某用户购物车中的商品-->
+    <select id="getCartItems" resultType="com.example.demo.demos.CommunityMarket.DTO.CartShowDTO">
+        SELECT
+            cart_item.user_name AS userName,
+            cart_item.product_id AS productId,
+            cart_item.quantity,
+            products.price AS price,
+            cart_item.created_at AS createdAt,
+            products.title,
+            products.image_urls AS imageUrls,
+            products.status AS status,
+            products.stock_quantity AS stockQuantity
+        FROM cart_item
+        JOIN products ON cart_item.product_id = products.id
+        WHERE cart_item.user_name = #{userName}
+    </select>
+
+    <select id="getOrdersByUserId" resultType="com.example.demo.demos.CommunityMarket.Pojo.Orders">
+        SELECT
+            id,
+            order_id AS orderId,
+            user_id AS userId,
+            product_id AS productId,
+            total_amount AS totalAmount,
+            created_at AS createdAt,
+            updated_at AS updatedAt,
+            status,
+            delivery_time AS deliveryTime,
+            payment_time AS paymentTime,
+            receiver_name AS receiverName,
+            receiver_phone AS receiverPhone,
+            receiver_address AS receiverAddress,
+            completed_at AS completedTime,
+            cancel_reason AS cancelReason,
+            cancelled_at AS cancelledAt,
+            remark
+        FROM orders
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC
+    </select>
+</mapper>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.demos.LocalActive.Dao.LocalActEnrollmentMapper">
+
+    <select id="findEnrollments"
+            parameterType="com.example.demo.demos.LocalActive.DTO.LocalActEnrollmentQuery"
+            resultType="com.example.demo.demos.LocalActive.DTO.LocalActEnrollmentRecord">
+        SELECT
+            e.id AS enrollment_id,
+            a.id AS activity_id,
+            a.title,
+            a.start_at,
+            COALESCE(a.location_text, a.address) AS location,
+            org.username AS organizer,
+            e.status,
+            e.waitlist_rank,
+            GROUP_CONCAT(DISTINCT t.tag ORDER BY t.tag SEPARATOR ',') AS tags_csv
+        FROM local_activity_enrollment e
+                 JOIN users u ON u.user_id = e.user_id
+                 JOIN local_activity a ON a.id = e.activity_id
+                 JOIN users org ON org.user_id = a.organizer_user_id
+                 LEFT JOIN local_activity_tag t ON t.activity_id = a.id
+        WHERE u.username = #{username}
+        <if test="status != null and status != ''">
+            AND e.status = #{status}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (a.title LIKE CONCAT('%', #{keyword}, '%')
+                OR org.username LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <choose>
+            <when test="period == 'upcoming'">
+                AND a.start_at >= NOW()
+            </when>
+            <when test="period == 'past'">
+                AND a.start_at &lt; NOW()
+            </when>
+        </choose>
+        GROUP BY e.id,
+                 a.id,
+                 a.title,
+                 a.start_at,
+                 COALESCE(a.location_text, a.address),
+                 org.username,
+                 e.status,
+                 e.waitlist_rank
+        ORDER BY a.start_at DESC
+    </select>
+</mapper>

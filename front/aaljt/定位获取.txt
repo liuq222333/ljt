@@ -1,0 +1,126 @@
+//高德地图定位服务
+async function locateAndFillAddress() {
+  message.value = { text: '', type: '' };
+  if (!AMAP_KEY) {
+    message.value = { text: '未配置地图密钥：请设置 VITE_AMAP_KEY', type: 'error' };
+    return;
+  }
+  if (!('geolocation' in navigator)) {
+    message.value = { text: '当前浏览器不支持定位', type: 'error' };
+    return;
+  }
+  locating.value = true;
+  try {
+    const coords = await new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        err => reject(err),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
+    });
+    const lat = coords.latitude;
+    const lng = coords.longitude;
+    // 坐标转换：WGS84 -> GCJ-02（提升逆地理精度）
+    let useLng = lng;
+    let useLat = lat;
+    try {
+      const convertResp = await fetch(`${COORD_CONVERT_BASE}?key=${AMAP_KEY}&locations=${lng},${lat}&coordsys=gps`);
+      const convertData = await convertResp.json();
+      if (convertData.status === '1' && convertData.locations) {
+        const parts = String(convertData.locations).split(',');
+        if (parts.length === 2) {
+          const clng = parseFloat(parts[0]);
+          const clat = parseFloat(parts[1]);
+          if (!Number.isNaN(clng) && !Number.isNaN(clat)) {
+            useLng = clng;
+            useLat = clat;
+          }
+        }
+      }
+    } catch (_) {
+      // 转换失败则回退使用原始坐标
+    }
+
+    const resp = await fetch(`${GEOCODER_BASE}?key=${AMAP_KEY}&location=${useLng},${useLat}&extensions=base`);
+    if (!resp.ok) {
+      const t = await resp.text();
+      throw new Error(`定位服务错误: ${resp.status} ${resp.statusText} - ${t}`);
+    }
+    const data = await resp.json();
+    if (data.status !== '1' || !data.regeocode || !data.regeocode.formatted_address) {
+      throw new Error('未能解析到地址');
+    }
+    const formatted = data.regeocode.formatted_address as string;
+    userInfo.value = { ...(userInfo.value as UserInfo), address: formatted, latitude: useLat, longitude: useLng };
+    message.value = { text: '已根据定位填充地址', type: 'success' };
+  } catch (e) {
+    const err: any = e;
+    let msg = '定位失败';
+    if (err && typeof err === 'object' && 'code' in err) {
+      const code = Number(err.code);
+      if (code === 1) msg = '定位权限被拒绝';
+      else if (code === 2) msg = '位置不可用';
+      else if (code === 3) msg = '定位超时';
+    } else if (err && typeof err.message === 'string') {
+      msg = err.message || msg;
+    }
+    message.value = { text: msg, type: 'error' };
+  } finally {
+    locating.value = false;
+  }
+}
+
+
+
+sync function locateAndFillAddress() {
+  if (!AMAP_KEY) { ElMessage.error('未配置地图密钥：请设置 VITE_AMAP_KEY'); return }
+  if (!('geolocation' in navigator)) { ElMessage.error('当前浏览器不支持定位'); return }
+  locating.value = true
+  try {
+    const coords = await new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        err => reject(err),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      )
+    })
+    let useLat = coords.latitude
+    let useLng = coords.longitude
+    try {
+      const convertResp = await fetch(`${COORD_CONVERT_BASE}?key=${AMAP_KEY}&locations=${useLng},${useLat}&coordsys=gps`)
+      const convertData = await convertResp.json()
+      if (convertData.status === '1' && convertData.locations) {
+        const parts = String(convertData.locations).split(',')
+        if (parts.length === 2) {
+          const clng = parseFloat(parts[0])
+          const clat = parseFloat(parts[1])
+          if (!Number.isNaN(clng) && !Number.isNaN(clat)) {
+            useLng = clng
+            useLat = clat
+          }
+        }
+      }
+    } catch {}
+    const resp = await fetch(`${GEOCODER_BASE}?key=${AMAP_KEY}&location=${useLng},${useLat}&extensions=base`)
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => '')
+      throw new Error(t || '定位服务错误')
+    }
+    const data = await resp.json()
+    if (data.status !== '1' || !data.regeocode || !data.regeocode.formatted_address) {
+      throw new Error('未能解析到地址')
+    }
+    form.value.location = String(data.regeocode.formatted_address)
+    lat.value = useLat
+    lng.value = useLng
+    ElMessage.success('已根据定位填充地址')
+  } catch (e: any) {
+    const code = Number(e?.code)
+    if (code === 1) ElMessage.error('定位权限被拒绝')
+    else if (code === 2) ElMessage.error('位置不可用')
+    else if (code === 3) ElMessage.error('定位超时')
+    else ElMessage.error(e?.message || '定位失败')
+  } finally {
+    locating.value = false
+  }
+}

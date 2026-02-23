@@ -1,0 +1,38 @@
+初始化头像改为后端返回值
+const currentUser = ref({
+  id: '',
+  name: localStorage.getItem('userName') || 'Sup',
+  avatar: '',
+  bio: '热爱生活，分享美好',
+  likes: 0,
+  neighbors: 0
+});
+获取用户信息时，用 avatarKey 生成 URL 并填充头像
+async function fetchUserInfo(id: string) {
+  const res = await axios.get(`${API_BASE}/api/user/getUserById`, { params: { userId: id } });
+  if (res.status === 200 && res.data) {
+    const user = res.data;
+    currentUser.value.id = user.userId || id;
+    currentUser.value.name = user.userName || currentUser.value.name;
+    if (user.avatarKey) {
+      const urls = buildImgUrls([user.avatarKey]); // 依赖 VITE_MINIO_BASE 或预签名
+      if (urls.length) currentUser.value.avatar = urls[0];
+    } else if (user.avatarUrl) {
+      currentUser.value.avatar = user.avatarUrl;
+    } else {
+      currentUser.value.avatar = userAvatar; // 默认占位
+    }
+  }
+}
+在 onMounted 时调用 fetchUserInfo(storedId)。
+
+发布成功时，新帖头像用当前用户头像
+handleNewPost 中的 avatar: currentUser.value.avatar 保留，确保不刷新也显示头像。
+
+列表映射时，头像优先用后端返回的作者头像，否则用当前用户头像或默认：
+
+avatar: item.userAvatar || currentUser.value.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + item.userId,
+头像上传成功后，更新当前头像：
+const newAvatarUrl = data.url || (buildImgUrls([data.key])[0]) || data;
+currentUser.value.avatar = newAvatarUrl;
+完成上述修改并确保文件保存为 UTF‑8，右上角和发布动态的头像就会统一使用 MinIO 中的头像。

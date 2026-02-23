@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.demos.LocalActive.Dao.LocalActivityScheduleTemplateMapper">
+
+    <insert id="insertTemplate"
+            parameterType="com.example.demo.demos.LocalActive.Pojo.LocalActivityScheduleTemplate"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO local_activity_schedule_template
+        (owner_user_id, title, category_code, weekday, start_time, end_time, location_text,
+         recurrence_rule, default_capacity, default_fee_type, reminder_minutes, status, created_at, updated_at)
+        VALUES
+        (#{ownerUserId}, #{title}, #{categoryCode}, #{weekday}, #{startTime}, #{endTime}, #{locationText},
+         #{recurrenceRule}, #{defaultCapacity}, #{defaultFeeType}, #{reminderMinutes}, #{status}, NOW(), NOW())
+    </insert>
+</mapper>

@@ -1,0 +1,291 @@
+
+1
+## 0. 整体目标（一句话）
+
+> 用户发自然语言 → AI 理解 →
+> 根据数据库中接口**描述 + operation_type**筛选候选接口 →
+> 选出最合适的 action →
+> 用 action 在数据库里找到真实接口 → 调用后端 → 返回结果。
+
+---
+
+## 1. 数据库设计（api_routes 表）
+
+先建一张“接口路由表”`api_routes`，核心字段：
+
+```sql
+CREATE TABLE api_routes (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+
+  -- 路由关键键
+  resource        VARCHAR(50)  NOT NULL,      -- 资源：user / order / product ...
+  action          VARCHAR(50)  NOT NULL,      -- 动作：get_by_id / list / get_by_email ...
+
+  -- 调用 HTTP 所需
+  http_method     VARCHAR(10)  NOT NULL,      -- GET / POST / PUT / DELETE ...
+  path_template   VARCHAR(255) NOT NULL,      -- "/users/{id}"、"/users/by-email"
+  path_params     JSON         NULL,          -- 例如 '["id"]'
+
+  -- 业务语义归类（给 AI 用）
+  operation_type  VARCHAR(20)  NOT NULL,      -- READ_ONE / READ_LIST / CREATE / UPDATE / DELETE ...
+  description     VARCHAR(255) NOT NULL,      -- 接口说明：给 AI 用来理解/匹配
+
+  -- 控制与扩展
+  enabled         TINYINT(1)   NOT NULL DEFAULT 1,  -- 1=允许 AI 调用，0=禁用
+  query_schema    JSON         NULL,               -- 可选：query 校验
+  body_schema     JSON         NULL,               -- 可选：body 校验
+
+  created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  UNIQUE KEY uk_resource_action (resource, action)
+);
+```
+
+示例数据（就是你那 3 个接口）：
+
+```sql
+INSERT INTO api_routes
+(resource, action, http_method, path_template, path_params, operation_type, description, enabled)
+VALUES
+('user', 'get_by_id',    'GET', '/users/{id}',     '["id"]',     'READ_ONE',  '根据用户 ID 查询单个用户详情', 1),
+('user', 'list',         'GET', '/users',          NULL,         'READ_LIST', '按条件分页查询用户列表',     1),
+('user', 'get_by_email', 'GET', '/users/by-email', NULL,         'READ_ONE',  '通过邮箱精确查询用户',       1);
+```
+
+---
+
+## 2. 工具（tool）设计
+
+### 2.1 通用调用工具：backend_api
+
+给模型暴露一个**统一的工具**：
+
+```jsonc
+{
+  "type": "function",
+  "function": {
+    "name": "backend_api",
+    "description": "根据 resource 和 action 调用后端业务接口",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "resource": {
+          "type": "string",
+          "description": "业务资源，例如 user / order / product"
+        },
+        "action": {
+          "type": "string",
+          "description": "接口动作名，例如 get_by_id / list / get_by_email"
+        },
+        "id": {
+          "type": "string",
+          "description": "部分接口路径参数，例如 /users/{id}"
+        },
+        "params": {
+          "type": "object",
+          "description": "query 参数"
+        },
+        "payload": {
+          "type": "object",
+          "description": "body 参数"
+        }
+      },
+      "required": ["resource", "action"]
+    }
+  }
+}
+```
+
+> **注意：**
+>
+> * 对模型来说，它只需要知道有哪些 `resource + action`，以及描述是什么。
+> * 对你的后端来说，拿到 `resource + action` 就能去查表。
+
+---
+
+## 3. 后端核心组件
+
+### 3.1 路由查表：`getRoute(resource, action)`
+
+伪代码（语言随便，这里偏 TypeScript 风格）：
+
+```ts
+async function getRoute(resource: string, action: string) {
+  const sql = `
+    SELECT * FROM api_routes
+    WHERE resource = ? AND action = ? AND enabled = 1
+    LIMIT 1
+  `;
+  const row = await db.queryOne(sql, [resource, action]);
+  return row; // 里面包含 http_method, path_template, path_params, ...
+}
+```
+
+### 3.2 执行接口：`executeBackendApi(args)`
+
+```ts
+async function executeBackendApi(args: {
+  resource: string;
+  action: string;
+  id?: string;
+  params?: any;
+  payload?: any;
+}) {
+  const { resource, action, id, params = {}, payload = {} } = args;
+
+  const route = await getRoute(resource, action);
+  if (!route) {
+    throw new Error(`Unknown or disabled route for ${resource}.${action}`);
+  }
+
+  let path = route.path_template;
+  const pathParams: string[] = JSON.parse(route.path_params || "[]");
+
+  for (const key of pathParams) {
+    const value = key === "id" ? id : params[key] ?? payload[key];
+    if (!value) {
+      throw new Error(`Missing path param ${key} for ${resource}.${action}`);
+    }
+    path = path.replace(`{${key}}`, encodeURIComponent(String(value)));
+  }
+
+  const baseUrl = getBaseUrlByServiceName(route.service_name || "default"); // 自己实现
+  const url = baseUrl + path;
+
+  const method = route.http_method.toUpperCase();
+  let resp;
+  if (method === "GET") {
+    resp = await httpClient.get(url, { params });
+  } else if (method === "POST") {
+    resp = await httpClient.post(url, payload, { params });
+  } else if (method === "PUT") {
+    resp = await httpClient.put(url, payload, { params });
+  } else if (method === "DELETE") {
+    resp = await httpClient.delete(url, { params });
+  } else {
+    throw new Error(`Unsupported http_method: ${method}`);
+  }
+
+  return resp.data;
+}
+```
+
+### 3.3 tool 执行分发：`executeTool(name, argsJson)`
+
+```ts
+async function executeTool(name: string, argsJson: string) {
+  const args = JSON.parse(argsJson || "{}");
+
+  if (name === "backend_api") {
+    return await executeBackendApi(args);
+  }
+
+  throw new Error(`Unknown tool: ${name}`);
+}
+```
+
+---
+
+## 4. “先缩小范围，再匹配描述”的流程（含 operation_type）
+
+你想要的是：**减少匹配量**，保证 AI 选接口更准。
+推荐流程如下：
+
+### 4.1 步骤 0：用户输入
+
+> 用户：“帮我查一下 id 为 3 的用户信息”
+
+### 4.2 步骤 1：让 AI 先做一个“意图分类”
+
+你可以：
+
+* 在主对话的 system prompt 里要求模型：
+  “先判断 resource 和 operation_type，再调用 backend_api”
+* 或者用一个小工具/中间步骤，让模型先输出一个结构：
+
+例如模型先输出：
+
+```json
+{
+  "resource": "user",
+  "operation_type": "READ_ONE",
+  "raw_query": "查一下 id 为 3 的用户信息",
+  "id": "3"
+}
+```
+
+> 这里 `operation_type=READ_ONE` 就是你定义的业务操作类型。
+
+### 4.3 步骤 2：后端根据 resource + operation_type 查询候选接口
+
+```sql
+SELECT action, description
+FROM api_routes
+WHERE resource = 'user'
+  AND operation_type = 'READ_ONE'
+  AND enabled = 1;
+```
+
+结果（举例）：
+
+| action       | description      |
+| ------------ | ---------------- |
+| get_by_id    | 根据用户 ID 查询单个用户详情 |
+| get_by_email | 通过邮箱精确查询用户       |
+
+### 4.4 步骤 3：把候选列表给 AI，让 AI 在里面选 action
+
+你可以构造一条“内部消息”给模型，比如：
+
+> “当前 resource=user，operation_type=READ_ONE，可用接口如下，请选最合适的一个 action，并补全 backend_api 所需参数：
+>
+> 1. action: get_by_id
+>    描述: 根据用户 ID 查询单个用户详情
+> 2. action: get_by_email
+>    描述: 通过邮箱精确查询用户
+>    用户原始请求：‘查一下 id 为 3 的用户信息’”
+
+模型会输出一个 tool 调用：
+
+```json
+{
+  "tool": "backend_api",
+  "arguments": {
+    "resource": "user",
+    "action": "get_by_id",
+    "id": "3"
+  }
+}
+```
+
+### 4.5 步骤 4：后端执行 backend_api（走上一节的逻辑）
+
+* 用 `resource=user, action=get_by_id` 去查 `api_routes`
+* 得到 `GET /users/{id}`
+* 替换成 `/users/3`
+* 调真实后端
+* 把结果再喂回模型，让它生成对用户的自然语言回答
+
+---
+
+## 5. 最终整体流程（串成一条线）
+
+整理成一句“执行链”：
+
+1. **用户输入自然语言**
+2. **AI（或一个中间步骤）先判断：**
+
+   * resource，例如：`user`
+   * operation_type，例如：`READ_ONE`
+3. **后端用 resource + operation_type 从 DB 里查出候选接口（多条）**
+4. **把候选接口的 `action + description` 给 AI，让 AI：**
+
+   * 在候选里选一个最合适的 action
+   * 同时生成 backend_api 需要的参数（id / params / payload）
+5. **后端收到 backend_api tool 调用：**
+
+   * 根据 `resource + action` 查 `api_routes`
+   * 组装 URL（`http_method + path_template + path_params + params`）
+   * 调真实后端 API
+6. **把接口返回结果再交给 AI，让 AI 组织自然语言回复给用户**

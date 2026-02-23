@@ -1,0 +1,37 @@
+后端到前端「未读通知」流程（当前实现）
+
+1) 发送通知
+   - 调用方（如发布商品成功的 ProductsServiceImpl.pushProductPublishedNotice）构造 NotificationMessage，调用 NotificationSender.send(...)。
+   - RabbitTemplate 将消息发到交换机 notif.topic，路由到队列。
+
+2) MQ 消费 & 落库 + 未读计数
+   - NotificationMessageListener 监听用户/组/广播队列。
+   - 校验 msgId 幂等；按 message.targetUserId 生成 Notification 记录，插入 DB。
+   - Redis：对 key notice:unread:{userId} 执行 INCR (+1)。
+   - WebSocket：通过 SimpMessagingTemplate.convertAndSendToUser 推送 payload { userId, delta: 1 } 到 /user/queue/notify。
+
+3) 首屏未读数获取
+   - 前端（SystemNotification.vue/AccountSettingsLayout.vue）首屏调用 GET /api/notifications/unread?userId=xxx。
+   - 后端 NotificationServiceImpl.countUnread：优先读 Redis 缓存（notice:unread:{userId}），无缓存则查 DB COUNT 并回填 Redis（TTL 7 天）。
+   - 前端将结果写入 Pinia store notify.unread，侧边栏徽标展示。
+
+4) WebSocket 实时增量
+   - 前端 SockJS+STOMP 订阅 /user/queue/notify。
+   - 收到 {delta} 时 notifyStore.incr(delta)；收到 {unread} 时 notifyStore.set(unread)。
+
+5) 列表拉取
+   - 前端 GET /api/notifications?userId=xxx，渲染列表。
+   - 拉取后根据 isRead 统计未读条数，notifyStore.set(unreadCount) 兜底同步徽标。
+
+6) 标记单条已读
+   - 前端点击列表或详情时调用 PATCH /api/notifications/{id}/read?userId=xxx。
+   - 前端乐观置 isRead=true，接口成功后 notifyStore.incr(-1) 并更新本地条目。
+   - 后端 NotificationServiceImpl.markRead：更新 DB 状态为已读，删除 Redis 未读缓存（使下次 countUnread 回源 DB 正确），当前未推送 delta。
+
+7) 全部已读
+   - 前端 POST /api/notifications/markAllRead?userId=xxx；本地列表置已读、notifyStore.clear()。
+   - 后端 NotificationServiceImpl.markAllRead：DB 全部置已读，Redis 未读缓存置 0，并推送 {unread:0} 到 /user/queue/notify，前端各标签页收到后同步清零。
+
+注意
+   - 目前 markRead 没有主动推送 delta/-1，如需多端同步可在服务端标记后也推送 {delta:-1}。
+   - GROUP/BROADCAST 的用户展开未实现，当前按单个 targetUserId 落库计数。
