@@ -1,0 +1,16 @@
+# 密钥文件
+api key.txt
+*key*.txt
+*secret*
+.env
+.env.local
+
+# 常见配置文件
+config.ini
+secrets.json
+credentials.json
+
+# 编译输出
+__pycache__/
+*.pyc
+node_modules/
