@@ -5,6 +5,7 @@ import com.example.demo.demos.Agent.Pojo.AgentChatMessage;
 import com.example.demo.demos.Agent.Pojo.AgentChatRequest;
 import com.example.demo.demos.Agent.Pojo.AgentChatResponse;
 import com.example.demo.demos.Agent.Service.AgentChatService;
+import com.example.demo.demos.Agent.Service.KnowledgeEnhancer;
 import com.example.demo.demos.Agent.Service.helper.AgentToolHandler;
 import com.example.demo.demos.Agent.Service.helper.deepseek.DeepSeekPayload;
 import com.example.demo.demos.Agent.Service.helper.deepseek.DeepSeekResponse;
@@ -41,16 +42,19 @@ public class AgentChatServiceImpl implements AgentChatService {
     private final RestTemplate restTemplate;
     private final AgentAiProperties properties;
     private final AgentToolHandler agentToolHandler;
+    private final KnowledgeEnhancer knowledgeEnhancer;
 
     public AgentChatServiceImpl(RestTemplateBuilder restTemplateBuilder,
                                 AgentAiProperties properties,
-                                AgentToolHandler agentToolHandler) {
+                                AgentToolHandler agentToolHandler,
+                                KnowledgeEnhancer knowledgeEnhancer) {
         this.restTemplate = restTemplateBuilder
                 .setConnectTimeout(Duration.ofSeconds(10))
                 .setReadTimeout(Duration.ofSeconds(30))
                 .build();
         this.properties = properties;
         this.agentToolHandler = agentToolHandler;
+        this.knowledgeEnhancer = knowledgeEnhancer;
     }
 
     @Override
@@ -126,7 +130,9 @@ public class AgentChatServiceImpl implements AgentChatService {
         List<AgentChatMessage> finalMessages = new ArrayList<>(history.size() + 1);
         AgentChatMessage system = new AgentChatMessage();
         system.setRole("system");
-        system.setContent(DEFAULT_SYSTEM_PROMPT);
+        String userQuestion = knowledgeEnhancer.extractUserQuestion(history);
+        String enhancedPrompt = knowledgeEnhancer.enhancePrompt(DEFAULT_SYSTEM_PROMPT, userQuestion);
+        system.setContent(enhancedPrompt);
         finalMessages.add(system);
         finalMessages.addAll(history);
         payload.setMessages(finalMessages);

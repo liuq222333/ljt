@@ -4,15 +4,28 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * DeepSeek 接入的类型化配置项。
- * 显式暴露所有字段，统一默认值，避免在代码中散落“魔法常量”。
+ * AI 服务的类型化配置项。
+ * 包含 DeepSeek Chat API 和 OpenAI Embedding API 的配置。
+ * 显式暴露所有字段，统一默认值，避免在代码中散落”魔法常量”。
  */
 @Component
-@ConfigurationProperties(prefix = "deepseek.api")
+@ConfigurationProperties(prefix = “openai”)
 public class AgentAiProperties {
 
     /** DeepSeek 提供的 API Key；缺失时所有请求都会失败。 */
     private String key;
+
+    /** OpenAI Embedding API Key；用于知识库向量化 */
+    private String embeddingKey;
+
+    /** Embedding API 端点地址 */
+    private String embeddingUrl = “https://api.openai.com/v1/embeddings”;
+
+    /** Embedding 模型名称 */
+    private String embeddingModel = “text-embedding-3-small”;
+
+    /** 向量维度 */
+    private Integer embeddingDimension = 1536;
 
     /** Chat Completions 的 HTTPS 端点地址。 */
     private String url = "https://api.deepseek.com/chat/completions";
@@ -86,5 +99,37 @@ public class AgentAiProperties {
 
     public void setInternalApiBaseUrl(String internalApiBaseUrl) {
         this.internalApiBaseUrl = internalApiBaseUrl;
+    }
+
+    public String getEmbeddingKey() {
+        return embeddingKey;
+    }
+
+    public void setEmbeddingKey(String embeddingKey) {
+        this.embeddingKey = embeddingKey;
+    }
+
+    public String getEmbeddingUrl() {
+        return embeddingUrl;
+    }
+
+    public void setEmbeddingUrl(String embeddingUrl) {
+        this.embeddingUrl = embeddingUrl;
+    }
+
+    public String getEmbeddingModel() {
+        return embeddingModel;
+    }
+
+    public void setEmbeddingModel(String embeddingModel) {
+        this.embeddingModel = embeddingModel;
+    }
+
+    public Integer getEmbeddingDimension() {
+        return embeddingDimension;
+    }
+
+    public void setEmbeddingDimension(Integer embeddingDimension) {
+        this.embeddingDimension = embeddingDimension;
     }
 }

@@ -1,0 +1,114 @@
+﻿基于事件驱动与大模型 Agent 的社区服务智能触达系统设计与实现（初版草稿·扩充版）
+
+摘要
+本文面向社区服务场景，提出并实现一套“事件驱动 + 大模型 Agent + 工具调用”的智能触达方案。系统以事件为入口，结合大模型意图理解与工具调用能力，通过统一的 backend_api 工具在后端路由真实业务接口，完成通知、推荐、协同服务等触达动作。实现上采用 Spring Boot + MyBatis-Plus 搭建基础服务，设计 api_routes 路由表对可调用接口进行约束与治理，并以 AgentToolHandler 作为工具执行核心。文中给出系统架构、关键流程、数据模型与实现细节，并分析方案的可控性与扩展性。
+
+关键词
+事件驱动；大模型 Agent；工具调用；智能触达；社区服务
+
+1 引言
+社区服务系统常包含通知、消息、活动、邻里互助等高频触达业务。传统触达策略依赖固定规则，难以在多业务、多条件场景下兼顾精准性与可维护性。大模型具备自然语言理解与意图抽取能力，但直接放权给模型调用接口存在安全与可控性问题。本文采用“事件驱动 + 受控工具调用”的方式：事件进入后端后由 Agent 进行语义与策略判定，再由后端依照路由配置执行真实接口，从而平衡灵活性与治理能力。
+
+2 相关技术与系统基础
+系统后端基于 Spring Boot 构建，核心功能位于 backend/demo1/src/main/java/com/example/demo/demos/Agent 目录。与本文相关的关键组件包括：
+1. Agent 对话入口控制器 `backend/demo1/src/main/java/com/example/demo/demos/Agent/Controller/AgentChatController.java`
+2. 模型编排与请求构建 `backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java`
+3. 工具定义与执行核心 `backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/helper/AgentToolHandler.java`
+4. 路由实体与服务 `backend/demo1/src/main/java/com/example/demo/demos/Agent/Entity/ApiRoute.java` 与 `backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/ApiRouteServiceImpl.java`
+5. 配置类 `backend/demo1/src/main/java/com/example/demo/demos/Agent/Config/AgentAiProperties.java`
+
+3 系统总体架构
+系统由四层组成：
+1. 事件驱动层：业务事件产生后进入事件队列或任务表，用于解耦生产与消费。
+2. Agent 编排层：将事件或用户请求转化为“可执行动作”，通过大模型完成语义判断与策略选择。
+3. 工具执行层：统一的 backend_api 工具负责路由匹配、参数拼装与真实接口调用。
+4. 触达执行层：实际的业务接口（通知、推荐、社区互动等）负责完成对用户或群体的触达。
+系统设计强调“模型只选择动作，后端决定能否执行”，通过 api_routes 表集中治理可调用接口范围。
+
+3.1 模块职责划分
+1. 事件生产模块：在业务操作完成后发布事件，如“发布商品”“提交求助”“内容举报”。
+2. 事件消费模块：读取事件并生成触达任务，形成 Agent 可理解的输入格式。
+3. Agent 服务模块：调用模型进行意图分析，并给出工具调用参数。
+4. 工具路由模块：依据 resource+action 从 api_routes 选择真实接口，并完成 HTTP 调用。
+5. 结果归档模块：记录触达结果与失败原因，支撑效果评估与运维。
+
+3.2 文字版架构图（描述）
+事件源（业务服务） → 事件队列/事件表 → 事件消费者 → Agent 服务 → backend_api 工具执行 → 真实业务接口 → 触达结果回写
+
+4 事件驱动与智能触达流程
+完整流程如下：
+1. 业务事件发生：如“新商品发布”“求助信息发布”“举报内容产生”等。
+2. 事件入队：将事件写入消息队列或事件表（可结合 RabbitMQ/Redis Stream 实现）。
+3. 事件消费与任务生成：消费者对事件进行初步结构化，构造 Agent 可理解的输入。
+4. Agent 策略判断：调用大模型进行意图分析与触达策略选择。
+5. 工具调用执行：模型输出 backend_api 调用参数，后端从 api_routes 中查找路由并执行真实接口。
+6. 触达结果回写：将执行结果写入日志或通知状态表，用于追踪与评估。
+
+4.1 Agent 输入结构与意图抽取
+建议将事件结构化为“事件类型 + 关键字段 + 触达上下文”的形式。例如：
+1. event_type: PRODUCT_PUBLISH
+2. payload: 商品标题、分类、发布者、时间
+3. context: 触达目标偏好、策略约束、频控规则
+模型将依据该输入输出 resource 与 action，再由后端执行。
+
+4.2 工具调用闭环
+模型只输出工具调用参数，不直接执行业务逻辑。后端通过 api_routes 查询路由并进行参数校验，避免模型越权或非法调用。该设计形成“模型建议 + 后端裁决”的闭环机制。
+
+5 数据与接口治理设计
+5.1 api_routes 路由表设计
+该表作为“工具调用白名单”，核心字段包含 resource、action、http_method、path_template、path_params、operation_type 与 description。通过 enabled 字段控制是否允许模型调用，实现接口可控性。
+
+5.2 事件与触达任务数据
+为支撑事件驱动与触达链路，建议引入以下数据模型：
+1. event_log：记录事件类型、来源、时间与原始负载。
+2. notification_task：记录触达任务的目标用户、触达方式、状态与结果。
+
+5.3 api_routes 示例映射（说明）
+1. resource=user, action=get_by_id → GET /users/{id}
+2. resource=notification, action=push → POST /notifications
+3. resource=recommend, action=list → GET /recommendations
+通过该映射，模型无需了解真实 URL，仅需选择动作。
+
+6 关键实现说明
+6.1 Agent 对话入口
+控制器 `AgentChatController` 提供 /api/agent/chat 入口，接收历史消息与可选授权信息，统一封装返回结果。
+
+6.2 模型编排与调用
+`AgentChatServiceImpl` 构造 DeepSeek 请求，注入工具定义，并在模型产生工具调用时交由 `AgentToolHandler` 处理。
+
+6.3 工具定义与执行
+`AgentToolHandler` 定义 backend_api 工具的 schema，解析模型参数后根据 api_routes 查找路由，并通过 RestTemplate 转发请求到真实接口。
+
+6.4 路由查询服务
+`ApiRouteServiceImpl` 提供按 resource+action 查询与按 operation_type 列表查询，为工具调用提供基础数据支持。
+
+6.5 参数校验与异常处理
+1. 缺失 resource/action 时直接返回错误，避免进入真实接口调用。
+2. 路径变量缺失或为空时拒绝执行，防止路径拼接错误。
+3. HTTP 方法未知时抛出异常，确保接口调用受控。
+
+7 触达场景示例（扩展）
+1. 新商品发布事件：触发“推荐给关注该品类用户”动作，模型选择推荐接口并执行。
+2. 社区求助事件：触发“通知附近志愿者或管理员”动作，模型选择通知接口并执行。
+3. 举报内容事件：触发“管理员审核”动作，模型选择审核通知接口并执行。
+4. 活动报名结束事件：触发“结果公告通知”动作，模型选择公告接口并执行。
+5. 邻里互助完成事件：触发“满意度回访”动作，模型选择回访问卷接口并执行。
+
+8 安全与可控性分析
+系统通过 api_routes 白名单限制模型可调用接口，避免越权调用。工具调用参数由后端解析与校验，确保路径变量完整性与请求一致性。模型输出仅作为“意图建议”，最终执行由后端裁决。建议在后续版本中引入：
+1. 权限校验与最小化授权。
+2. 触达频控与黑名单策略。
+3. 操作审计与调用链追踪。
+
+9 评估与实验设计建议
+为验证方案效果，可设计以下评估指标：
+1. 触达命中率：被触达用户完成目标行为的比例。
+2. 触达时延：事件到触达完成的平均耗时。
+3. 误触达率：非目标用户被触达的比例。
+4. 接口调用失败率：由参数错误或路由错误导致的失败比例。
+
+10 结论与展望
+本文实现的“事件驱动 + Agent 工具调用”方案，既保留了大模型的语义理解优势，又通过接口白名单与后端执行控制确保安全性。未来可从三方面继续提升：
+1. 引入更精细的权限与策略引擎。
+2. 在 api_routes 中增加参数校验 schema 与审计字段。
+3. 建立触达效果评估闭环，形成可优化的策略学习机制。

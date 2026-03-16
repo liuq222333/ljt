@@ -1,0 +1,147 @@
+﻿基于事件驱动与大模型 Agent 的社区服务智能触达系统设计与实现
+摘要
+面向社区服务场景中高频通知、协同服务与内容分发需求，传统触达机制通常依赖固定规则与人工配置，难以在多业务、多条件环境下实现精准与灵活并存的触达效果。为解决上述问题，本文围绕“事件驱动 + 大模型 Agent + 受控工具调用”的总体思路，设计并实现一套社区服务智能触达系统。系统以业务事件与用户交互为输入入口，通过大模型对意图与上下文进行理解与策略决策，再由后端工具执行层依据接口白名单与路由配置执行真实业务接口，实现从“语义理解”到“可控执行”的闭环。项目后端采用 Spring Boot 构建基础服务框架，使用 MyBatis/MyBatis-Plus 完成数据持久化，结合 RabbitMQ 实现通知消息的异步投递与削峰，使用 Redis 实现未读数缓存、短信验证码限流与地理检索加速，并通过 WebSocket/STOMP 实现未读通知实时推送；同时引入 MinIO 作为对象存储，完成社区动态与商品图片、用户头像的上传与预签名访问。项目还实现了社区动态、社区集市、本地活动、邻里互助等业务模块，并提供管理端接口用于路由白名单治理、用户管理、内容审核与系统通知发布。本文对系统架构、核心模块、关键流程与实现细节进行详细阐述，并给出可复现的功能验证与评估方法，为社区类应用在大模型时代的智能触达与可控落地提供参考。
+关键词：事件驱动；大模型 Agent；工具调用；智能触达；社区服务；RabbitMQ；Redis；WebSocket；MinIO
+一 引言
+（1）研究背景
+随着社区数字化服务体系不断完善，商品发布、邻里互助、社区活动、举报与审核、系统公告等业务日益频繁。社区场景的触达具有明显特点：触达对象多样（普通用户、卖家、志愿者、管理员）、触达时机多变（事件发生即触达、活动开始前提醒、审核结果通知）、触达渠道多样（站内通知、实时推送、公告列表），且触达策略需要考虑上下文（用户身份、地理位置、兴趣偏好、频控与优先级）。传统触达系统通常依赖固定规则，如关键词匹配、简单标签过滤或硬编码分支逻辑；当业务扩展时，规则数量膨胀、冲突难以管理，且难以表达复杂的“意图到动作”的映射关系。
+另一方面，大模型具备自然语言理解与策略推理能力，可以从用户输入或业务事件中抽取意图、补全参数并选择下一步动作。但若允许模型直接调用业务接口，容易引入越权访问、错误参数、不可解释行为与审计困难等风险。因此，社区服务场景需要一种既具备模型智能决策能力，又具备后端强约束与可治理机制的触达系统。
+（2）研究问题
+本文主要解决以下问题：1. 如何将社区业务中的“事件触发”与“触达执行”解耦，实现异步化与可扩展；2. 如何利用大模型 Agent 对自然语言与业务上下文进行理解，输出可执行的策略与动作；3. 如何以接口白名单与路由治理限制模型的可调用范围，确保安全、可控与可审计；4. 如何在实际项目中落地通知链路、对象存储、地理检索与管理端功能，形成完整可运行的工程实现。
+（3）研究内容与贡献
+本文在一个可运行的社区后端项目中实现并验证以下内容：1. 设计并实现基于 api_routes 的接口白名单与路由治理机制，为工具调用提供“受控执行”边界；2. 实现基于 DeepSeek Chat Completions 的 Agent 对话入口与工具调用闭环，通过统一 backend_api 工具完成路由查表、参数拼装与接口转发；3. 构建基于 RabbitMQ 的通知消息投递链路，并结合 Redis 缓存与 WebSocket 推送实现“落库 + 未读数实时推送”的端到端闭环；4. 完成社区动态、社区集市、本地活动、邻里互助、登录注册与用户资料等业务模块实现，并提供管理端审核与治理接口，覆盖项目主要功能面。
+二 相关技术与理论基础
+（1）事件驱动架构（EDA）
+事件驱动架构通过“事件生产—事件消费”解耦系统模块，使系统能够以异步方式处理业务高峰并增强扩展性。在本项目中，通知系统采用 RabbitMQ 将“产生通知”与“通知落库/推送”解耦：业务侧将 NotificationMessage 投递到交换机，消费侧监听队列并完成持久化与推送，从而避免业务主链路被通知写库与推送阻塞。与此同时，消息队列还支持重试、死信等机制，为稳定性与可观测性提供基础[3][5][8]。
+（2）大模型 Agent 与工具调用机制
+大模型 Agent 通过 Function Calling/Tool Calling 机制将自然语言推理结果转化为结构化调用参数，从而与外部系统交互。本文采用“模型选择动作，后端执行动作”的分层思想：模型只产生 backend_api 的 resource/action 与参数建议，后端基于路由白名单校验与参数验证后再执行真实接口调用，实现模型能力与系统安全之间的平衡[15][16][17]。
+（3）Spring Boot、MyBatis/MyBatis-Plus 与工程化实现
+项目基于 Spring Boot 构建 Web 服务与组件管理，使用 MyBatis-Plus 以及 MyBatis 注解/XML 映射实现对 MySQL 的数据访问，并使用 springdoc-openapi（@Operation）为接口提供可读的文档描述。对于需要分页与筛选的场景，项目引入 PageHelper 进行分页支持。安全层面使用 Spring Security 提供密码加密（BCryptPasswordEncoder）与基础 CORS 配置[7][11][12]。
+（4）Redis、RabbitMQ、WebSocket 与对象存储
+Redis 在本项目中承担多种角色：用于通知未读数缓存、短信验证码存储与限流锁、商品与活动的地理检索与 RediSearch 索引。RabbitMQ 用于通知消息异步投递与分发，并配套死信队列实现异常隔离。WebSocket/STOMP 用于向前端推送未读通知增量，提升交互实时性。MinIO 作为对象存储用于保存动态图片、商品图片与用户头像，并通过预签名 URL 控制访问有效期，避免直接暴露存储密钥[4][5][6][9][10][13][14]。
+三 需求分析与系统建模
+（1）业务需求分析
+社区系统在业务层需要覆盖内容发布、交易协作、活动组织与互助协同等典型场景。项目实现的核心业务包含：社区动态发布与互动（发布动态、点赞、评论、删除）、社区集市商品发布与交易（商品发布、库存与价格调整、购物车、下单与订单查询）、本地活动发布与管理（活动创建进入审核、审核通过后发布、用户报名记录查询、活动附近检索与热力图展示、邻里故事发布与阅读）、邻里互助任务（发布互助任务进入审核、审核通过后公开、任务列表查询）、通知与公告（系统/业务通知落库、已读管理、未读数统计、实时推送）、用户与登录（注册、登录、短信验证码、修改密码、用户资料更新与头像管理）以及管理端治理能力（接口白名单管理、用户管理、活动/互助审核、管理员删除商品、管理员发布系统通知）。
+（2）功能需求分析
+从系统功能角度，本项目需要实现“触达闭环”与“业务闭环”两类能力。触达闭环包含：通知消息产生、异步投递、消费落库、未读数维护、实时推送与读取/已读/删除等全链路能力。业务闭环包含：商品、动态、活动与互助任务等实体的创建、查询、更新与审核流转，同时要求业务动作能够被统一纳入工具调用体系，便于 Agent 在统一入口中按需触发。
+（3）非功能需求
+系统需满足安全性、可扩展性与可维护性要求。安全性体现在接口调用必须受控，尤其是模型驱动的工具调用必须被白名单限制；同时密码需加密存储，短信验证码需限流防刷。可扩展性体现在新增业务接口可以通过 api_routes 配置快速加入工具调用范围；通知链路通过消息队列可扩展到更多队列与消费者。可维护性体现在模块职责清晰、统一响应结构 Resp、接口文档可读、并通过日志与审计信息支持定位问题[1][2]。
+（4）用例图建模
+为了清晰描述系统参与者与功能边界，本文采用 UML 用例建模方法对系统进行抽象。系统参与者主要包括普通用户、管理员与业务系统（或业务模块）。普通用户侧的核心用例包括注册登录、短信验证码、用户资料维护与头像上传、社区动态发布与互动、商品发布与浏览、购物车下单、活动创建与报名信息查看、邻里互助任务发布与查看、通知列表读取与已读管理等。管理员侧的核心用例包括 api_routes 路由治理、用户管理、系统通知发布、活动审核、互助任务审核、商品违规删除等。业务系统侧的用例可抽象为产生业务事件与触达任务，例如下单成功、库存变更、审核结果等触达事件。
+图3-1 系统用例图（此处插入）
+图3-2 管理端用例图（此处插入）
+（5）时序图建模
+时序图用于描述关键业务场景下的组件交互关系，便于展示事件驱动与工具调用闭环。本文选取四个最能体现项目特征的典型场景进行建模。第一类为 Agent 工具调用闭环：用户发起对话请求后，系统调用大模型并注入工具定义；当模型选择 backend_api 时，后端解析参数、查询 api_routes、拼装 URL 并调用内部业务接口，最终将结构化结果返回给模型或前端。第二类为通知异步触达闭环：业务侧产生 NotificationMessage 后通过 NotificationSender 投递到 RabbitMQ；消费侧 NotificationMessageListener 监听队列，完成幂等校验、通知落库、Redis 未读数更新以及 WebSocket 推送。第三类为活动审核发布闭环：用户创建活动写入审核表，管理员通过审核接口将数据迁移到正式表并同步标签，同时向组织者发送审核结果通知。第四类为购物车下单闭环：用户下单后系统扣减库存、生成订单、删除购物车条目，并分别向买家与卖家发送通知。
+图3-3 Agent 工具调用时序图（此处插入）
+图3-4 通知异步触达时序图（此处插入）
+图3-5 活动审核发布时序图（此处插入）
+图3-6 下单与通知联动时序图（此处插入）
+（6）类图建模
+类图用于展示系统核心类的职责划分与依赖关系。本文将类图按“基础设施层、业务服务层、治理与管理层、Agent 编排层”进行组织。基础设施层包含 RedisTemplate/StringRedisTemplate、RabbitTemplate、SimpMessagingTemplate、MinioClient 等组件；业务服务层包含 NotificationServiceImpl、NotificationSender、NotificationMessageListener、CommunityFeedServiceImpl、ProductsServiceImpl、CartServiceImpl、LocalActivityServiceImpl、NeighborSupportServiceImpl 等服务实现；治理与管理层包含 ApiManagementServiceImpl、UserManagementServiceImpl、AdminActivityServiceImpl、AdminNeighborSupportTaskServiceImpl 等；Agent 编排层包含 AgentChatController、AgentChatServiceImpl、AgentToolHandler、ApiRouteServiceImpl 等。类图应重点体现：Controller 调用 Service，Service 调用 Dao/Mapper；通知链路中 Sender 与 Listener 的异步解耦；AgentToolHandler 对 ApiRouteService 的依赖；管理端对业务模块的治理调用与通知联动。
+图3-7 核心类图（此处插入）
+图3-8 通知模块类图（此处插入）
+（7）ER 图与数据库建模
+ER 图用于描述数据实体与关系，是理解项目业务闭环的关键。项目数据库以 users 为中心，围绕内容、交易、活动、互助与通知构建数据表。商品模块包含 products、user_products、cart_item、orders 等表；社区动态模块包含 community_feed、community_feed_like、community_feed_comment 等表；本地活动模块采用“审核表 + 正式表”的双表模式，包含 local_activity_admin、local_activity、local_activity_tag、local_activity_enrollment、local_activity_schedule_template、local_activity_story 等表；邻里互助模块同样采用双表模式，包含 neighbor_support_task_admin 与 neighbor_support_task；通知模块包含 notifications 表并以 read_status/read_at 字段表达已读状态；工具调用治理以 api_routes 表为核心，描述 resource/action 与真实接口路由映射关系。通过 ER 建模可以清晰表达：用户与商品、动态、通知的一对多关系；订单与商品/用户的关联；审核表到正式表的迁移关系；以及 api_routes 作为独立治理表的作用。
+图3-9 数据库 ER 图（此处插入）
+四 系统总体设计
+（1）系统总体架构图
+系统总体架构以“事件驱动触达链路”与“工具调用执行链路”为两条主线。事件驱动链路用于承载高频触达任务：消息产生后进入 MQ，消费侧落库并推送未读变化；工具调用链路用于承载“自然语言/策略决策驱动的业务动作执行”：模型选择动作，后端受控执行。两条链路在业务层通过 NotificationSender/NotificationService 与 api_routes/AgentToolHandler 等模块形成交叉协作，例如下单成功既触发通知事件，也可作为 Agent 触达策略的输入[3][5][15]。
+图4-1 系统总体架构图（此处插入）
+（2）组件图与模块划分
+为便于工程化实现与后续扩展，系统按模块进行组件划分：Agent 模块负责模型调用与工具调用解析；Api 管理模块负责 api_routes 的配置与治理；通知模块负责消息投递、落库、未读统计与实时推送；社区动态模块负责内容发布与互动并与 MinIO 集成；社区集市模块负责商品、购物车与订单并与 Redis GEO/RediSearch、MinIO 集成；本地活动与邻里互助模块负责创建、列表、审核流转并与通知联动；登录与用户模块负责认证、验证码与用户资料维护。组件图应体现模块之间的依赖关系与基础设施的共享关系，例如多个业务模块共享 NotificationSender 发送通知，共享 Redis/MinIO 的访问客户端[2]。
+图4-2 系统组件图（此处插入）
+（3）部署图与运行环境
+系统部署层面包含应用服务与外部依赖服务。应用服务为 Spring Boot 后端，提供 HTTP API 与 WebSocket 端点；外部依赖包含 MySQL（业务数据与路由表）、Redis（缓存/Geo/RediSearch）、RabbitMQ（通知消息通道）、MinIO（对象存储）。部署图应体现网络连接关系、端口与访问路径，并标明前端与后端之间通过 HTTP 与 WebSocket 两种协议交互[4][5][6][7][8][9][10][13][14]。
+图4-3 系统部署图（此处插入）
+（4）关键数据流与事件流
+为了使系统具备可解释的“触达闭环”，本文对关键数据流进行抽象：业务数据流包括用户创建内容/商品/活动/互助任务到数据库落地与索引更新；通知事件流包括消息生成到 MQ 投递、消费入库、未读数更新与推送；工具调用流包括模型产生调用参数到路由查表与内部接口调用。数据流图或活动图应体现每一步的输入输出与关键校验点，例如 api_routes 白名单校验、通知 msgId 幂等校验、库存扣减的条件更新等[1][3]。
+图4-4 触达数据流图或活动图（此处插入）
+五 关键技术设计
+（1）受控工具调用与 api_routes 白名单
+系统通过 api_routes 表对“可被模型调用的接口”进行集中治理。每条路由记录包含 resource、action、http_method、path_template、path_params、operation_type、description 与 enabled 等字段。AgentToolHandler 在执行 backend_api 时必须先通过 ApiRouteService 查找 enabled=1 的路由记录，未命中则拒绝执行，从而避免模型随意访问系统内部接口。管理端 ApiManagementController 提供路由新增、更新、启用/禁用与删除能力，实现运维层面的快速治理。为了便于绘制论文中的设计图，可以将 backend_api 的参数结构（resource/action/pathVariables/params/payload/authorization）整理为结构示意图或表格，并在图中说明参数来源与校验规则[1][16]。
+图5-1 backend_api 工具调用结构示意图（此处插入）
+（2）Agent 编排与工具注入设计
+AgentChatServiceImpl 构建大模型请求时，将 system prompt、历史消息与工具定义一并注入。工具定义由 AgentToolHandler 生成并以 schema 约束输入输出结构，降低模型填参歧义。为了增强可控性，系统在收到工具调用后执行参数反序列化与字段校验，并将执行结果包装为包含 data 与 presentation_hint 的结构，辅助模型组织更可读的自然语言回复。可在论文中绘制“模型请求结构 + 工具注入位置”的示意图，展示 messages 与 tools 的组合方式，以及 tool_calls 触发后的执行分支[15][16][17][18]。
+图5-2 大模型请求结构与工具注入示意图（此处插入）
+（3）通知模块 RabbitMQ 拓扑设计
+通知模块采用 TopicExchange 作为主交换机，支持按 routingKey 将消息分发到用户队列、群组队列与广播队列；同时配套 DirectExchange 作为死信交换机并绑定死信队列，用于消费异常时的隔离。NotificationSender 根据 NotificationMessage 的 targetType 与目标标识生成 routingKey（如 notif.user.{uid}、notif.group.{groupKey}、notif.broadcast），并支持 TTL 设置；NotificationMessageListener 监听多个队列消费消息并落库。可在论文中绘制 RabbitMQ 拓扑图，标注交换机、队列、绑定关系、routingKey 规则以及死信流转路径[3][5][8]。
+图5-3 通知模块 RabbitMQ 拓扑图（此处插入）
+（4）通知消费幂等与未读实时推送设计
+通知消费侧在落库前进行幂等校验：当消息体带有 msgId 时，先查询 notifications 表中是否已存在同一 msgId 与 userId 的记录，若存在则直接跳过，避免重复落库导致的未读数错误。落库后系统对 Redis 未读 Key 进行递增，并通过 WebSocket 向对应用户的 /user/{userId}/queue/notify 推送增量。该设计使通知既可在通知列表中回溯查询，又能在前端实时感知未读变化。可绘制“消费处理流程图”展示幂等判断、落库、缓存更新与推送的顺序关系[1][4][6][9][10]。
+图5-4 通知消费与未读推送流程图（此处插入）
+（5）Redis Key 设计与附近检索加速
+项目中 Redis 同时承担验证码限流、未读缓存与空间检索加速三类职责。验证码限流使用 sms:phone:lock:{phone} 作为冷却锁，验证码内容存储于 sms:code:{phone} 并设置 TTL；未读缓存使用 notice:unread:{userId} 并设置 7 天 TTL；商品附近检索使用 geo:products 的 GEOSET 存储 product:{id} 成员，并在必要时引入 RediSearch 索引 idx:products 对 Hash（product:{id}）进行 FT.SEARCH + GEOFILTER 过滤；本地活动附近检索使用 idx:local_activity 对 activity:{id} Hash 建索引。可绘制 Redis Key 设计图或数据结构图，说明各 Key 的命名规范、生命周期与一致性策略[4][9][14]。
+图5-5 Redis Key 与数据结构设计示意图（此处插入）
+（6）附近检索多级回退策略
+商品 nearby 检索实现采用多级回退：优先 Redis GEO 按半径取候选并按距离排序；若 GEO 无数据或不足以表达过滤条件，则使用 RediSearch 在 GEO 半径过滤的同时进行字段过滤，并用 Haversine 计算距离；若 Redis 侧不可用或未命中，则回退到数据库 Haversine SQL 查询。该策略在保证结果可用性的同时，尽可能将高频计算从数据库转移到 Redis 侧。可绘制流程图明确三段策略的触发条件、输入输出与距离来源标记（redis-geo、redisearch-haversine、sql-haversine）[4][9][14]。
+图5-6 附近检索多级回退流程图（此处插入）
+（7）MinIO 上传与预签名访问设计
+对象存储用于承载动态图片、商品图片与头像等静态资源。项目同时提供后端直传与前端直传两种模式：后端直传由接口接收 MultipartFile 后写入 MinIO；前端直传由后端生成 PUT 预签名 URL，前端直接上传到 MinIO。资源访问通过 GET 预签名 URL 控制有效期，避免直接暴露存储密钥。可绘制“上传与访问流程图”展示 objectKey 生成、PutObject/PresignGet/PresignPut 的调用关系以及 key 到 URL 的转换逻辑[13]。
+图5-7 MinIO 上传与预签名访问流程图（此处插入）
+（8）审核流转与状态迁移设计
+本地活动与邻里互助均采用“审核表 + 正式表”双表模式：用户创建时写入 *_admin 表，管理员 approve 后迁移到正式表并删除审核记录，reject 则更新审核记录状态并保留原因。该设计使未审核内容不会进入正式业务域，降低违规内容外泄风险。可绘制状态迁移图或活动图展示 DRAFT/PENDING、PUBLISHED/OPEN、CANCELLED 等状态流转与触发条件。
+图5-8 活动与互助任务状态迁移图（此处插入）
+六 系统实现
+（1）工程结构与运行依赖
+项目后端位于 backend/demo1，基于 Maven 管理依赖，核心依赖包含 spring-boot-starter-web、spring-boot-starter-security、mybatis-plus-boot-starter、mybatis-spring-boot-starter、spring-boot-starter-data-redis、spring-boot-starter-amqp、spring-boot-starter-websocket、minio、pagehelper 与 springdoc-openapi-ui。运行时依赖 MySQL 用于业务数据持久化，Redis 用于缓存与检索加速，RabbitMQ 用于通知消息队列，MinIO 用于对象存储。系统对外提供 REST API 与 WebSocket 端点，统一响应结构在部分模块使用 Resp<T> 返回 code/message/data，便于前端统一处理[7][8][9][10][11][12][13]。
+（2）Agent 智能触达对话入口实现
+系统提供 /api/agent/chat 对话入口，前端以 AgentChatRequest 传入 messages 历史对话，必要时可携带 Authorization 以便后续工具调用时透传鉴权信息。AgentChatServiceImpl 首先校验对话内容与模型密钥配置，然后构建 DeepSeekPayload 并注入 backend_api 工具定义。工具定义包含 resource、action、pathVariables、params、payload 与 authorization 等字段的 schema，确保模型输出参数结构明确。当模型返回 tool_calls 时，系统进入工具执行路径；当模型仅返回文本时，系统直接返回自然语言回复。为便于论文表达，可在此处放置“Agent 对话入口与工具调用分支流程图”[15][16][17][18]。
+图6-1 Agent 对话与工具调用分支流程图（此处插入）
+（3）通知与公告模块实现
+通知模块对外提供 /api/notifications 系列接口，覆盖通知新增、列表查询、单条已读、全部已读、未读数查询、MQ 异步发送与删除等功能。NotificationServiceImpl 对未读数进行缓存与回源，NotificationSender 负责 MQ 投递，NotificationMessageListener 负责消费落库与推送。管理端通过 /api/admin/notifications/add 发布系统通知或定向通知，最终同样走 MQ 链路以保持一致的落库与推送行为。为便于论文表达，可在此处放置“通知链路端到端时序图”或“MQ 消费处理流程图”[3][4][5][6][8][9][10]。
+图6-2 通知端到端时序图或处理流程图（此处插入）
+（4）社区动态模块实现
+社区动态模块提供 /api/community-feed 相关接口，实现动态发布、列表、详情、点赞、评论、删除与点赞用户列表等功能，并与 MinIO 集成完成图片与头像上传。服务端将 images 以 JSON 数组形式存储，响应时可转换为可访问链接；删除逻辑遵循“作者可删”原则，并在评论删除时支持评论作者或动态作者执行删除。为便于论文表达，可在此处放置“社区动态发布与互动时序图”[13]。
+图6-3 社区动态发布与互动时序图（此处插入）
+（5）社区集市模块实现
+社区集市模块提供商品、分类、购物车与订单能力。商品发布支持从 Authorization 解析简易 token 获取卖家身份以增强接口易用性；商品附近检索采用 Redis GEO/RediSearch/SQL 多级回退策略，并提供迁移与同步接口用于索引构建。购物车下单在事务内完成库存扣减、订单创建与购物车清理，并通过通知模块向买家与卖家发送联动通知，从而实现交易与触达一体化。为便于论文表达，可在此处放置“附近检索流程图”与“下单事务与通知联动时序图”[1][4][9][14]。
+图6-4 附近检索流程图（此处插入）
+图6-5 下单事务与通知联动时序图（此处插入）
+（6）本地活动与邻里互助模块实现
+本地活动模块支持活动创建进入审核、管理员审核迁移到正式表、用户报名记录查询、附近检索、热力图展示与故事内容发布；邻里互助模块支持互助任务发布进入审核、管理员审核迁移到正式表与任务列表查询，并在创建与审核阶段通过通知模块向发布者发送结果通知。为便于论文表达，可在此处放置“审核迁移活动图”与“附近检索时序图”。
+图6-6 审核迁移活动图（此处插入）
+图6-7 活动附近检索时序图（此处插入）
+（7）登录、短信验证码与用户资料模块实现
+登录注册模块提供 /login 与 /register 完成用户登录与注册，密码采用 BCrypt 加密存储并在登录时匹配校验；短信验证码模块通过 Redis 冷却锁与 TTL 存储实现限流与短期验证；用户资料模块支持基础信息更新、邮箱唯一性校验、账号删除与头像预签名展示。管理端用户管理支持分页查询、资料更新、重置密码与删除，并在重置密码后通过通知模块向用户发送提醒，形成治理闭环。为便于论文表达，可在此处放置“短信验证码限流流程图”与“用户管理用例图”[4][7][9]。
+图6-8 短信验证码限流流程图（此处插入）
+七 安全与治理机制
+（1）接口白名单与最小可调用面
+系统通过 api_routes 将工具调用能力收敛到可配置白名单，backend_api 的每次执行都必须命中 enabled 路由记录，未命中则拒绝执行并返回错误信息。该机制使模型的“能力边界”从代码层抽离到配置层，便于审计与动态治理[1][16]。
+（2）参数校验、幂等与数据一致性
+工具调用层对 resource/action/路径变量进行显式校验，避免出现路径拼装错误或不完整参数导致的异常调用。通知消费侧通过 msgId+userId 查重实现幂等，避免重复投递导致的重复落库与未读数错误。未读数缓存采用 TTL 与回源机制结合：缓存命中直接返回以提升性能，缓存缺失回源数据库并重建缓存，读写操作后主动清理或重置缓存以降低一致性风险[1][4][9]。
+（3）消息可靠性与异常隔离
+RabbitMQ 拓扑中引入死信交换机与死信队列，用于在消息处理异常时进行隔离，避免阻塞主消费队列。消息体支持 TTL，使过期通知不会长期堆积。项目中还预留了 retry 队列，便于后续引入延迟重试策略[3][5][8]。
+（4）基础安全配置与异常处理
+系统通过 Spring Security 提供 BCryptPasswordEncoder 统一密码加密，并配置 CORS 允许本地前端域名访问；同时关闭 CSRF 以适配前后端分离的接口调用方式。全局异常处理器对邮箱冲突等业务异常返回结构化响应（包含时间戳、状态码与路径），提升前端可处理性[7]。
+八 实验与评估
+（1）功能性验证方法
+针对触达链路，采用端到端验证：通过 /api/notifications/send 投递消息后，检查 notifications 表中是否落库、Redis 未读数是否递增、WebSocket 是否收到未读增量推送，并通过 /api/notifications 接口验证列表读取、/unreadCount 验证未读数读取、/markAllRead 或 /{id}/read 验证已读状态变更与缓存更新。针对商品交易链路，采用事务一致性验证：执行 /api/carts/buyCartItems 后检查库存扣减、订单生成、购物车条目删除以及买卖双方通知是否产生。针对活动与互助审核链路，验证审核表到正式表的迁移是否完整，并验证审核结果通知是否发送。
+图8-1 实验验证流程图（此处插入）
+（2）性能与指标化评估方法
+触达时延可定义为“消息投递时间戳到 WebSocket 推送时间戳”的差值，可通过服务端日志或消息体 createdAt 与消费时间对比测量。接口失败率可通过统计 Resp.code 非 200 的比例或通过日志聚合统计异常次数得到。附近检索性能可通过对 /api/products/nearby 与 /api/local-act/activities/nearby 的响应时间与查询命中来源（redis-geo、redisearch、sql 回退）进行对比分析。对工具调用链路，可通过模拟不同的 resource/action（正确、禁用、缺失参数）观察拒绝率与错误定位信息，验证白名单治理与参数校验有效性。
+（3）评估结论（基于验证结果的总结）
+通过对典型业务场景的功能验证与链路观察，本项目实现了从事件产生到触达可见的完整闭环，并在工程层面提供了可扩展的接口治理能力与多存储组件协同能力。通知链路具备异步投递、幂等落库、未读缓存与实时推送能力；业务模块具备可运行的发布、交易、审核与互动功能；工具调用机制为后续引入“事件 → Agent → 触达策略”的自动化决策提供了可控的执行底座。
+九 总结与展望
+（1）结论
+本文基于实际项目实现了一套“事件驱动 + 大模型 Agent + 受控工具调用”的社区服务智能触达系统。系统以 api_routes 为核心提供接口白名单与治理能力，以 backend_api 工具实现路由查表与可控转发，以 RabbitMQ+Redis+WebSocket 构建通知触达闭环，并在社区动态、社区集市、本地活动、邻里互助、用户与登录、管理端审核与治理等模块上完成较为完整的业务功能实现。该方案在保持工程可维护性与安全可控的前提下，引入了大模型对意图与策略的表达能力，为社区触达系统的智能化升级提供了可落地路径。
+（2）展望
+未来工作可从三个方向进一步完善：1. 在工具调用链路中引入更细粒度的权限校验与策略引擎（按用户角色、资源范围、频控与风险等级控制可调用动作）；2. 将 operation_type 与候选 action 列表选择机制落地为两阶段选择流程，进一步降低模型选错接口的概率；3. 建立触达效果评估闭环，沉淀触达日志与用户反馈数据，形成可量化的策略优化机制，并逐步扩展到推荐、内容审核与协同服务等更复杂场景。
+十 参考文献
+[1] Martin Kleppmann．Designing Data-Intensive Applications: The Big Ideas Behind Reliable, Scalable, and Maintainable Systems．O'Reilly Media,2017：1-616
+[2] Sam Newman．Building Microservices: Designing Fine-Grained Systems．O'Reilly Media,2021：1-616
+[3] Gregor Hohpe,Bobby Woolf．Enterprise Integration Patterns: Designing, Building, and Deploying Messaging Solutions．Addison-Wesley Professional,2003：1-736
+[4] Josiah L. Carlson．Redis in Action．Manning Publications,2013：1-320
+[5] Alvaro Videla,Jason J. W. Williams．RabbitMQ in Action: Distributed Messaging for Everyone．Manning Publications,2012：1-312
+[6] Ian Fette,Alexey Melnikov．The WebSocket Protocol．IETF RFC 6455,2011-12：1-71
+[7] VMware,Inc．Spring Boot Reference Documentation．Spring 官方文档,2026-02：1-306
+[8] Spring Team．Spring AMQP Reference Documentation．Spring 官方文档,2026-02：1-223
+[9] Spring Team．Spring Data Redis Reference Documentation．Spring 官方文档,2026-02：1-329
+[10] Spring Team．Spring WebSocket Reference Documentation．Spring 官方文档,2026-02：1-888
+[11] MyBatis Project．MyBatis 3 User Guide．MyBatis 官方文档,2026-02：1-98
+[12] Baomidou．MyBatis-Plus 官方文档．MyBatis-Plus 官方文档,2026-02：无固定页码
+[13] MinIO,Inc．MinIO Object Storage Documentation．MinIO 官方文档,2026-02：无固定页码
+[14] Redis Ltd．RediSearch Documentation．Redis 官方文档,2026-02：无固定页码
+[15] Shunyu Yao,Jeffrey Zhao,Dian Yu,et al．ReAct: Synergizing Reasoning and Acting in Language Models．arXiv,2022：1-33
+[16] Timo Schick,Jane Dwivedi-Yu,Roberto Dessì,et al．Toolformer: Language Models Can Teach Themselves to Use Tools．arXiv,2023：1-17
+[17] Jason Wei,Xuezhi Wang,Dale Schuurmans,et al．Chain-of-Thought Prompting Elicits Reasoning in Large Language Models．arXiv,2022：1-43
+[18] DeepSeek．DeepSeek Chat Completions API Documentation．DeepSeek 官方文档,2026-02：无固定页码
