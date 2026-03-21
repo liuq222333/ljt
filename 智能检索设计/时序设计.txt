@@ -1,0 +1,1016 @@
+下面继续补：
+
+# 《端到端时序图与典型请求链路 V1》
+
+这份文档的目标，是把前面已经定义好的：
+
+* LangGraph 节点
+* Tool Router
+* Session State
+* 结构化层
+* 知识层
+* 实时层
+* Response Composer
+* 同步链路
+* 监控与治理
+
+真正串成一套**端到端可执行的请求流程**。
+
+如果前面的文档回答的是：
+
+* 每个模块是什么
+* 为什么这样分层
+* 每层负责什么
+
+那么这份文档回答的是：
+
+**一次真实请求从进来到出去，到底怎么跑。**
+
+---
+
+# 一、端到端时序图与典型请求链路 V1
+
+## 1. 文档目标
+
+本文档定义 Agent 系统中典型请求场景的端到端执行链路与时序关系，包括：
+
+1. 商品 / 活动 / 门店推荐链路
+2. FAQ / 规则问答链路
+3. 搜索 + 实时确认链路
+4. 搜索 + 知识 + 实时混合链路
+5. 异常降级链路
+6. 多轮澄清链路
+
+本文档重点说明：
+
+* 各节点的执行顺序
+* 状态如何流转
+* 哪些地方需要串行
+* 哪些地方可以并行
+* 异常时如何降级
+* 多轮会话如何继承上下文
+
+---
+
+## 2. 参与角色定义
+
+为方便阅读，先统一时序图中的参与者。
+
+### 2.1 主要参与者
+
+* **User**：用户
+* **UI / Client**：交互前端
+* **Agent Runtime**：LangGraph 运行时
+* **Intent Parser**：`parse_intent`
+* **Param Normalizer**：`normalize_params`
+* **Tool Router**：`route_tools`
+* **Structured Search**：结构化搜索层
+* **Knowledge Retrieval**：知识层
+* **Realtime Service**：实时层
+* **Response Composer**：`compose_response`
+* **Observability**：日志、trace、metrics
+
+---
+
+## 3. 全局执行总览
+
+典型单轮请求的抽象流程如下：
+
+```text id="seq_global_01"
+User
+-> UI / Client
+-> Agent Runtime
+-> parse_intent
+-> normalize_params
+-> route_tools
+-> execute tools
+-> compose_response
+-> UI / Client
+-> User
+```
+
+其中 `execute tools` 可能具体展开为：
+
+* `execute_structured_search`
+* `retrieve_knowledge`
+* `query_realtime`
+
+---
+
+## 4. 场景 A：商品 / 活动推荐链路
+
+## 4.1 场景定义
+
+适用问题：
+
+* “上海周末适合带孩子玩的地方有哪些”
+* “推荐几个便宜一点的团购套餐”
+* “附近有什么适合雨天去的活动”
+
+这类问题的特点是：
+
+* 以推荐 / 搜索为主
+* 通常不强依赖实时
+* 重点在结构化召回与排序
+* 可能带少量解释，但不一定强制知识补充
+
+---
+
+## 4.2 主时序
+
+```text id="seq_a_01"
+User
+-> UI / Client: 输入自然语言 query
+UI / Client
+-> Agent Runtime: 发起请求
+
+Agent Runtime
+-> Intent Parser: parse_intent(messages, session_context)
+Intent Parser
+-> Agent Runtime: parsed_intent
+
+Agent Runtime
+-> Param Normalizer: normalize_params(parsed_intent, session_context)
+Param Normalizer
+-> Agent Runtime: normalized_params
+
+Agent Runtime
+-> Tool Router: route_tools(parsed_intent, normalized_params)
+Tool Router
+-> Agent Runtime: tool_plan(single_tool: structured_search)
+
+Agent Runtime
+-> Structured Search: search_products/search_events/search_stores(normalized_params)
+Structured Search
+-> Agent Runtime: search_results
+
+Agent Runtime
+-> Response Composer: compose(search_results, parsed_intent, normalized_params)
+Response Composer
+-> Agent Runtime: final_answer
+
+Agent Runtime
+-> UI / Client: answer_text + cards + next_actions
+UI / Client
+-> User: 展示结果
+```
+
+---
+
+## 4.3 状态流转
+
+该链路中主要 state 更新如下：
+
+### `parse_intent` 后
+
+更新：
+
+* `parsed_intent`
+* `debug_trace`
+
+### `normalize_params` 后
+
+更新：
+
+* `normalized_params`
+* `session_context.confirmed_constraints`
+* `session_context.pending_slots`
+
+### `route_tools` 后
+
+更新：
+
+* `tool_plan`
+* `session_context.current_stage = searching`
+
+### `execute_structured_search` 后
+
+更新：
+
+* `search_results`
+* `execution_meta.completed_nodes`
+
+### `compose_response` 后
+
+更新：
+
+* `final_answer`
+* `session_context.current_stage = completed`
+
+---
+
+## 4.4 关键设计点
+
+### 为什么不默认查实时
+
+因为这类问题通常是：
+
+* 浏览式
+* 候选探索式
+* 非强时效确认式
+
+默认查实时会增加：
+
+* 时延
+* 成本
+* 超时概率
+
+---
+
+## 4.5 典型输出形态
+
+适合输出：
+
+* TopN 卡片
+* 推荐理由标签
+* 下一步筛选建议
+
+例如：
+
+* 按价格筛选
+* 按距离筛选
+* 只看室内
+* 只看亲子
+
+---
+
+## 5. 场景 B：FAQ / 规则问答链路
+
+## 5.1 场景定义
+
+适用问题：
+
+* “这个活动能退吗”
+* “停车收费规则是什么”
+* “适合几岁孩子”
+* “是否需要预约”
+
+这类问题的特点是：
+
+* 重点在规则与说明
+* 常常不需要结构化搜索
+* 若已有焦点实体，可以直接查知识
+* 若实体不明确，可能先澄清或先搜索
+
+---
+
+## 5.2 单实体已明确时序
+
+```text id="seq_b_01"
+User
+-> UI / Client: 提问规则型问题
+
+UI / Client
+-> Agent Runtime
+
+Agent Runtime
+-> Intent Parser
+Intent Parser
+-> Agent Runtime: parsed_intent(task_type=faq_query)
+
+Agent Runtime
+-> Param Normalizer
+Param Normalizer
+-> Agent Runtime: normalized_params(entity_id from session_context)
+
+Agent Runtime
+-> Tool Router
+Tool Router
+-> Agent Runtime: tool_plan(single_tool: knowledge_retrieval)
+
+Agent Runtime
+-> Knowledge Retrieval: retrieve_knowledge(query_text, entity_id, doc_types)
+Knowledge Retrieval
+-> Agent Runtime: retrieved_docs
+
+Agent Runtime
+-> Response Composer: compose(rule_answer)
+Response Composer
+-> Agent Runtime: final_answer
+
+Agent Runtime
+-> UI / Client
+UI / Client
+-> User
+```
+
+---
+
+## 5.3 无明确实体时的两种路径
+
+### 路径 1：先澄清
+
+适用：
+
+* “这个能退吗”但没有明确“这个”是谁
+
+### 路径 2：先搜索后知识
+
+适用：
+
+* 用户问题里已包含足够搜索线索
+* 可以先找到候选对象，再补知识说明
+
+---
+
+## 5.4 规则问答的关键点
+
+### 知识层是主证据源
+
+这类问题的结论应主要来自：
+
+* FAQ
+* 规则文档
+* 说明文档
+
+### 如果问题带“现在”
+
+例如：
+
+* “这个活动现在还能退吗”
+
+则可能需要同时结合：
+
+* 知识层规则
+* 实时层当前状态
+
+这时会转为混合链路。
+
+---
+
+## 6. 场景 C：搜索 + 实时确认链路
+
+## 6.1 场景定义
+
+适用问题：
+
+* “明天还能订的活动有哪些”
+* “当前还营业的门店推荐几个”
+* “有库存的套餐有哪些”
+
+这类问题的特点是：
+
+* 强依赖当前状态
+* 不能只靠快照回答
+* 通常需要先召回，再确认
+
+---
+
+## 6.2 主时序
+
+```text id="seq_c_01"
+User
+-> UI / Client: 输入强实时搜索类 query
+UI / Client
+-> Agent Runtime
+
+Agent Runtime
+-> Intent Parser
+Intent Parser
+-> Agent Runtime: parsed_intent(need_realtime=true)
+
+Agent Runtime
+-> Param Normalizer
+Param Normalizer
+-> Agent Runtime: normalized_params
+
+Agent Runtime
+-> Tool Router
+Tool Router
+-> Agent Runtime: tool_plan(serial: search -> realtime)
+
+Agent Runtime
+-> Structured Search: search_events / search_stores / search_products
+Structured Search
+-> Agent Runtime: search_results(topN candidates)
+
+Agent Runtime
+-> Realtime Service: query_realtime(topN entity_ids)
+Realtime Service
+-> Agent Runtime: realtime_results
+
+Agent Runtime
+-> Response Composer: merge(search_results, realtime_results)
+Response Composer
+-> Agent Runtime: final_answer
+
+Agent Runtime
+-> UI / Client
+UI / Client
+-> User
+```
+
+---
+
+## 6.3 为什么必须串行
+
+因为实时层通常需要：
+
+* `entity_ids`
+* `date`
+* `time_slot`
+* `sub_entity_ids`
+
+而这些输入往往来自结构化搜索结果。
+因此必须先搜候选，再查实时。
+
+---
+
+## 6.4 关键状态变化
+
+### 搜索后
+
+* `search_results.items`
+* `session_context.candidate_entities`
+
+### 实时后
+
+* `realtime_results.items`
+* `execution_meta.degraded`（若部分失败）
+
+### 回答生成后
+
+* `final_answer.disclaimers`
+* `final_answer.cards[].realtime_badges`
+
+---
+
+## 6.5 结果融合重点
+
+Response Composer 在该链路中主要做三件事：
+
+1. 用实时状态覆盖快照状态
+2. 过滤掉当前不可用候选
+3. 在无完整实时结果时生成 disclaimer
+
+---
+
+## 7. 场景 D：搜索 + 知识 + 实时混合链路
+
+## 7.1 场景定义
+
+适用问题：
+
+* “推荐几个现在还能去的亲子乐园，并告诉我入园注意事项”
+* “找几个明天还能订的活动，再告诉我退款规则”
+* “推荐几家当前营业的门店，并说明停车规则”
+
+这类问题的特点是：
+
+* 同时需要搜索
+* 同时需要实时确认
+* 同时需要解释说明
+
+这是最典型的多工具混合场景。
+
+---
+
+## 7.2 主时序
+
+```text id="seq_d_01"
+User
+-> UI / Client
+UI / Client
+-> Agent Runtime
+
+Agent Runtime
+-> Intent Parser
+Intent Parser
+-> Agent Runtime: parsed_intent(need_realtime=true, need_explanation=true)
+
+Agent Runtime
+-> Param Normalizer
+Param Normalizer
+-> Agent Runtime: normalized_params
+
+Agent Runtime
+-> Tool Router
+Tool Router
+-> Agent Runtime: tool_plan(search -> parallel(knowledge, realtime))
+
+Agent Runtime
+-> Structured Search
+Structured Search
+-> Agent Runtime: search_results
+
+Agent Runtime
+-> Knowledge Retrieval: retrieve_knowledge(search_results.top_entities)
+Agent Runtime
+-> Realtime Service: query_realtime(search_results.top_ids)
+
+Knowledge Retrieval
+-> Agent Runtime: retrieved_docs
+Realtime Service
+-> Agent Runtime: realtime_results
+
+Agent Runtime
+-> Response Composer: merge(search + knowledge + realtime)
+Response Composer
+-> Agent Runtime: final_answer
+
+Agent Runtime
+-> UI / Client
+UI / Client
+-> User
+```
+
+---
+
+## 7.3 为什么这里适合并行
+
+在结构化搜索完成后：
+
+* 知识检索通常基于候选实体或 query 主题
+* 实时查询通常基于候选实体 ID
+
+两者互相之间一般不依赖，因此可以并行。
+
+---
+
+## 7.4 融合重点
+
+在这个场景里，Response Composer 需要同时处理：
+
+### 结构化层提供
+
+* 候选对象骨架
+* 标题、副标题、评分、标签等
+
+### 实时层提供
+
+* 当前可订
+* 当前营业
+* 当前库存
+* 当前价格
+
+### 知识层提供
+
+* 退款规则
+* 入园注意事项
+* 适合人群
+* 停车说明
+
+---
+
+## 7.5 典型输出形态
+
+建议输出：
+
+* 推荐卡片
+* 当前状态角标
+* 规则 / 注意事项摘要
+* disclaimer
+* 下一步引导
+
+---
+
+## 8. 场景 E：异常降级链路
+
+## 8.1 场景定义
+
+适用所有请求中的异常情况，例如：
+
+* 实时层超时
+* 知识层无命中
+* 结构化层无结果
+* 工具部分失败
+* 路由后某一步执行失败
+
+重点不是“报错结束”，而是：
+
+**尽量在事实边界清晰的前提下继续回答。**
+
+---
+
+## 8.2 实时层超时降级链路
+
+```text id="seq_e_01"
+User
+-> Agent Runtime
+-> parse_intent
+-> normalize_params
+-> route_tools(search -> realtime)
+
+Agent Runtime
+-> Structured Search
+Structured Search
+-> Agent Runtime: search_results
+
+Agent Runtime
+-> Realtime Service
+Realtime Service
+-> Agent Runtime: timeout
+
+Agent Runtime
+-> debug_trace / execution_meta: 标记 realtime timeout
+Agent Runtime
+-> Response Composer: use search_results only + add disclaimer
+Response Composer
+-> Agent Runtime: final_answer(partial_result)
+
+Agent Runtime
+-> User
+```
+
+---
+
+## 8.3 知识层无命中降级链路
+
+```text id="seq_e_02"
+搜索 / FAQ 请求
+-> retrieve_knowledge
+-> no_hit
+-> compose_response(without rule assertion, with fallback wording)
+```
+
+关键原则：
+
+* 没命中知识文档时，不要脑补规则
+* 可回答“我暂时没有查到明确规则说明”
+* 可继续展示搜索结果，但不做强规则断言
+
+---
+
+## 8.4 结构化层无结果降级链路
+
+```text id="seq_e_03"
+search request
+-> structured_search
+-> empty
+-> composer(no_result + refine suggestions)
+```
+
+这种情况下，建议输出：
+
+* 无结果说明
+* 可能的限制条件提示
+* 放宽条件建议
+
+而不是“系统错误”。
+
+---
+
+## 8.5 部分实时成功降级链路
+
+```text id="seq_e_04"
+search -> realtime(top10)
+-> only 6 succeeded
+-> compose(partial realtime coverage)
+```
+
+输出策略：
+
+* 优先展示已确认实时状态的候选
+* 未确认对象保留快照信息
+* 加入“部分结果未完成实时确认”的 disclaimer
+
+---
+
+## 9. 场景 F：多轮澄清链路
+
+## 9.1 场景定义
+
+适用问题：
+
+* “附近有什么好玩的”
+* “帮我订一个”
+* “这个能退吗”
+* “那换便宜一点的”
+
+这类问题的特点是：
+
+* 当前 query 本身不可直接完整执行
+* 需要依赖上下文或补充信息
+* 一轮内不一定能直接得出最终答案
+
+---
+
+## 9.2 首轮澄清链路
+
+```text id="seq_f_01"
+User
+-> UI / Client
+-> Agent Runtime
+-> parse_intent
+-> normalize_params
+-> route_tools
+
+Tool Router
+-> Agent Runtime: requires_clarification=true
+
+Agent Runtime
+-> Response Composer: generate clarification response
+Response Composer
+-> Agent Runtime: final_answer(answer_type=clarification)
+
+Agent Runtime
+-> User
+```
+
+---
+
+## 9.3 第二轮补充后继续执行
+
+```text id="seq_f_02"
+User: “上海，偏亲子，周末去”
+-> UI / Client
+-> Agent Runtime
+
+Agent Runtime
+-> session_context: 读取上一轮 pending_slots
+-> parse_intent
+-> normalize_params(merge previous context + new answer)
+-> route_tools
+-> execute tools
+-> compose_response
+-> User
+```
+
+---
+
+## 9.4 多轮链路的关键点
+
+### `session_context.pending_slots`
+
+保存待澄清槽位，例如：
+
+* `city_id`
+* `date`
+* `entity_id`
+
+### `session_context.confirmed_constraints`
+
+保存已确认条件，例如：
+
+* `city_id=310000`
+* `crowd_tag=亲子`
+
+### `focused_entity_id`
+
+当用户说“这个”“那个”时，用于解析当前焦点对象。
+
+---
+
+## 10. 场景 G：上下文承接链路
+
+## 10.1 场景定义
+
+例如：
+
+第一轮：
+
+* “推荐几个上海适合亲子的活动”
+
+第二轮：
+
+* “那换便宜一点的”
+
+第三轮：
+
+* “再看看明天还能订的”
+
+这类问题不是重新开始，而是在当前结果基础上收窄或改写条件。
+
+---
+
+## 10.2 链路特点
+
+系统需要：
+
+1. 保留上一轮已确认条件
+2. 识别这轮新增 / 修改条件
+3. 重建 `normalized_params`
+4. 重新路由
+
+---
+
+## 10.3 时序
+
+```text id="seq_g_01"
+Turn 1:
+User -> search recommendation -> final_answer(cards)
+
+Turn 2:
+User: “那换便宜一点的”
+-> Agent Runtime
+-> parse_intent(with session_context)
+-> normalize_params(keep city/crowd, update price_preference)
+-> route_tools
+-> structured_search
+-> compose_response
+
+Turn 3:
+User: “再看看明天还能订的”
+-> Agent Runtime
+-> parse_intent
+-> normalize_params(add date=tomorrow, need_realtime=true)
+-> route_tools(search -> realtime)
+-> compose_response
+```
+
+---
+
+## 10.4 关键设计点
+
+这种场景里最重要的不是“重新理解一句话”，而是：
+
+**理解它是在修改上一轮哪个条件。**
+
+因此：
+
+* `session_context.confirmed_constraints`
+* `last_selected_entity_ids`
+* `current_stage`
+
+都很重要。
+
+---
+
+## 11. 端到端状态流转总图
+
+下面给一版抽象状态流转。
+
+```text id="seq_state_01"
+messages
+-> parsed_intent
+-> normalized_params
+-> tool_plan
+-> search_results / retrieved_docs / realtime_results
+-> final_answer
+-> session_context update
+```
+
+更细一点可以写为：
+
+```text id="seq_state_02"
+User query
+-> parse_intent
+   output: parsed_intent
+
+-> normalize_params
+   output: normalized_params
+   update: pending_slots / confirmed_constraints
+
+-> route_tools
+   output: tool_plan
+   update: current_stage
+
+-> execute tools
+   output: search_results / retrieved_docs / realtime_results
+
+-> compose_response
+   output: final_answer
+   update: current_stage=completed
+```
+
+---
+
+## 12. 典型链路与 plan_type 对应关系
+
+为便于评审，可以把场景和 `plan_type` 对应起来。
+
+| 场景           | plan_type                | execution_mode      |
+| ------------ | ------------------------ | ------------------- |
+| 商品 / 活动推荐    | `single_tool`            | `single`            |
+| FAQ / 规则问答   | `single_tool`            | `single`            |
+| 搜索 + 实时确认    | `multi_tool_serial`      | `serial`            |
+| 搜索 + 知识补充    | `multi_tool_serial`      | `serial`            |
+| 搜索 + 知识 + 实时 | `mixed_serial_parallel`  | `hybrid`            |
+| 多轮澄清         | `clarification_required` | `none`              |
+| 异常降级返回       | `partial_result`         | `serial` / `hybrid` |
+
+---
+
+## 13. 异常点插桩建议
+
+为了后续治理，每条链路都建议在以下点打 trace：
+
+### 公共点
+
+* 请求进入
+* `parse_intent` 完成
+* `normalize_params` 完成
+* `route_tools` 完成
+* 每个 tool 开始与结束
+* `compose_response` 完成
+* 响应返回
+
+### 异常点
+
+* `missing_required_slots`
+* `tool timeout`
+* `fallback_applied`
+* `partial_success`
+* `no_result`
+* `conflict_detected`
+
+---
+
+## 14. 时序图在评审中的价值
+
+这份文档的价值不只是“画流程”，更重要的是它能帮助评审时快速识别：
+
+1. 哪些链路必须串行
+2. 哪些链路可以并行
+3. 哪些场景必须保守回答
+4. 多轮上下文依赖什么字段
+5. 降级后用户会看到什么
+6. 哪些地方最容易出性能瓶颈
+
+---
+
+## 15. 建议补充的实现图形化版本
+
+正式评审时，建议把上面的文本时序再转成图形版，至少画这 6 张图：
+
+1. 商品 / 活动推荐链路图
+2. FAQ / 规则问答链路图
+3. 搜索 + 实时确认链路图
+4. 搜索 + 知识 + 实时混合链路图
+5. 实时超时降级链路图
+6. 多轮澄清链路图
+
+这样评审对象会更容易理解。
+
+---
+
+## 16. 最终结论
+
+端到端时序图与典型请求链路的作用，是把整套架构从“模块设计”推进到“运行流程设计”。
+
+它的核心价值在于：
+
+1. 把各层边界真正串起来
+2. 明确节点的先后关系和依赖关系
+3. 明确哪些场景该查什么、不该查什么
+4. 明确异常降级时系统如何继续回答
+5. 明确多轮会话依赖哪些状态字段
+
+到这里为止，你这套方案已经基本具备了一份完整评审稿需要的主干内容。
+
+---
+
+# 二、你现在这份方案已经可以怎么用
+
+现在你已经有：
+
+* 总体架构
+* LangGraph / LangChain 分层
+* Tool Router
+* Session State
+* 知识层
+* 实时层
+* Response Composer
+* 同步链路
+* 监控评估治理
+* 端到端链路
+
+这已经足够支持三种后续动作：
+
+### 1. 做正式评审稿
+
+把这些内容整理成一份完整文档。
+
+### 2. 做技术方案拆分
+
+拆给不同团队：
+
+* 搜索 / 快照 / ES 团队
+* 知识库团队
+* 实时服务团队
+* Agent 编排团队
+* 治理平台团队
+
+### 3. 进入工程落地
+
+开始补：
+
+* state schema 代码
+* Router 规则表
+* tool adapter
+* graph builder
+* tracing / metrics
+
+---
+
+# 三、我建议你下一步直接做的事
+
+最实用的下一步，不是继续加新概念，而是做下面两个产物之一：
+
+### 产物 A：一份“完整总设计文档”
+
+把我们刚才所有内容并成一版统一目录。
+
+### 产物 B：一份“可落地工程骨架”
+
+直接输出：
+
+* Python package 目录
+* state schema
+* node interface
+* tool interface
+* graph builder 伪代码
+* Router rule skeleton
+
+我建议先做 **产物 A：完整总设计文档**。
+这样你可以先拿去评审，再根据评审意见收口工程实现。

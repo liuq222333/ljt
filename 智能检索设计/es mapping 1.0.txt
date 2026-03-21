@@ -1,0 +1,625 @@
+可以。下面是我帮你整理后的**正式版本**。
+我按“可直接放进评审文档”的写法重写了，重点补了这几块：
+
+* 设计原则
+* 中文检索策略
+* 字段用途边界
+* 排序与查询约束
+* 同步与变更规则
+* 上线范围说明
+
+你可以直接把这版放进设计文档。
+
+---
+
+# `product_search` 检索索引 Mapping 设计
+
+## 1. 文档目的
+
+本文定义商品搜索索引 `product_search` 的 Mapping 方案，用于支撑商品搜索场景下的关键词检索、结构化过滤、类目召回、标签召回、地理检索和综合排序能力。
+
+该索引服务于结构化检索层，定位为**查询投影索引**，不作为业务主数据表，也不作为交易真相来源。
+业务主数据仍以商品、门店、类目、标签等上游系统为准；搜索索引只承担查询加速、召回与排序支撑职责。
+
+---
+
+## 2. 设计目标
+
+`product_search` 索引需要满足以下目标：
+
+1. 支持商品标题、副标题、摘要等文本字段的关键词搜索
+2. 支持城市、区县、商圈、类目、标签、价格、状态等结构化过滤
+3. 支持类目召回、标签召回、标题召回、描述召回等多路召回能力
+4. 支持基于地理位置的附近搜索、半径过滤和距离排序
+5. 支持按热度、销量、评分、推荐分、上新时间等特征排序
+6. 为 `search_products` 查询接口提供统一、稳定、可扩展的索引层支撑能力
+
+---
+
+## 3. 设计原则
+
+### 3.1 查询投影原则
+
+搜索索引是面向查询的投影结构，不直接承担业务真相管理。
+索引文档由同步链路统一构建和覆盖写入，不允许前台查询侧直接修改索引内容。
+
+### 3.2 结构化优先原则
+
+结构化过滤条件优先由显式字段承载。
+能用 `keyword`、数值、时间、地理字段表达的条件，不依赖大模型推断，也不依赖非结构化文本检索。
+
+### 3.3 中文检索可控原则
+
+中文文本字段必须显式定义分词策略。
+标题是主文本召回字段；副标题、摘要、店名、类目、标签是辅助召回字段，不应在默认排序中压过标题相关性。
+
+### 3.4 同步统一构建原则
+
+索引文档由统一同步层生成。
+包括 `category_path_ids`、`tag_ids`、`tag_names`、`location`、`searchable_status`、`recommend_score` 等字段，均由同步规则统一计算，不在查询侧临时拼装。
+
+### 3.5 可演进原则
+
+索引命名、别名、Mapping 和查询 DSL 需要支持版本化演进。
+当 Mapping 存在不兼容变更时，通过新索引重建和别名切换完成迁移。
+
+---
+
+## 4. 索引命名与别名约定
+
+建议采用版本化命名：
+
+```text
+product_search_v1
+```
+
+建议同时配置读写别名：
+
+* 写别名：`product_search_write`
+* 读别名：`product_search_read`
+
+这样在索引重建、灰度切换和回滚时更安全。
+
+---
+
+## 5. 文档主键设计
+
+ES / OpenSearch 文档 `_id` 建议直接使用 `product_id`。
+
+```text
+_document_id = product_id
+```
+
+这样有三个好处：
+
+1. 同步更新时可以直接覆盖写入
+2. 删除或下线时可以直接按业务主键处理
+3. 与 MySQL 快照表中的唯一键保持一致，便于链路排查和补偿修复
+
+---
+
+## 6. Mapping 设计
+
+> 说明：以下为正式版 V1 Mapping 草案。
+> 分片数和副本数可根据实际集群规模调整，文中数值作为初始建议，不视为固定结论。
+
+```json
+PUT product_search_v1
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1,
+    "analysis": {
+      "normalizer": {
+        "lowercase_normalizer": {
+          "type": "custom",
+          "filter": ["lowercase"]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": false,
+    "properties": {
+      "product_id": {
+        "type": "long"
+      },
+      "seller_id": {
+        "type": "long"
+      },
+      "store_id": {
+        "type": "long"
+      },
+      "store_name": {
+        "type": "keyword",
+        "ignore_above": 256,
+        "fields": {
+          "text": {
+            "type": "text"
+          }
+        }
+      },
+      "product_type": {
+        "type": "keyword",
+        "ignore_above": 64
+      },
+
+      "title": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "search_analyzer": "ik_smart",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "subtitle": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "search_analyzer": "ik_smart"
+      },
+      "summary_text": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "search_analyzer": "ik_smart"
+      },
+
+      "category_id": {
+        "type": "long"
+      },
+      "category_name": {
+        "type": "keyword",
+        "ignore_above": 128,
+        "fields": {
+          "text": {
+            "type": "text",
+            "analyzer": "ik_max_word",
+            "search_analyzer": "ik_smart"
+          }
+        }
+      },
+      "category_path": {
+        "type": "keyword",
+        "ignore_above": 1024
+      },
+      "category_path_ids": {
+        "type": "long"
+      },
+
+      "tag_ids": {
+        "type": "long"
+      },
+      "tag_names": {
+        "type": "keyword",
+        "ignore_above": 128,
+        "fields": {
+          "text": {
+            "type": "text",
+            "analyzer": "ik_max_word",
+            "search_analyzer": "ik_smart"
+          }
+        }
+      },
+
+      "city_id": {
+        "type": "long"
+      },
+      "city_name": {
+        "type": "keyword",
+        "ignore_above": 64
+      },
+      "district_id": {
+        "type": "long"
+      },
+      "district_name": {
+        "type": "keyword",
+        "ignore_above": 64
+      },
+      "business_area_id": {
+        "type": "long"
+      },
+      "business_area_name": {
+        "type": "keyword",
+        "ignore_above": 128
+      },
+
+      "location": {
+        "type": "geo_point"
+      },
+
+      "base_price": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "display_price": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "currency": {
+        "type": "keyword",
+        "ignore_above": 16
+      },
+
+      "cover_image": {
+        "type": "keyword",
+        "ignore_above": 1024
+      },
+
+      "sales_count": {
+        "type": "long"
+      },
+      "rating": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "review_count": {
+        "type": "long"
+      },
+      "hot_score": {
+        "type": "scaled_float",
+        "scaling_factor": 10000
+      },
+      "recommend_score": {
+        "type": "scaled_float",
+        "scaling_factor": 10000
+      },
+
+      "searchable_status": {
+        "type": "keyword",
+        "ignore_above": 32
+      },
+      "publish_status": {
+        "type": "keyword",
+        "ignore_above": 32
+      },
+      "audit_status": {
+        "type": "keyword",
+        "ignore_above": 32
+      },
+      "visible_status": {
+        "type": "keyword",
+        "ignore_above": 32
+      },
+      "source_status": {
+        "type": "keyword",
+        "ignore_above": 32
+      },
+
+      "created_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "updated_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "searchable_updated_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+
+      "suggest_text": {
+        "type": "completion"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 7. 字段设计说明
+
+### 7.1 主文本召回字段
+
+`title`、`subtitle`、`summary_text` 用于承接文本搜索能力。
+其中：
+
+* `title` 是主文本召回字段，权重最高
+* `subtitle` 是辅助文本召回字段
+* `summary_text` 用于补充描述性召回
+
+这三类字段采用 `text` 类型，并显式指定中文 analyzer。
+默认建议：
+
+* 索引分词器：`ik_max_word`
+* 搜索分词器：`ik_smart`
+
+如果后续统一采用其他中文 analyzer，也应在文档中明确对应方案，不建议保留无 analyzer 的默认写法。
+
+### 7.2 精确匹配与辅助文本字段
+
+`store_name`、`category_name`、`tag_names` 同时保留 `keyword` 和 `text` 两类能力。
+
+原因如下：
+
+* 作为过滤条件时，使用 `keyword`
+* 作为辅助文本召回时，使用 `text`
+
+但这类字段在相关性计算中的权重应低于 `title`。
+默认不建议将标签、类目、店名作为主相关性字段，以避免出现辅助词命中过强的问题。
+
+### 7.3 类目路径字段
+
+`category_path` 主要用于展示或调试，不建议作为主要查询条件。
+真正用于父子类目过滤的字段应为 `category_path_ids`。
+
+例如：
+
+```json
+"category_path_ids": [1000, 1100, 1103]
+```
+
+这样在查询父类目下全部子类目时，可以直接做 `terms` 过滤，避免字符串匹配带来的性能和准确性问题。
+
+### 7.4 标签字段
+
+`tag_ids` 是标签过滤和标签召回的核心结构化字段。
+`tag_names` 仅用于辅助文本匹配和展示。
+
+第一版不建议把复杂标签对象设计成 `nested` 结构，也不建议把原始 JSON 整体写入索引。
+V1 以扁平字段为主，优先保证查询稳定性和同步简单性。
+
+### 7.5 地理位置字段
+
+地理搜索统一使用 `location: geo_point` 表达。
+同步时将业务侧 `lat` / `lng` 转换为：
+
+```json
+"location": {
+  "lat": 31.2304,
+  "lon": 121.4737
+}
+```
+
+该字段支持：
+
+* 附近搜索
+* 半径过滤
+* 距离排序
+
+### 7.6 数值与排序字段
+
+金额、评分、热度、推荐分等字段采用 `scaled_float`。
+这样更适合排序和范围过滤，也比普通浮点更稳。
+
+推荐约定：
+
+* 金额字段：`scaling_factor = 100`
+* 分数、热度、推荐分：`scaling_factor = 10000`
+
+### 7.7 状态字段
+
+`searchable_status`、`publish_status`、`audit_status`、`visible_status`、`source_status` 均采用 `keyword`。
+这些字段只承担精确过滤，不参与全文分析。
+
+其中，`searchable_status` 是搜索口径的最终状态字段，应由同步层统一计算。
+查询侧不负责自行推导该字段。
+
+### 7.8 联想补全字段
+
+`suggest_text` 用于搜索联想和自动补全。
+该字段属于增强能力，不属于第一阶段主检索链路的必选字段，但建议预留。
+
+---
+
+## 8. 建议的索引文档结构
+
+```json
+{
+  "product_id": 100001,
+  "seller_id": 9001,
+  "store_id": 8001,
+  "store_name": "欢乐积木馆",
+  "product_type": "physical_goods",
+
+  "title": "儿童拼装积木机器人套装",
+  "subtitle": "6-10岁益智玩具",
+  "summary_text": "适合亲子互动，周末送礼，含多种机器人拼装玩法",
+
+  "category_id": 1103,
+  "category_name": "拼装玩具",
+  "category_path": "玩具/益智玩具/拼装玩具",
+  "category_path_ids": [1000, 1100, 1103],
+
+  "tag_ids": [201, 202, 203],
+  "tag_names": ["亲子", "益智", "儿童"],
+
+  "city_id": 310000,
+  "city_name": "上海",
+  "district_id": 310101,
+  "district_name": "黄浦区",
+  "business_area_id": 31010101,
+  "business_area_name": "人民广场",
+  "location": {
+    "lat": 31.2304,
+    "lon": 121.4737
+  },
+
+  "base_price": 199.00,
+  "display_price": 159.00,
+  "currency": "CNY",
+
+  "cover_image": "https://cdn.xxx.com/p/100001.jpg",
+
+  "sales_count": 2680,
+  "rating": 4.8,
+  "review_count": 356,
+  "hot_score": 87.1234,
+  "recommend_score": 91.5678,
+
+  "searchable_status": "enabled",
+  "publish_status": "on_shelf",
+  "audit_status": "approved",
+  "visible_status": "visible",
+  "source_status": "normal",
+
+  "created_at": "2026-03-01T10:00:00+08:00",
+  "updated_at": "2026-03-15T12:00:00+08:00",
+  "searchable_updated_at": "2026-03-15T12:05:00+08:00",
+
+  "suggest_text": {
+    "input": [
+      "儿童拼装积木机器人套装",
+      "积木机器人",
+      "拼装玩具",
+      "益智玩具",
+      "欢乐积木馆"
+    ]
+  }
+}
+```
+
+---
+
+## 9. 查询约束与使用规范
+
+### 9.1 默认过滤条件
+
+所有正常商品搜索请求，默认必须带上以下约束：
+
+* `searchable_status = enabled`
+
+同时建议约束：
+
+* `publish_status = on_shelf`
+* `audit_status = approved`
+* `visible_status = visible`
+
+这样可以保证返回结果与业务展示口径一致。
+
+### 9.2 典型过滤维度
+
+该索引需要稳定支持以下过滤维度：
+
+* `city_id`
+* `district_id`
+* `business_area_id`
+* `category_id`
+* `category_path_ids`
+* `tag_ids`
+* `display_price` 区间
+* `location` 距离范围
+
+### 9.3 文本召回权重建议
+
+默认建议使用如下文本权重策略：
+
+```text
+title^5
+subtitle^3
+summary_text^2
+category_name.text^1
+tag_names.text^1
+store_name.text^1
+```
+
+标题优先，类目、标签、店名只作为补充召回来源。
+
+### 9.4 排序原则
+
+排序不建议只依赖单字段 `sort`。
+更推荐使用相关性分数与业务特征组合的综合排序策略，例如：
+
+* 文本相关性
+* 推荐分
+* 热度
+* 销量
+* 评分
+* 新鲜度
+* 距离
+
+实际实现上，建议通过 `function_score` 或等价能力完成综合加权。
+
+---
+
+## 10. 同步与变更规则
+
+### 10.1 写入方式
+
+索引文档由统一同步层覆盖写入。
+不建议采用前台业务接口直写索引。
+
+### 10.2 更新触发来源
+
+以下变更应触发索引更新：
+
+* 商品基础信息变更
+* 商品价格变更
+* 商品上下架状态变更
+* 商品审核状态变更
+* 商品所属门店变更
+* 类目变更
+* 标签变更
+* 门店地理位置变更
+* 推荐分或热度分更新
+
+### 10.3 删除与失效规则
+
+商品删除、永久下线或不再允许搜索时，应按统一规则处理。
+具体方式可根据系统策略二选一：
+
+1. 直接删除 ES 文档
+2. 保留文档，但将 `searchable_status` 更新为不可搜索状态
+
+V1 建议优先采用统一状态控制。
+只有在明确需要物理删除时，再执行文档删除操作。
+
+### 10.4 补偿机制
+
+同步链路除事件驱动外，还应配置定时补偿任务。
+用于修复以下问题：
+
+* 漏同步
+* 重复同步
+* 状态不一致
+* 上游字段变更未触发索引更新
+
+---
+
+## 11. 第一版范围边界
+
+为了保证第一版简单可落地，本文 Mapping 方案暂不包含以下能力：
+
+1. 向量检索字段
+2. 多语言 analyzer
+3. 复杂同义词热更新机制
+4. `nested` 复杂对象结构
+5. 原始 JSON 全量入索引
+6. 过度复杂的在线重排序特征体系
+
+第一版以**结构化过滤稳定、文本召回可控、同步链路清晰**为目标。
+
+---
+
+## 12. 后续演进方向
+
+在 V1 稳定后，可以按优先级继续补充：
+
+1. 查询 DSL 规范
+2. `search_products` 接口协议
+3. 同义词词典与 query rewrite
+4. 搜索联想和自动补全
+5. 排序特征体系细化
+6. 多索引版本切换与灰度机制
+7. 向量召回与语义检索增强
+
+---
+
+## 13. 结论
+
+`product_search` 索引是商品搜索场景中的查询投影索引。
+该设计以结构化检索为基础，以中文文本搜索为补充，以统一同步链路为前提，能够支撑商品搜索场景中的关键词检索、结构化过滤、地理搜索和综合排序能力。
+
+第一版设计重点不是追求能力堆叠，而是保证：
+
+* 字段职责清晰
+* 查询口径一致
+* 同步规则可控
+* 后续演进可持续
+
+---
+
+如果你愿意，我下一步最适合继续帮你补的是：**`search_products` 接口协议正式版**。

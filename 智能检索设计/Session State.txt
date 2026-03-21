@@ -1,0 +1,704 @@
+# 二、Session State 字段级设计 V1
+
+## 1. 文档目标
+
+本文档定义 Agent 系统在 LangGraph 运行时中的状态结构设计。
+目标是：
+
+**明确哪些信息进入 state、每个字段的职责是什么、哪些跨轮保留、哪些仅当前请求有效。**
+
+---
+
+## 2. 设计原则
+
+Session State 必须满足以下原则：
+
+### 2.1 分层清晰
+
+区分：
+
+* request 级执行状态
+* session 级会话记忆
+* debug / observability 状态
+
+---
+
+### 2.2 字段职责单一
+
+每个字段最好只有一个主要职责。
+避免把“解释信息”“执行参数”“推荐结果”“对话记忆”混进同一个大字段。
+
+---
+
+### 2.3 可恢复
+
+state 必须支持：
+
+* 节点失败后恢复
+* checkpoint 回放
+* 多轮上下文继续
+
+---
+
+### 2.4 可追踪
+
+state 中要保留：
+
+* 当前阶段
+* 工具计划
+* 执行结果引用
+* 错误与降级轨迹
+
+---
+
+## 3. 状态分层模型
+
+建议 state 拆为三层：
+
+### 第一层：对话输入与长期上下文
+
+* `messages`
+* `user_profile`
+* `session_context`
+
+### 第二层：当前请求执行状态
+
+* `parsed_intent`
+* `normalized_params`
+* `tool_plan`
+* `search_results`
+* `retrieved_docs`
+* `realtime_results`
+
+### 第三层：输出与治理状态
+
+* `final_answer`
+* `debug_trace`
+* `error_state`
+* `execution_meta`
+
+---
+
+## 4. 推荐完整 state schema
+
+```json
+{
+  "messages": [],
+  "user_profile": {
+    "user_id": "",
+    "default_city_id": "",
+    "preference_tags": [],
+    "price_preference": "",
+    "crowd_profile": [],
+    "language_style": ""
+  },
+  "session_context": {
+    "confirmed_constraints": {},
+    "pending_slots": [],
+    "candidate_entities": [],
+    "focused_entity_id": "",
+    "focused_entity_type": "",
+    "last_selected_entity_ids": [],
+    "current_stage": "",
+    "clarification_history": [],
+    "conversation_goal": "",
+    "request_scope": "single_turn"
+  },
+  "parsed_intent": {
+    "task_type": "",
+    "intent_confidence": 0.0,
+    "query_text": "",
+    "candidate_slots": {},
+    "need_realtime": false,
+    "need_explanation": false,
+    "need_recommendation": false
+  },
+  "normalized_params": {
+    "task_type": "",
+    "filters": {},
+    "sort": {},
+    "explicit_constraints": {},
+    "inferred_constraints": {},
+    "default_constraints": {},
+    "missing_required_slots": [],
+    "validation_errors": [],
+    "execution_ready": false
+  },
+  "tool_plan": {
+    "plan_id": "",
+    "plan_type": "",
+    "execution_mode": "",
+    "requires_clarification": false,
+    "clarification_prompt": "",
+    "steps": [],
+    "fallback_plan": [],
+    "routing_reason": [],
+    "plan_confidence": 0.0
+  },
+  "search_results": {
+    "entity_type": "",
+    "items": [],
+    "total": 0,
+    "returned": 0,
+    "source": "",
+    "query_snapshot_version": "",
+    "search_status": "not_started"
+  },
+  "retrieved_docs": {
+    "items": [],
+    "doc_count": 0,
+    "retrieval_status": "not_started",
+    "query_version": ""
+  },
+  "realtime_results": {
+    "items": [],
+    "checked_entity_count": 0,
+    "realtime_status": "not_started",
+    "query_ts": ""
+  },
+  "final_answer": {
+    "answer_text": "",
+    "cards": [],
+    "disclaimers": [],
+    "citations": [],
+    "next_actions": []
+  },
+  "error_state": {
+    "has_error": false,
+    "error_code": "",
+    "error_message": "",
+    "failed_node": "",
+    "recoverable": true
+  },
+  "execution_meta": {
+    "request_id": "",
+    "session_id": "",
+    "current_node": "",
+    "completed_nodes": [],
+    "started_at": "",
+    "finished_at": "",
+    "degraded": false
+  },
+  "debug_trace": []
+}
+```
+
+---
+
+## 5. 字段级说明
+
+## 5.1 `messages`
+
+### 作用
+
+保存用户与系统对话历史。
+
+### 用途
+
+* 意图识别
+* 指代消解
+* 多轮上下文保留
+* 生成澄清问题
+* 生成最终回答时参考语气和上下文
+
+### 建议
+
+不要在 `messages` 中塞执行结果大对象。
+执行结果应进入专门字段，避免消息历史污染。
+
+---
+
+## 5.2 `user_profile`
+
+### 作用
+
+保存跨会话稳定或半稳定的用户画像信息。
+
+### 示例
+
+```json
+{
+  "user_id": "u_10001",
+  "default_city_id": 310000,
+  "preference_tags": ["亲子", "周末出行"],
+  "price_preference": "mid_low",
+  "crowd_profile": ["family_with_kids"],
+  "language_style": "concise"
+}
+```
+
+### 说明
+
+这里只放长期有效信息。
+不要把“本轮刚提到的条件”直接写进这里。
+
+---
+
+## 5.3 `session_context`
+
+### 作用
+
+保存多轮会话中当前主题相关、但不一定长期稳定的上下文。
+
+### 核心字段
+
+#### `confirmed_constraints`
+
+已经明确确认过的条件，例如：
+
+```json
+{
+  "city_id": 310000,
+  "date": "2026-03-21",
+  "crowd_tag": "亲子"
+}
+```
+
+#### `pending_slots`
+
+当前仍待用户补充的信息，例如：
+
+```json
+["district_id", "price_range"]
+```
+
+#### `candidate_entities`
+
+当前会话里的候选对象引用，例如搜索出的 TopN。
+
+#### `focused_entity_id`
+
+当前用户正在讨论的焦点对象，例如“这个活动”。
+
+#### `focused_entity_type`
+
+焦点对象类型，例如 `product`、`event`、`store`。
+
+#### `current_stage`
+
+推荐枚举：
+
+* `collecting_constraints`
+* `searching`
+* `clarifying`
+* `realtime_checking`
+* `answering`
+* `completed`
+
+---
+
+## 5.4 `parsed_intent`
+
+### 作用
+
+保存 `parse_intent` 节点的输出。
+
+### 建议字段
+
+* `task_type`
+* `intent_confidence`
+* `query_text`
+* `candidate_slots`
+* `need_realtime`
+* `need_explanation`
+* `need_recommendation`
+
+### 示例
+
+```json
+{
+  "task_type": "event_search",
+  "intent_confidence": 0.94,
+  "query_text": "明天还能订的亲子活动",
+  "candidate_slots": {
+    "date_text": "明天",
+    "crowd_tag": "亲子"
+  },
+  "need_realtime": true,
+  "need_explanation": false,
+  "need_recommendation": true
+}
+```
+
+---
+
+## 5.5 `normalized_params`
+
+### 作用
+
+保存经过标准化、映射和校验后的可执行参数。
+
+### 必要字段
+
+* `task_type`
+* `filters`
+* `sort`
+* `explicit_constraints`
+* `inferred_constraints`
+* `default_constraints`
+* `missing_required_slots`
+* `validation_errors`
+* `execution_ready`
+
+### `execution_ready` 的价值
+
+这个字段很关键。
+它让 Tool Router 可以快速判断：
+
+* 当前能否直接执行
+* 是否应该进入澄清
+
+---
+
+## 5.6 `tool_plan`
+
+### 作用
+
+保存 Tool Router 生成的执行计划。
+
+### 为什么必须进入 state
+
+因为它是：
+
+* 后续执行节点的直接输入
+* 故障恢复时的关键中间产物
+* trace 与分析的核心对象
+
+---
+
+## 5.7 `search_results`
+
+### 作用
+
+保存结构化搜索结果。
+
+### 推荐结构
+
+```json
+{
+  "entity_type": "event",
+  "items": [
+    {
+      "entity_id": "evt_1001",
+      "title": "某某亲子展",
+      "score": 9.12,
+      "snapshot_fields": {}
+    }
+  ],
+  "total": 120,
+  "returned": 10,
+  "source": "search_events",
+  "query_snapshot_version": "event_snapshot_v1",
+  "search_status": "success"
+}
+```
+
+### 状态枚举建议
+
+* `not_started`
+* `success`
+* `empty`
+* `failed`
+* `degraded`
+
+---
+
+## 5.8 `retrieved_docs`
+
+### 作用
+
+保存知识检索结果。
+
+### 推荐结构
+
+```json
+{
+  "items": [
+    {
+      "doc_id": "rule_1001",
+      "doc_type": "activity_rule",
+      "title": "退款规则",
+      "snippet": "活动开始前24小时可退",
+      "score": 0.88,
+      "metadata": {}
+    }
+  ],
+  "doc_count": 3,
+  "retrieval_status": "success",
+  "query_version": "kb_v3"
+}
+```
+
+---
+
+## 5.9 `realtime_results`
+
+### 作用
+
+保存实时查询结果。
+
+### 推荐结构
+
+```json
+{
+  "items": [
+    {
+      "entity_id": "evt_1001",
+      "inventory_status": "available",
+      "availability_status": "bookable",
+      "price": 19900,
+      "business_status": "open",
+      "ts": "2026-03-20T10:02:11+08:00"
+    }
+  ],
+  "checked_entity_count": 10,
+  "realtime_status": "success",
+  "query_ts": "2026-03-20T10:02:11+08:00"
+}
+```
+
+### 状态枚举建议
+
+* `not_started`
+* `success`
+* `partial_success`
+* `timeout`
+* `failed`
+* `degraded`
+
+---
+
+## 5.10 `final_answer`
+
+### 作用
+
+保存最终输出给用户的结构化结果。
+
+### 为什么不要只存纯文本
+
+因为后续你很可能要支持：
+
+* 卡片化展示
+* 引用来源
+* 实时角标
+* 推荐理由标签
+* 多端渲染
+
+因此建议存结构化结果，再由前端渲染。
+
+---
+
+## 5.11 `error_state`
+
+### 作用
+
+统一记录当前请求是否发生错误，以及错误是否可恢复。
+
+### 推荐字段
+
+```json
+{
+  "has_error": false,
+  "error_code": "",
+  "error_message": "",
+  "failed_node": "",
+  "recoverable": true
+}
+```
+
+### 用途
+
+* 控制 graph 是否继续
+* 触发 fallback
+* 输出用户可读错误提示
+* 便于监控统计
+
+---
+
+## 5.12 `execution_meta`
+
+### 作用
+
+保存请求级执行元信息。
+
+### 推荐字段
+
+* `request_id`
+* `session_id`
+* `current_node`
+* `completed_nodes`
+* `started_at`
+* `finished_at`
+* `degraded`
+
+### 用途
+
+* 排查问题
+* 性能分析
+* checkpoint 恢复
+* 端到端链路跟踪
+
+---
+
+## 5.13 `debug_trace`
+
+### 作用
+
+保存每个关键节点的执行轨迹。
+
+### 推荐单条结构
+
+```json
+{
+  "node": "route_tools",
+  "status": "success",
+  "ts": "2026-03-20T10:02:01+08:00",
+  "summary": "choose search->realtime route",
+  "details": {
+    "task_type": "event_search",
+    "need_realtime": true
+  }
+}
+```
+
+---
+
+## 6. request 级 state 与 session 级 memory 的边界
+
+这是一个很关键的问题。
+
+## 6.1 request 级 state
+
+只在当前请求执行中有效，例如：
+
+* `parsed_intent`
+* `normalized_params`
+* `tool_plan`
+* `search_results`
+* `retrieved_docs`
+* `realtime_results`
+* `error_state`
+* `execution_meta`
+
+这些内容通常不应该原样长期保留。
+
+---
+
+## 6.2 session 级 memory
+
+适合跨多轮保留，例如：
+
+* `confirmed_constraints`
+* `focused_entity_id`
+* `last_selected_entity_ids`
+* 用户偏好
+* 最近一次已确认的城市、日期、类目
+
+---
+
+## 6.3 不建议直接持久化的内容
+
+以下内容不建议长期保留：
+
+* 大量原始搜索结果
+* 大量知识文档原文
+* 实时查询明细快照
+* 临时执行错误栈
+
+这些更适合存日志系统，而不是会话状态本体。
+
+---
+
+## 7. 状态更新规则建议
+
+## 7.1 `parse_intent` 更新
+
+更新：
+
+* `parsed_intent`
+* `execution_meta.current_node`
+* `debug_trace`
+
+---
+
+## 7.2 `normalize_params` 更新
+
+更新：
+
+* `normalized_params`
+* `session_context.pending_slots`
+* `session_context.confirmed_constraints`（若本轮新确认）
+* `debug_trace`
+
+---
+
+## 7.3 `route_tools` 更新
+
+更新：
+
+* `tool_plan`
+* `session_context.current_stage`
+* `debug_trace`
+
+---
+
+## 7.4 搜索 / 知识 / 实时节点更新
+
+分别更新：
+
+* `search_results`
+* `retrieved_docs`
+* `realtime_results`
+* `execution_meta.completed_nodes`
+* `debug_trace`
+
+---
+
+## 7.5 `compose_response` 更新
+
+更新：
+
+* `final_answer`
+* `session_context.current_stage=completed`
+* `execution_meta.finished_at`
+* `debug_trace`
+
+---
+
+## 8. checkpoint 建议
+
+建议至少在以下阶段支持 checkpoint：
+
+1. `normalize_params` 之后
+2. `route_tools` 之后
+3. 结构化搜索之后
+4. 实时查询之后
+5. 最终回答之前
+
+原因：
+
+* 便于失败恢复
+* 便于回放调试
+* 便于人工接管
+* 便于线上问题复现
+
+---
+
+## 9. 状态设计最终结论
+
+Session State 不是简单的“消息历史 + 最终答案”。
+
+它本质上是：
+
+**承载多节点编排、会话连续性、工具执行结果和调试轨迹的运行时数据模型。**
+
+设计得好，后面这些东西都会更稳：
+
+* Tool Router
+* 多轮澄清
+* 实时层触发
+* Response Composer
+* checkpoint / 恢复
+* 监控与回放
+
+---

@@ -1,0 +1,681 @@
+好，我直接接着写，下面这版可以直接放进你的设计文档，标题可以写成：
+
+# `search_products` 接口协议草案
+
+这版是按你现有设计继续往下收口的。核心约束没有变：
+
+* 结构化层负责搜索、筛选、排序和候选召回，不让 Agent 直接查业务底表 
+* 商品查询服务的基础参数骨架，已经在你 V1 文档里给出来了 
+* 召回方式仍然遵循“类目、标签、标题、描述多路召回，再统一排序”的思路 
+* 结果返回前，实时库存、实时价格这类字段仍然应该走实时校验服务，不直接把离线快照当最终真相 
+
+---
+
+## 1. 接口目标
+
+`search_products` 用于为以下调用方提供统一商品搜索能力：
+
+1. App / 小程序 / Web 搜索页
+2. 推荐页的结构化候选召回
+3. Agent 商品推荐调用
+4. 条件筛选后的商品列表页
+5. 基础“附近商品 / 同城商品”查询 
+
+这个接口的职责是：
+
+* 接收统一查询参数
+* 完成结构化过滤
+* 完成关键词多路召回
+* 完成统一排序
+* 返回标准化商品候选结果
+
+这个接口**不负责**：
+
+* 详情长文本解释
+* 退款规则问答
+* 实时库存最终确认
+* 实时价格最终确认
+
+这些应该分别交给知识层和实时层。
+
+---
+
+## 2. 接口定义
+
+```text
+search_products(request) -> response
+```
+
+建议统一用对象入参，而不是长参数列表。
+虽然你文档里当前写法是：
+
+```text
+search_products(
+  keyword,
+  city_id,
+  district_id,
+  lat,
+  lng,
+  radius,
+  category_id,
+  tags,
+  min_price,
+  max_price,
+  sort_by,
+  page,
+  page_size
+)
+```
+
+但真正工程落地时，建议改成 request / response schema，更稳，也更容易扩展。
+
+---
+
+## 3. Request Schema
+
+```json
+{
+  "keyword": "玩具",
+  "city_id": 310000,
+  "district_id": 310101,
+  "business_area_id": 31010101,
+  "lat": 31.2304,
+  "lng": 121.4737,
+  "radius": 5000,
+  "category_id": 1103,
+  "category_path_ids": [1000, 1100, 1103],
+  "tags": ["亲子", "益智"],
+  "tag_ids": [201, 202],
+  "min_price": 50.00,
+  "max_price": 300.00,
+  "store_id": 8001,
+  "seller_id": 9001,
+  "product_type": "physical_goods",
+  "sort_by": "recommend",
+  "page": 1,
+  "page_size": 20,
+  "need_total": true,
+  "need_aggs": false,
+  "need_explain": false,
+  "user_id": 123456,
+  "request_id": "req_20260318_0001"
+}
+```
+
+---
+
+## 4. Request 字段说明
+
+### 4.1 核心检索字段
+
+**`keyword`**
+用户原始查询词。
+用于触发：
+
+* 类目扩展
+* 标签扩展
+* 标题匹配
+* 描述匹配
+* 可选语义补召回 
+
+说明：
+
+* 可为空
+* 为空时，接口退化成“纯筛选列表查询”
+* 不建议让大模型自由扩词，扩展必须受控，主要来自类目树、标签体系、高频 query 小词典和商品文本统计。
+
+**`category_id`**
+主类目筛选。
+用于精确筛选某一类商品。
+
+**`category_path_ids`**
+类目路径展开数组。
+建议由查询服务内部生成，也允许上层显式传入。
+作用是支持“父类目查全部子类目”。
+
+**`tags` / `tag_ids`**
+标签筛选条件。
+建议：
+
+* 对外接口允许传标签名称或标签 ID
+* 内部统一归一成 `tag_ids`
+
+---
+
+### 4.2 地域与地理字段
+
+**`city_id`**
+城市过滤条件。
+通常是本地生活搜索的默认必填条件之一。
+因为你的结构化层本来就把城市、商圈、经纬度作为核心过滤维度。
+
+**`district_id`**
+区县过滤条件。
+
+**`business_area_id`**
+商圈过滤条件。
+
+**`lat` / `lng`**
+用户当前位置。
+用于距离计算和附近排序。
+
+**`radius`**
+搜索半径，单位建议为米。
+例如：
+
+* 1000 = 1km
+* 3000 = 3km
+* 5000 = 5km
+
+约束建议：
+
+* 最小值：100
+* 最大值：50000
+
+---
+
+### 4.3 价格与对象限制字段
+
+**`min_price` / `max_price`**
+价格区间过滤。
+映射到 `display_price` 或者统一展示价字段。
+你的结构化层本来就已经把价格作为核心可筛选字段之一。
+
+**`store_id`**
+只查某门店下商品。
+适合门店详情页内商品搜索。
+
+**`seller_id`**
+只查某商家商品。
+
+**`product_type`**
+按商品类型筛选。
+例如：
+
+* `physical_goods`
+* `ticket`
+* `package`
+* `service`
+
+这个字段在你的快照表设计里已经有了。
+
+---
+
+### 4.4 排序与分页字段
+
+**`sort_by`**
+排序方式。
+建议只允许枚举值，不接受自由字符串。
+
+建议枚举：
+
+```text
+recommend
+hot
+sales
+rating
+price_asc
+price_desc
+newest
+distance
+```
+
+这些排序字段都和你文档中定义的排序能力一致：热度、销量、评分、距离、上新时间、推荐综合分。
+
+**`page`**
+页码，从 1 开始。
+
+**`page_size`**
+每页大小。
+建议范围：
+
+* 最小：1
+* 最大：100
+* 默认：20
+
+---
+
+### 4.5 控制字段
+
+**`need_total`**
+是否返回总数。
+建议默认：
+
+* 列表页：`true`
+* Agent 推荐：`false`
+
+因为 Agent 很多场景不需要精确 total。
+
+**`need_aggs`**
+是否返回聚合结果。
+例如：
+
+* 类目分布
+* 标签分布
+* 价格区间分布
+* 商圈分布
+
+第一版可以默认 `false`。
+
+**`need_explain`**
+是否返回召回解释。
+建议仅在：
+
+* Agent 调试
+* 搜索诊断
+* 灰度环境
+  时开启。
+
+**`user_id`**
+可选。用于后续个性化排序扩展。
+第一版可以不使用。
+
+**`request_id`**
+请求链路 ID。
+用于日志追踪和排障。
+
+---
+
+## 5. 默认查询约束
+
+为了保证结果可用，建议接口内部默认追加以下过滤条件：
+
+```text
+searchable_status = enabled
+publish_status = on_shelf
+audit_status = approved
+visible_status = visible
+```
+
+因为你文档里已经明确：可搜索对象必须有统一状态口径，`searchable_status` 是综合计算结果。
+
+也就是说：
+
+* 上层调用方不需要自己拼状态
+* 查询服务统一做兜底
+* Agent 不感知内部状态细节
+
+---
+
+## 6. 查询处理流程
+
+建议 `search_products` 按这个顺序执行：
+
+### 6.1 参数标准化
+
+包括：
+
+* 去空格
+* keyword 归一化
+* 标签名转标签 ID
+* 校验价格区间
+* 校验半径
+* 校验排序字段
+* 修正非法分页参数
+
+---
+
+### 6.2 查询扩展
+
+如果 `keyword` 不为空，则按受控方式做扩展：
+
+1. 类目树扩展
+2. 标签扩展
+3. 高频 query 词典扩展
+4. 商品标题 / 描述文本补充词
+5. 可选语义扩展 
+
+注意：
+
+* 扩展是增强，不是替代原词
+* 原词权重必须最高
+* 不允许无限制自由扩展
+
+---
+
+### 6.3 多路召回
+
+按你文档里的结构化检索策略，建议至少包含：
+
+1. 类目召回
+2. 标签召回
+3. 标题召回
+4. 描述召回
+5. 可选语义召回 
+
+---
+
+### 6.4 统一过滤
+
+对召回结果统一应用：
+
+* 状态过滤
+* 城市过滤
+* 区县 / 商圈过滤
+* 类目过滤
+* 标签过滤
+* 价格区间过滤
+* 门店 / 商家过滤
+* 地理半径过滤
+
+---
+
+### 6.5 去重与排序
+
+召回结果统一去重后再排序。
+这也和你文档原话一致。
+
+建议：
+
+* 去重键：`product_id`
+* 默认排序：`recommend`
+
+---
+
+### 6.6 结果组装
+
+输出统一结果字段。
+如果 `need_explain=true`，则追加：
+
+* 命中路径
+* 命中关键词
+* 排序分拆解
+* 距离信息
+
+---
+
+## 7. Response Schema
+
+```json
+{
+  "request_id": "req_20260318_0001",
+  "page": 1,
+  "page_size": 20,
+  "total": 128,
+  "has_more": true,
+  "sort_by": "recommend",
+  "items": [
+    {
+      "product_id": 100001,
+      "store_id": 8001,
+      "store_name": "欢乐积木馆",
+      "seller_id": 9001,
+      "product_type": "physical_goods",
+      "title": "儿童拼装积木机器人套装",
+      "subtitle": "6-10岁益智玩具",
+      "summary_text": "适合亲子互动，周末送礼，含多种机器人拼装玩法",
+      "category_id": 1103,
+      "category_name": "拼装玩具",
+      "tag_names": ["亲子", "益智", "儿童"],
+      "city_id": 310000,
+      "city_name": "上海",
+      "district_id": 310101,
+      "district_name": "黄浦区",
+      "business_area_id": 31010101,
+      "business_area_name": "人民广场",
+      "lat": 31.2304,
+      "lng": 121.4737,
+      "distance_m": 820,
+      "base_price": 199.00,
+      "display_price": 159.00,
+      "currency": "CNY",
+      "cover_image": "https://cdn.xxx.com/p/100001.jpg",
+      "sales_count": 2680,
+      "rating": 4.8,
+      "review_count": 356,
+      "hot_score": 87.1234,
+      "recommend_score": 91.5678,
+      "searchable_updated_at": "2026-03-15T12:05:00+08:00",
+      "match_info": {
+        "matched_paths": ["category", "title", "tag"],
+        "matched_terms": ["玩具", "积木", "益智"]
+      }
+    }
+  ],
+  "aggs": null,
+  "trace": null,
+  "error_code": "OK",
+  "error_message": ""
+}
+```
+
+---
+
+## 8. Response 字段说明
+
+### 8.1 顶层字段
+
+**`request_id`**
+请求链路 ID，原样透传。
+
+**`page` / `page_size` / `total` / `has_more`**
+分页信息。
+建议：
+
+* `has_more` 由服务端直接计算
+* 避免 Agent 自己判断
+
+**`sort_by`**
+实际生效排序方式。
+防止上游传了非法值后不清楚最终排序。
+
+**`items`**
+商品结果列表。
+
+**`aggs`**
+聚合信息。
+第一版可为空。
+
+**`trace`**
+调试信息。
+只在灰度环境或 `need_explain=true` 时返回。
+
+**`error_code` / `error_message`**
+标准错误输出字段。
+
+---
+
+### 8.2 item 字段建议
+
+商品结果建议只返回**对搜索展示和 Agent 组织答案有用的字段**，不要把所有底层字段暴露出来。
+这也符合你“结构化层对外提供稳定、可控视图”的原则。
+
+第一版建议保留：
+
+* 商品标识：`product_id`
+* 门店 / 商家标识：`store_id`、`seller_id`
+* 文本展示：`title`、`subtitle`、`summary_text`
+* 类目标签：`category_id`、`category_name`、`tag_names`
+* 地域位置：`city_id`、`district_id`、`business_area_id`、`distance_m`
+* 价格字段：`base_price`、`display_price`、`currency`
+* 展示字段：`cover_image`
+* 排序相关：`sales_count`、`rating`、`review_count`、`hot_score`、`recommend_score`
+
+---
+
+## 9. 排序规则建议
+
+### 9.1 `recommend`
+
+默认排序。
+建议综合：
+
+* 文本匹配分
+* 类目匹配分
+* 标签匹配分
+* 热度分
+* 销量分
+* 评分分
+* 距离分
+* 推荐综合分 
+
+---
+
+### 9.2 `hot`
+
+按 `hot_score desc` 排序。
+
+### 9.3 `sales`
+
+按 `sales_count desc` 排序。
+
+### 9.4 `rating`
+
+按 `rating desc, review_count desc` 排序。
+
+### 9.5 `price_asc`
+
+按 `display_price asc` 排序。
+
+### 9.6 `price_desc`
+
+按 `display_price desc` 排序。
+
+### 9.7 `newest`
+
+按 `searchable_updated_at desc` 或 `created_at desc` 排序。
+我更建议优先用 `searchable_updated_at`，因为它更贴近“当前可搜索状态最近更新时间”。你的 SQL 草案里也已经给了这个字段。
+
+### 9.8 `distance`
+
+按地理距离升序排序。
+要求：
+
+* 必须传 `lat`、`lng`
+* 可选配合 `radius`
+
+---
+
+## 10. 错误码建议
+
+```text
+OK
+INVALID_ARGUMENT
+INVALID_SORT_BY
+INVALID_PRICE_RANGE
+INVALID_GEO_PARAM
+PAGE_SIZE_TOO_LARGE
+INTERNAL_ERROR
+SEARCH_TIMEOUT
+```
+
+说明：
+
+* `INVALID_PRICE_RANGE`：`min_price > max_price`
+* `INVALID_GEO_PARAM`：只传了 `lat` 没传 `lng`，或者半径非法
+* `INVALID_SORT_BY`：排序枚举不合法
+* `SEARCH_TIMEOUT`：ES 查询超时
+
+---
+
+## 11. 默认行为建议
+
+为了让 Agent 更稳，我建议默认行为明确写死：
+
+### 11.1 当 `keyword` 为空
+
+退化为纯筛选查询。
+
+### 11.2 当 `city_id` 为空
+
+可允许查全国，但建议：
+
+* App 侧尽量补城市
+* Agent 侧尽量从上下文推断城市
+
+### 11.3 当 `sort_by=distance` 且无经纬度
+
+降级为 `recommend`，并在 `trace` 中记录降级原因。
+
+### 11.4 当 `page * page_size` 太大
+
+建议限制深分页。
+例如最多翻到前 1000 条。
+否则后面要切到 `search_after`。
+
+### 11.5 当 `need_total=false`
+
+可以不返回精确 total，提升性能。
+
+---
+
+## 12. Agent 调用约定
+
+因为你的文档已经明确：Agent 负责理解意图、提取条件、调用结构化查询服务，而不是自己做复杂分页和筛选。
+
+所以我建议你在文档里明确一条：
+
+**Agent 调用 `search_products` 时，优先传“用户明确表达的条件”，不要擅自补过多隐藏条件。**
+
+例如用户说：
+
+> 推荐一些玩具
+
+推荐调用：
+
+```json
+{
+  "keyword": "玩具",
+  "sort_by": "recommend",
+  "page": 1,
+  "page_size": 20,
+  "need_total": false
+}
+```
+
+如果用户说：
+
+> 推荐一些上海适合亲子的玩具，200 元以内
+
+推荐调用：
+
+```json
+{
+  "keyword": "玩具",
+  "city_id": 310000,
+  "tags": ["亲子"],
+  "max_price": 200,
+  "sort_by": "recommend",
+  "page": 1,
+  "page_size": 20,
+  "need_total": false
+}
+```
+
+---
+
+## 13. 第一版先不做的内容
+
+为了保证第一版尽快落地，我建议这版接口先不展开：
+
+1. 个性化重排
+2. 多召回源分桶返回
+3. 在线学习排序
+4. 强依赖用户画像
+5. 复杂聚合分析
+6. AB 实验参数透传
+
+因为你的阶段规划本来就是先做基础搜索服务，再逐步增强排序、扩展词典、知识层和实时层。
+
+---
+
+## 14. 这一节后面最自然的下一节
+
+把这份 `search_products` 接口协议写完后，最自然的下一节就是：
+
+# `product_search_snapshot -> ES` 同步写入规则草案
+
+重点补清这几个字段怎么生成：
+
+* `category_path`
+* `category_path_ids`
+* `tag_ids`
+* `tag_names`
+* `searchable_status`
+* `recommend_score`
+* `searchable_updated_at`
+* `location`
+
+这正好和你文档里的“事件驱动同步 + 定时补偿”衔接上。
+
+要不要我直接继续把这一节也写出来。

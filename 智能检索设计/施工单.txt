@@ -1,0 +1,231 @@
+**适用范围**
+这份施工单按你现有 V1 文档整理，覆盖 `search / kb / realtime / agent / sync / governance` 主干，不包含下单、支付、履约等交易闭环。
+
+**通用要求**
+- 所有接口、任务、索引写入、LLM 调用都带 `request_id / trace_id / version`。
+- 所有高风险结论都要求"有证据才能说"，没有实时结果不能说"当前可订/营业/有票"。
+- 所有核心对象先冻结再开发：`normalized_params`、`tool_plan`、`final_answer`、状态枚举、错误码、默认过滤规则。
+- 所有模块都要同时交付 4 样东西：实现代码、单测/集测、指标埋点、回放样本。
+
+---
+
+**W00 统一口径与冲突收口**
+- 预估工作量：3 人天（1-2 人）
+- 冻结 `task_type / plan_type / answer_type / tool_name / searchable_status` 等枚举。
+- 收口跨文档冲突：`partial_result` 归 `answer_type`、默认过滤归属、`category_path_ids` 是否进入快照、`source_status` 是否为默认过滤。
+- 产物：统一协议文档、状态/枚举表、字段归属表。
+- 验收：后续所有模块只引用这一份口径，不再各写各的。
+
+**W01 工程骨架与基础设施**
+- 预估工作量：5 人天（1-2 人）
+- 建工程模块：`agent/ search/ kb/ realtime/ sync/ governance/ common/`。
+- 落公共能力：配置中心、日志、trace、错误码、版本号、JSON schema、重试与超时组件。
+- 实现安全与限流基础能力：
+  - Input Guardrail：用户输入注入检测（关键词黑名单 + 模式匹配），拦截已知 prompt injection 模式。
+  - Output Guardrail：回答输出前敏感信息检测（内部表名、字段名、接口地址、其他用户信息、成本数据），命中则脱敏或拦截。
+  - 用户级限流：单用户 QPS 限制（默认 2 QPS，突发 5）、单用户日调用量上限（默认 200 次/天）、全局 QPS 限制（根据 LLM 配额设定，预留 20% buffer）。
+  - Token 配额控制：单次请求 Input 上限 2000 tokens、Output 上限 1000 tokens，日消耗达预算 80% 告警、100% 降级为缓存回答。
+  - 审计日志组件：每次请求记录 `request_id / user_id / timestamp / raw_input / parsed_intent / tool_calls / final_answer / is_degraded / risk_level`，保留期限不少于 90 天，高风险场景不少于 180 天。
+- 产物：可运行骨架、基础依赖、环境配置模板、安全限流组件、审计日志表。
+- 验收：新模块接入 trace 和 config 不再重复造轮子；注入检测、限流、审计日志可用。
+
+**W02 结构化快照层**
+- 预估工作量：5 人天（1-2 人）
+- 建 `category`、`tag`、`query_expand_dict`、`product_search_snapshot`、`event_search_snapshot`、`store_search_snapshot`。
+- 补齐与前文一致的字段，尤其是 `category_path_ids`、状态字段、`searchable_updated_at`、`source_status`。
+- 实现快照构建器：从主表、维表、配置表汇总扁平化数据。
+- 实现 `searchable_status` 统一计算，不放到查询侧临时拼。
+- 验收：任一快照行都能解释"为什么可搜/不可搜"。
+
+**W03 ES / OpenSearch 索引与检索接口**
+- 预估工作量：5 人天（1-2 人）
+- 建 `product_search` 索引、mapping、读写 alias、reindex job、bulk upsert / delete。
+- 实现快照到 ES 的文档投影器，统一生成文本字段、标签字段、geo 字段、排序字段。
+- 实现 `search_products`，包含默认过滤、DSL 构建、排序、分页、调试输出、降级策略。
+- 验收：核心查询、过滤、排序、geo 检索可用，且与快照口径一致。
+
+**W04 Agent Runtime 与 Session State**
+- 预估工作量：5 人天（1-2 人）
+- 落 `Session State` schema、checkpoint、request 级 state 与 session memory 边界。
+- 实现运行时节点骨架（接口定义 + 空实现占位）：`parse_intent -> normalize_params -> route_tools -> execute -> compose_response`。
+  - 说明：W04 只搭骨架和节点接口定义，W05-W08 逐个"填充"各节点的具体实现。
+- 落 `debug_trace / execution_meta / error_state`。
+- 实现性能预算框架：
+  - 各节点超时配置化（通过配置中心可调）：
+    ```
+    parse_intent:             500ms
+    normalize_params:         200ms
+    route_tools:              300ms
+    execute_structured_search: 800ms
+    retrieve_knowledge:        800ms
+    query_realtime:            500ms
+    compose_response:          800ms
+    ```
+  - 全链路超时熔断：端到端最大超时 8s，超时后强制中断当前节点，走降级路径返回。
+  - 节点级超时处理：每个节点执行前检查剩余时间预算，不足时跳过当前节点走降级。
+  - 超时降级路径：LLM 节点超时 -> 模板回答；搜索节点超时 -> 返回热门缓存；实时节点超时 -> 用快照兜底并标注。
+- 验收：单次请求可完整回放 state 变化；各节点超时可独立配置；全链路超时能正确熔断并降级。
+
+**W05 Query Parser**
+- 预估工作量：5 人天（1-2 人）
+- 前置依赖：W04 骨架完成（本模块是 `parse_intent` 节点的具体实现）。
+- 先做 V1 语义识别，只判断 `task_type`、`need_realtime`、`need_explanation`、`need_recommendation`、候选槽位。
+- 建搜索、FAQ、强实时、多轮指代四类样本集。
+- 验收：不会把强实时问法误判成普通推荐，不会把 FAQ 全打成搜索。
+
+**W06 参数标准化与约束层**
+- 预估工作量：5 人天（1-2 人）
+- 前置依赖：W04 骨架完成（本模块是 `normalize_params` 节点的具体实现）。
+- 实现关键词、类目、标签、地域、价格、时间、距离、排序、分页的标准化。
+- 严格区分 `explicit / inferred / context / default / rule_derived`，输出 `warnings / dropped_params / execution_ready`。
+- 做 name->id 收敛、组合合法性校验、强弱约束处理。
+- 验收：输出可直接给结构化接口执行，且能解释每个参数从哪来。
+
+**W07 Tool Router**
+- 预估工作量：5 人天（1-2 人）
+- 前置依赖：W04 骨架完成（本模块是 `route_tools` 节点的具体实现）。
+- 先用规则优先实现 `single_tool`、`clarification_required`、`search->knowledge`、`search->realtime`、`search->parallel(knowledge,realtime)`。
+- 输出 `steps / depends_on / fallback_plan / routing_reason / plan_confidence`。
+- 接入执行预算：`max_parallel_tools`、`max_realtime_candidates`、超时与降级策略。
+- 验收：典型路由正确，且不会无候选就大范围查实时。
+
+**W08 Response Composer**
+- 预估工作量：5 人天（1-2 人）
+- 前置依赖：W04 骨架完成（本模块是 `compose_response` 节点的具体实现）。
+- 先做 `pre_answer_object`，程序化完成 entity merge、字段覆盖、冲突识别、reason candidates、disclaimer candidates。
+- 再让 LLM 只负责 `answer_text / summary / next_actions` 表达层。
+- 支持 `recommendation / faq_answer / realtime_confirmation / clarification / no_result / partial_result`。
+- 验收：无证据不夸、不隐藏冲突、强实时问题无结果时保守表达。
+
+**W09 知识层**
+- 预估工作量：8 人天（1-2 人）
+- 前置依赖：W01 完成即可启动，不依赖 W02-W08 主线（可并行）。
+- 建文档模型、chunk 模型、`doc_type` 枚举、生效时间、版本、priority、owner。
+- 实现知识同步：抽取、标准化、chunk、metadata enrich、embedding / hybrid index。
+- 实现 `retrieve_knowledge`，支持 metadata filter、hybrid retrieval、rerank。
+- V1 先落 `faq / refund_rule / reservation_rule / usage_notice`。
+- 知识时效管理：
+  - 每条知识文档必须包含 `doc_id / version / effective_date / expire_date / updated_at / status`。
+  - 知识状态流转：`draft -> active -> deprecated -> archived`。
+  - 过期知识（`expire_date < now`）自动标记为 `deprecated`，从检索索引中移除。
+  - 归档知识保留 180 天，可用于审计追溯，不参与检索。
+- 知识冲突处理：
+  - 同一主题存在多条矛盾知识时，优先取 `effective_date` 最新的版本。
+  - 若无法判定版本先后，全部返回并标注"以下信息可能存在更新，请以最新公告为准"。
+  - 冲突事件记录到治理日志，触发人工审核。
+- 知识更新 SLA：
+  - FAQ：4 小时内可检索。
+  - 业务规则（退款、入场限制等）：1 小时内可检索。
+  - 攻略/导览：24 小时内可检索。
+  - 临时公告（闭园、临时调价等）：30 分钟内可检索，走紧急通道。
+- 验收：高风险规则 top1/top3 命中稳定，过期/错版本文档不过线；知识过期自动下线；冲突可检测并标注。
+
+**W10 实时层**
+- 预估工作量：5 人天（1-2 人）
+- 前置依赖：W01 完成即可启动，不依赖 W02-W08 主线（可并行）。
+- 先落统一请求响应协议，再实现 1 到 2 个关键接口：`query_realtime_availability`、`query_store_open_status`。
+- 支持批量查询、TopN 限制、超时、部分失败、`query_ts`、短缓存、失败回退缓存。
+- 实现 `realtime_status = success / partial_success / timeout / failed / degraded`。
+- 验收：实时失败时不会输出错误肯定结论，成功时能覆盖快照状态。
+
+**W11 多轮会话与混合链路**
+- 预估工作量：8 人天（2 人）
+- 前置依赖：主线 W04-W08 + 支线 W09、W10 均完成。
+- 实现 `pending_slots / confirmed_constraints / focused_entity_id / last_selected_entity_ids`。
+- 落 6 条链路：推荐、FAQ、搜索+实时、搜索+知识、搜索+知识+实时、澄清续跑。
+- 支持"那换便宜一点的""再看明天还能订的"这类上下文承接。
+- 实现多轮上下文管理：
+  - 消息历史最多保留最近 10 轮（20 条消息），超过时对早期对话生成摘要替换原始消息。
+  - 意图切换处理：用户明确切换话题时清空搜索参数保留 user_profile；隐式切换时保留通用参数（如 location）。
+  - Session 过期策略：30 分钟无操作过期，过期后新消息创建新 Session 但尝试加载上一次的 user_profile。
+- 验收：多轮不丢已确认条件，不把新条件和旧条件混乱覆盖。
+
+**W12 同步、补偿、重建**
+- 预估工作量：8 人天（2 人）
+- 实现主表->快照、快照->ES、知识文档->检索库三条正式链路。
+- 每条链路都补齐全量、增量、补偿、重试、死信、按实体/时间范围修复。
+- 实现 alias 重建、校验、回滚；实现 snapshot/index/kb reconciliation。
+- 验收：任一实体可按 `entity_id` 补偿修复；索引可无损切换和回滚。
+
+**W13 监控、评估、回放、灰度**
+- 预估工作量：8 人天（2 人）
+- 建指标体系：系统健康、数据质量、理解与路由、检索与实时、回答质量。
+- 建评估集：推荐、FAQ、强实时、混合、多轮、高风险样本池。
+- 落 replay：原 query、state checkpoints、tool I/O 摘要、版本号、final answer。
+- 落发布治理：prompt/version/router/index/composer 全版本化，灰度、回滚、发布前回归。
+- 验收：线上问题能归因到数据、理解、路由、融合、表达中的一层。
+
+**W14 联调与上线收尾**
+- 预估工作量：8 人天（2-3 人）
+- 前端接 `cards / badges / disclaimers / citations / next_actions / clarification` 渲染。
+- 补权限、限流、超时默认值、报警阈值、运维手册、回滚预案。
+- 跑压测、稳定性测试、故障注入、灰度观察。
+- 联调验收场景清单：
+
+| 序号 | 场景 | 验收标准 |
+|------|------|---------|
+| 1 | 单条件商品搜索 | 端到端 < 2s，返回相关结果 |
+| 2 | 多条件组合搜索 | 条件正确传递，结果符合所有过滤条件 |
+| 3 | 无结果场景 | 放宽条件重试 或 返回热门推荐 + "未找到精确匹配"提示 |
+| 4 | FAQ 精确命中 | 回答准确，有 citation |
+| 5 | 搜索 + 实时确认 | 先搜索再查实时，实时状态覆盖快照状态 |
+| 6 | 多轮追问 | 已确认条件保留，新条件正确 merge |
+| 7 | 意图切换 | 搜索参数正确清空，通用参数保留 |
+| 8 | 高风险场景（退款规则） | 回答有 citation + disclaimer，无编造内容 |
+| 9 | 高风险场景（价格/营业状态） | 有实时数据时展示实时值；无实时数据时标注"请以实际为准" |
+| 10 | LLM 不可用降级 | 3s 内返回模板回答 + 原始搜索结果直出 |
+| 11 | ES 超时降级 | 自动放宽条件重试，回答标注不确定性 |
+| 12 | 实时接口不可用降级 | 用快照兜底，标注"数据更新截止到 [快照时间]" |
+| 13 | Prompt injection | 恶意输入被拦截，不影响系统正常运行 |
+| 14 | 限流触发 | 超频用户收到友好提示，不影响其他用户 |
+| 15 | 并发压测 | 50 QPS 下 P95 < 4s，无错误飙升 |
+| 16 | 故障注入（LLM 随机超时 30%） | 降级回答占比与超时比例匹配，无系统崩溃 |
+| 17 | 故障注入（ES 完全不可用） | 返回缓存热门数据，告警触发 |
+
+- 验收：可灰度上线，可观测，可回滚；以上 17 个场景全部通过。
+
+---
+
+**建议执行顺序**
+
+```
+主线（串行）：
+  W00 -> W01 -> W02 -> W03 -> W04 -> W05 -> W06 -> W07 -> W08
+
+支线（W01 完成后可并行启动，与主线 W02-W08 同时推进）：
+  W01 完成 -> W09（知识层）
+  W01 完成 -> W10（实时层）
+
+合并（主线 + 支线都完成后）：
+  W11（多轮会话与混合链路）
+
+收尾（串行）：
+  W12 -> W13 -> W14
+```
+
+**预估总工作量**
+
+| 阶段 | 工作量 | 并行度 | 日历时间 |
+|------|--------|--------|---------|
+| W00 | 3 人天 | 1-2 人 | 2-3 天 |
+| W01 | 5 人天 | 1-2 人 | 3-5 天 |
+| W02-W03（主线）+ W09-W10（支线并行） | 主线 10 人天 + 支线 13 人天 | 3-4 人 | 7-8 天 |
+| W04-W08 | 25 人天 | 2 人 | 13-15 天 |
+| W11 | 8 人天 | 2 人 | 4-5 天 |
+| W12-W13 | 16 人天 | 2-3 人 | 7-8 天 |
+| W14 | 8 人天 | 2-3 人 | 4-5 天 |
+| **合计** | **约 88 人天** | **2-3 人常态** | **约 40-49 个工作日** |
+
+说明：以上为粗估，实际根据团队熟悉度和外部依赖（如 LLM 接入审批、ES 集群申请等）会有浮动。
+
+**最小可上线闭环**
+- `W00-W08` 可以形成搜索 MVP（约 48 人天）。
+- `+W09` 可以形成 FAQ / 规则问答。
+- `+W10` 可以形成强实时确认。
+- `+W11-W14` 才算生产可用。
+
+**不建议一开始做的事**
+- 不要先做复杂 rerank、向量召回增强、多语言、复杂推荐特征。
+- 不要一开始就做全量实时扫描。
+- 不要先写大量 prompt，而把 schema、state、同步、降级留到后面。
+- 不要让 LLM 直接决定全部路由和全部最终事实。

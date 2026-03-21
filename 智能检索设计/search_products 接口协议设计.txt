@@ -1,0 +1,774 @@
+好，我继续往下补。下面这版我直接按**正式设计文档**的写法，给你一份 `search_products` 接口协议。
+
+它和你前面的几层是对应的：
+
+* MySQL 快照表：提供结构化字段来源
+* ES / OpenSearch：提供召回、过滤、排序
+* Agent 编排层：负责参数抽取、参数标准化、工具路由
+* `search_products`：作为结构化层的统一查询接口
+
+---
+
+# `search_products` 接口协议设计
+
+## 1. 接口目标
+
+`search_products` 用于承接商品搜索场景中的结构化查询请求，对外提供统一的商品检索能力。
+该接口负责将上层自然语言解析后的查询条件转换为可执行的搜索请求，并返回标准化的商品候选结果集。
+
+该接口的职责包括：
+
+1. 接收标准化后的查询参数
+2. 执行关键词召回、类目召回、标签召回和结构化过滤
+3. 按既定排序策略生成候选结果
+4. 返回统一结构的商品列表和分页信息
+5. 为上层 Agent 提供稳定、可解释、可扩展的结构化检索能力
+
+---
+
+## 2. 接口定位
+
+`search_products` 属于结构化层接口，不承担以下职责：
+
+* 不负责原始自然语言理解
+* 不负责多轮会话状态管理
+* 不负责规则文档问答
+* 不负责库存、营业状态、余票等强实时确认
+* 不负责最终自然语言答案生成
+
+这些职责分别属于：
+
+* Query Parser / 参数标准化层
+* 知识层
+* 实时层
+* Response Composer
+
+因此，`search_products` 的输入必须是**业务可执行的标准化参数**，而不是用户原始问句。
+
+---
+
+## 3. 调用链路位置
+
+典型调用链路如下：
+
+```text id="zq7b8n"
+用户问题
+-> Query Parser
+-> 参数标准化与约束
+-> search_products
+-> 返回商品候选集
+-> Response Composer 生成最终回答
+```
+
+例如：
+
+用户说：
+
+```text id="s2m08q"
+推荐几个上海适合亲子的玩具，200 元以内
+```
+
+上层解析后生成标准化请求：
+
+```json id="k5r6w9"
+{
+  "keyword": "玩具",
+  "city_name": "上海",
+  "tag_names": ["亲子"],
+  "price_max": 200,
+  "sort_by": "recommend"
+}
+```
+
+然后再调用 `search_products`。
+
+---
+
+## 4. 接口定义
+
+## 4.1 请求方式
+
+```text id="w8s1yx"
+POST /api/search/products
+Content-Type: application/json
+```
+
+---
+
+## 4.2 请求体结构
+
+```json id="b6k2pr"
+{
+  "keyword": "玩具",
+  "category_id": 1103,
+  "category_path_ids": [1000, 1100, 1103],
+  "tag_ids": [201, 202],
+  "tag_names": ["亲子", "益智"],
+
+  "city_id": 310000,
+  "district_id": 310101,
+  "business_area_id": 31010101,
+
+  "price_min": 0,
+  "price_max": 200,
+
+  "location": {
+    "lat": 31.2304,
+    "lon": 121.4737
+  },
+  "distance_km": 5,
+
+  "sort_by": "recommend",
+  "page": 1,
+  "page_size": 20,
+
+  "need_fields": [
+    "product_id",
+    "title",
+    "subtitle",
+    "display_price",
+    "store_name",
+    "cover_image",
+    "rating",
+    "sales_count"
+  ],
+
+  "debug": false
+}
+```
+
+---
+
+## 5. 请求参数说明
+
+## 5.1 文本召回参数
+
+### `keyword`
+
+搜索关键词，用于标题、副标题、摘要、类目、标签、店名等字段的文本召回。
+
+类型：
+
+```text id="3twk2j"
+string
+```
+
+说明：
+
+* 可为空
+* 若为空，则退化为纯过滤搜索
+* 不直接承接原始自然语言长句，应优先使用上层抽取得到的核心检索词
+
+示例：
+
+```json id="h1kj4e"
+"keyword": "玩具"
+```
+
+---
+
+## 5.2 类目参数
+
+### `category_id`
+
+商品叶子类目或目标类目 ID。
+
+类型：
+
+```text id="g0dcwn"
+long
+```
+
+### `category_path_ids`
+
+类目路径 ID 列表，用于父类目过滤或路径召回。
+
+类型：
+
+```json id="iwicrz"
+array<long>
+```
+
+说明：
+
+* 当用户指定叶子类目时，优先使用 `category_id`
+* 当用户指定父类目或需要覆盖全部子类目时，优先使用 `category_path_ids`
+
+---
+
+## 5.3 标签参数
+
+### `tag_ids`
+
+标签 ID 列表。
+
+类型：
+
+```json id="839nvk"
+array<long>
+```
+
+### `tag_names`
+
+标签名称列表。
+
+类型：
+
+```json id="jq0bum"
+array<string>
+```
+
+说明：
+
+* 生产实现中，推荐优先使用 `tag_ids`
+* `tag_names` 更适合参数标准化前后过渡阶段
+* 若同时传入 `tag_ids` 和 `tag_names`，应优先使用 `tag_ids`
+
+---
+
+## 5.4 地域参数
+
+### `city_id`
+
+城市 ID。
+
+### `district_id`
+
+区县 ID。
+
+### `business_area_id`
+
+商圈 ID。
+
+类型：
+
+```text id="kr5rgw"
+long
+```
+
+说明：
+
+* 这三类字段都属于结构化过滤条件
+* 默认优先级为：商圈 > 区县 > 城市
+* 下级行政区条件存在时，上级条件可保留但不单独扩宽范围
+
+---
+
+## 5.5 价格参数
+
+### `price_min`
+
+最低价格。
+
+### `price_max`
+
+最高价格。
+
+类型：
+
+```text id="p7b8gj"
+number
+```
+
+说明：
+
+* 作用字段通常为 `display_price`
+* 若用户说“200 元以内”，则转换为 `price_max = 200`
+* 若价格区间非法，例如最小值大于最大值，应由参数标准化层先修正
+
+---
+
+## 5.6 地理参数
+
+### `location`
+
+用户位置。
+
+类型：
+
+```json id="84r5q2"
+{
+  "lat": 31.2304,
+  "lon": 121.4737
+}
+```
+
+### `distance_km`
+
+距离范围，单位为公里。
+
+类型：
+
+```text id="6no51s"
+integer
+```
+
+说明：
+
+* 仅在需要附近搜索时使用
+* 若传入 `location` 但未传 `distance_km`，可采用默认半径，例如 5km
+* 地理过滤适用于门店商品、本地服务类商品或活动商品，不适用于纯线上商品
+
+---
+
+## 5.7 排序参数
+
+### `sort_by`
+
+排序方式。
+
+类型：
+
+```text id="1h2l5m"
+string
+```
+
+支持值建议如下：
+
+* `recommend`：综合推荐排序
+* `hot`：热度排序
+* `sales`：销量排序
+* `rating`：评分排序
+* `price_asc`：价格升序
+* `price_desc`：价格降序
+* `newest`：上新时间倒序
+* `distance`：距离升序
+
+说明：
+
+* 默认推荐使用 `recommend`
+* `distance` 仅在存在 `location` 时可用
+* `recommend` 不建议简单映射为单字段排序，应由综合排序策略实现
+
+---
+
+## 5.8 分页参数
+
+### `page`
+
+页码，从 1 开始。
+
+### `page_size`
+
+分页大小。
+
+类型：
+
+```text id="7yqndp"
+integer
+```
+
+约束建议：
+
+* `page >= 1`
+* `1 <= page_size <= 50`
+* 默认 `page_size = 20`
+
+说明：
+
+为了避免深分页带来的性能问题，建议对超大页码做限制。
+若后续需要高性能深分页，可升级为 `search_after` 方案。
+
+---
+
+## 5.9 返回字段控制参数
+
+### `need_fields`
+
+返回字段白名单。
+
+类型：
+
+```json id="3fowmk"
+array<string>
+```
+
+说明：
+
+* 用于减少不必要字段返回
+* 若为空，则返回默认字段集合
+* 不允许调用方请求未开放字段
+
+---
+
+## 5.10 调试参数
+
+### `debug`
+
+是否返回调试信息。
+
+类型：
+
+```text id="ljd2l9"
+boolean
+```
+
+说明：
+
+* 正常线上请求默认关闭
+* 打开后可返回召回信息、过滤条件、排序摘要等诊断信息
+* 仅建议内网或受控环境使用
+
+---
+
+## 6. 默认过滤规则
+
+所有正常商品搜索请求，应默认带上搜索可见性约束。
+
+建议默认过滤条件如下：
+
+```text id="2bh9an"
+searchable_status = enabled
+publish_status = on_shelf
+audit_status = approved
+visible_status = visible
+source_status = normal
+```
+
+这些条件属于系统默认约束，不要求上层每次显式传入。
+统一由 `search_products` 内部注入。
+
+这样有两个好处：
+
+1. 保证搜索结果与业务展示口径一致
+2. 避免调用方遗漏基础状态条件
+
+---
+
+## 7. 查询构建规则
+
+## 7.1 总体规则
+
+接口内部应将请求参数转换为标准 DSL 查询，遵循以下原则：
+
+* 文本召回和结构化过滤分离
+* 必选过滤条件使用 `filter`
+* 文本相关性条件使用 `must` 或 `should`
+* 排序逻辑与召回逻辑分层处理
+* 默认优先保证过滤准确，再优化相关性排序
+
+---
+
+## 7.2 文本召回字段权重建议
+
+建议默认文本召回权重如下：
+
+```text id="2pyql3"
+title^5
+subtitle^3
+summary_text^2
+category_name.text^1
+tag_names.text^1
+store_name.text^1
+```
+
+说明：
+
+* `title` 是主召回字段
+* 类目、标签、店名仅作辅助召回
+* 不建议让标签文本匹配权重高于标题
+
+---
+
+## 7.3 典型查询 DSL 示例
+
+```json id="2rw8ha"
+{
+  "from": 0,
+  "size": 20,
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "multi_match": {
+            "query": "玩具",
+            "fields": [
+              "title^5",
+              "subtitle^3",
+              "summary_text^2",
+              "category_name.text^1",
+              "tag_names.text^1",
+              "store_name.text^1"
+            ]
+          }
+        }
+      ],
+      "filter": [
+        { "term": { "searchable_status": "enabled" } },
+        { "term": { "publish_status": "on_shelf" } },
+        { "term": { "audit_status": "approved" } },
+        { "term": { "visible_status": "visible" } },
+        { "term": { "city_id": 310000 } },
+        { "terms": { "tag_ids": [201, 202] } },
+        { "range": { "display_price": { "lte": 200 } } }
+      ]
+    }
+  },
+  "sort": [
+    { "_score": "desc" },
+    { "recommend_score": "desc" },
+    { "hot_score": "desc" }
+  ]
+}
+```
+
+---
+
+## 8. 综合排序策略
+
+## 8.1 排序原则
+
+`sort_by = recommend` 时，不应简单等同于：
+
+```text id="wfjobd"
+sort recommend_score desc
+```
+
+更合理的做法是综合以下因素：
+
+* 文本相关性
+* 推荐分
+* 热度
+* 销量
+* 评分
+* 新鲜度
+* 距离（如适用）
+
+建议通过 `function_score` 或等价能力实现综合排序。
+
+---
+
+## 8.2 推荐排序示意
+
+```text id="h9vt2h"
+final_score = 文本相关性 * a
+            + recommend_score * b
+            + hot_score * c
+            + sales_count * d
+            + rating * e
+            + freshness_boost * f
+```
+
+具体权重不在接口协议中写死，应由搜索策略配置管理。
+接口协议只规定：`recommend` 表示综合排序，而不是单字段排序。
+
+---
+
+## 9. 返回结构设计
+
+## 9.1 标准返回体
+
+```json id="k2m5ud"
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "total": 128,
+    "page": 1,
+    "page_size": 20,
+    "has_more": true,
+    "items": [
+      {
+        "product_id": 100001,
+        "title": "儿童拼装积木机器人套装",
+        "subtitle": "6-10岁益智玩具",
+        "display_price": 159.00,
+        "store_id": 8001,
+        "store_name": "欢乐积木馆",
+        "cover_image": "https://cdn.xxx.com/p/100001.jpg",
+        "rating": 4.8,
+        "sales_count": 2680,
+        "city_name": "上海",
+        "district_name": "黄浦区",
+        "business_area_name": "人民广场",
+        "distance_m": 1800,
+        "tag_names": ["亲子", "益智", "儿童"]
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 9.2 返回字段说明
+
+### 基础分页字段
+
+* `total`：总命中数
+* `page`：当前页码
+* `page_size`：当前分页大小
+* `has_more`：是否还有下一页
+
+### 商品结果字段
+
+建议默认返回：
+
+* `product_id`
+* `title`
+* `subtitle`
+* `display_price`
+* `store_id`
+* `store_name`
+* `cover_image`
+* `rating`
+* `sales_count`
+* `city_name`
+* `district_name`
+* `business_area_name`
+* `tag_names`
+
+可选返回：
+
+* `distance_m`
+* `recommend_score`
+* `debug_info`
+
+---
+
+## 10. 调试返回设计
+
+当 `debug = true` 时，可在结果中附加：
+
+```json id="lwn3u7"
+"debug_info": {
+  "query_keyword": "玩具",
+  "effective_filters": {
+    "city_id": 310000,
+    "tag_ids": [201, 202],
+    "price_max": 200
+  },
+  "sort_by": "recommend",
+  "recall_fields": [
+    "title",
+    "subtitle",
+    "summary_text",
+    "category_name.text",
+    "tag_names.text",
+    "store_name.text"
+  ]
+}
+```
+
+说明：
+
+* 调试信息只用于排查搜索行为
+* 不建议在普通用户侧直接暴露完整内部 DSL
+
+---
+
+## 11. 错误码设计
+
+建议最少定义以下错误码：
+
+| code | 含义     |
+| ---- | ------ |
+| 0    | 成功     |
+| 4001 | 请求参数非法 |
+| 4002 | 分页参数非法 |
+| 4003 | 排序参数非法 |
+| 4004 | 地理参数非法 |
+| 5001 | 搜索服务异常 |
+| 5002 | 索引查询超时 |
+| 5003 | 降级结果返回 |
+
+---
+
+## 12. 降级策略
+
+当搜索服务出现异常、超时或局部字段缺失时，建议按以下顺序降级：
+
+### 12.1 排序降级
+
+优先从综合排序降级为简单排序，例如：
+
+```text id="m8z9w0"
+recommend -> hot -> newest
+```
+
+### 12.2 地理降级
+
+若地理查询失败：
+
+* 去掉距离过滤
+* 去掉距离排序
+* 返回普通区域结果
+
+### 12.3 文本降级
+
+若复杂召回失败：
+
+* 保留基础过滤
+* 使用简单关键词匹配
+* 必要时返回热门候选
+
+### 12.4 结果兜底
+
+当无结果时，可根据策略返回：
+
+* 同类目热门商品
+* 同城市推荐商品
+* 无结果提示，不强行编造
+
+---
+
+## 13. 性能约束
+
+为保证接口稳定性，建议约束如下：
+
+1. `page_size` 不超过 50
+2. 默认不支持深分页超过一定阈值
+3. 默认不返回大字段和冗余字段
+4. 距离排序必须依赖 `location`
+5. `debug` 模式仅限受控环境开启
+
+---
+
+## 14. 与 Agent 层的边界
+
+`search_products` 只接受标准化参数，不负责解释原始用户意图。
+例如：
+
+用户说：
+
+```text id="qvkgws"
+找几个周末带孩子玩的，别太贵，离我近一点
+```
+
+这句话不能直接传给 `search_products`。
+应先由上层转换为类似参数：
+
+```json id="4qnp3o"
+{
+  "tag_names": ["亲子"],
+  "price_max": 200,
+  "location": {
+    "lat": 31.2304,
+    "lon": 121.4737
+  },
+  "distance_km": 5,
+  "sort_by": "distance"
+}
+```
+
+这能保证结构化层稳定、可测试、可复用。
+
+---
+
+## 15. 结论
+
+`search_products` 是商品搜索场景中的统一结构化检索接口。
+它的核心价值不在于承接自然语言，而在于承接**自然语言解析后的业务可执行参数**，并提供统一、稳定、可扩展的商品召回、过滤和排序能力。
+
+该接口设计遵循以下原则：
+
+* 输入参数标准化
+* 默认状态约束统一
+* 召回与过滤分层
+* 排序策略可扩展
+* 返回结构稳定
+* 与 Agent 层职责边界清晰
+
+---
+
+下一步最顺的就是把 **`search_products` 的参数标准化层设计** 也补成正式版本。

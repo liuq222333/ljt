@@ -1,0 +1,597 @@
+# Query Parser（意图识别）设计文档 V1
+
+## 1. 文档目标
+
+本文档定义 Agent 编排层中 Query Parser（`parse_intent` 节点）的详细设计。
+Query Parser 的核心职责是：
+
+**将用户自然语言输入解析为结构化的意图描述，包括任务类型、候选槽位、实时需求标记和置信度，为后续参数标准化和工具路由提供稳定输入。**
+
+本文档重点覆盖：
+
+* 职责边界
+* 输入输出协议
+* 意图分类体系
+* 槽位提取规范
+* 多轮指代消解
+* 置信度与降级策略
+* 实现方式建议
+* 样本集设计
+* 观测与治理指标
+
+---
+
+## 2. 设计定位
+
+Query Parser 位于以下链路中：
+
+```text
+用户输入（messages）
+-> parse_intent（Query Parser）
+-> normalize_params（参数标准化）
+-> route_tools（工具路由）
+-> execute tools
+-> compose_response
+```
+
+在这个链路中：
+
+* `parse_intent` 负责理解用户想做什么、提到了什么条件
+* `normalize_params` 负责把条件转成可执行参数
+* `route_tools` 负责决定调用哪些工具
+
+因此，Query Parser 是：
+
+**语义理解的第一道关口**，不负责参数映射和执行决策，只负责"听懂用户在说什么"。
+
+---
+
+## 3. 职责边界
+
+### 3.1 Query Parser 负责的内容
+
+#### 3.1.1 任务类型识别
+
+判断用户当前轮次的核心意图属于哪类任务：
+
+* 搜索推荐（找商品、找活动、找门店）
+* 知识问答（FAQ、规则、说明）
+* 强实时查询（现在有票吗、还营业吗）
+* 混合意图（找活动并说明规则）
+* 澄清/闲聊/无法识别
+
+#### 3.1.2 候选槽位提取
+
+从用户自然语言中提取可能的条件槽位：
+
+* 关键词
+* 类目表达（如"玩具""亲子活动"）
+* 标签表达（如"适合小朋友""周末"）
+* 地域表达（如"上海""附近""浦东"）
+* 价格表达（如"200以内""别太贵"）
+* 时间表达（如"明天""这个周末""下周"）
+* 排序偏好（如"便宜的""评分高的""离我近"）
+* 实体指代（如"这个""第一个""刚才那个"）
+
+#### 3.1.3 辅助标记生成
+
+判断本轮请求的辅助特征：
+
+* `need_realtime`：是否需要实时确认
+* `need_explanation`：是否需要知识说明
+* `need_recommendation`：是否需要推荐理由
+* `is_follow_up`：是否为多轮追问
+* `is_negation`：是否为否定/排除（"不要这个""换一个"）
+
+#### 3.1.4 置信度输出
+
+输出意图识别的置信度，供下游决策：
+
+* 高置信度（>= 0.8）：可直接执行
+* 中置信度（0.5 - 0.8）：可保守执行或澄清
+* 低置信度（< 0.5）：建议澄清
+
+### 3.2 Query Parser 不负责的内容
+
+* **参数映射**：如"上海"→ `city_id=310000`，属于 `normalize_params`
+* **名称到 ID 收敛**：如"亲子"→ `tag_id=201`，属于 `normalize_params`
+* **工具选择**：如"该查搜索还是查知识"，属于 `route_tools`
+* **最终回答生成**：属于 `compose_response`
+* **业务规则校验**：如"距离排序需要位置"，属于 `normalize_params`
+
+---
+
+## 4. 设计原则
+
+### 4.1 结构化输出优先
+
+Query Parser 的输出必须是结构化 JSON，而不是自然语言描述。
+下游节点（normalize_params、route_tools）不应再做自然语言理解。
+
+### 4.2 宁可多提取、不可漏提取
+
+槽位提取阶段宁可把"可能是条件"的内容提取出来（由后续层判断是否可用），也不要漏掉用户明确表达的条件。
+
+### 4.3 不做过度推断
+
+Query Parser 只提取用户**说了什么**，不推断用户**没说但可能想要的**。
+推断逻辑属于 `normalize_params`（如默认城市注入）。
+
+### 4.4 多轮上下文感知
+
+Query Parser 必须能访问 `messages` 和 `session_context`，以处理：
+
+* 指代消解（"这个" → 上一轮的焦点实体）
+* 条件追加（"再便宜一点" → 在已有条件上追加价格约束）
+* 意图切换（"换个问题" → 清空上一轮意图）
+
+### 4.5 置信度必须真实
+
+置信度不是装饰，它直接影响下游是否澄清。
+不应把所有输出都标为高置信度。
+
+---
+
+## 5. 意图分类体系
+
+### 5.1 一级意图（task_type）
+
+| task_type | 说明 | 典型问法 |
+|-----------|------|---------|
+| `product_search` | 商品搜索/推荐 | "推荐几个玩具""找个送礼的" |
+| `event_search` | 活动搜索/推荐 | "周末有什么亲子活动""明天的展览" |
+| `store_search` | 门店搜索 | "附近有什么好玩的门店""找个游乐场" |
+| `faq_query` | FAQ/规则问答 | "退款规则是什么""怎么预约" |
+| `realtime_query` | 强实时查询 | "现在还有票吗""还营业吗" |
+| `mixed_search_knowledge` | 搜索 + 知识 | "推荐几个活动，说明退款规则" |
+| `mixed_search_realtime` | 搜索 + 实时 | "明天还能订的亲子活动" |
+| `follow_up` | 多轮追问 | "再便宜一点""换个别的" |
+| `clarification_response` | 用户回答澄清 | "上海的""要亲子的" |
+| `chitchat` | 闲聊/无法识别 | "你好""谢谢""今天天气不错" |
+
+### 5.2 二级标记
+
+| 标记 | 类型 | 说明 |
+|------|------|------|
+| `need_realtime` | boolean | 是否包含实时需求信号 |
+| `need_explanation` | boolean | 是否需要知识说明 |
+| `need_recommendation` | boolean | 是否需要推荐理由 |
+| `is_follow_up` | boolean | 是否为多轮追问 |
+| `is_negation` | boolean | 是否为否定/排除 |
+
+---
+
+## 6. 输入协议
+
+### 6.1 输入来源
+
+Query Parser 从 SessionState 中读取以下字段：
+
+* `messages`：完整对话历史
+* `session_context`：会话上下文（confirmed_constraints、focused_entity_id 等）
+* `user_profile`：用户画像（可选，用于辅助理解）
+
+### 6.2 核心输入
+
+实际送入 LLM 的输入为：
+
+```json
+{
+  "current_message": "明天还能订的亲子活动",
+  "recent_messages": [
+    {"role": "user", "content": "上海有什么好玩的"},
+    {"role": "assistant", "content": "...推荐了几个活动..."},
+    {"role": "user", "content": "明天还能订的亲子活动"}
+  ],
+  "session_context_summary": {
+    "confirmed_city": "上海",
+    "focused_entity_type": "event",
+    "last_selected_entity_ids": ["evt_1001", "evt_1002"]
+  }
+}
+```
+
+---
+
+## 7. 输出协议
+
+### 7.1 输出结构
+
+```json
+{
+  "task_type": "mixed_search_realtime",
+  "intent_confidence": 0.92,
+  "query_text": "明天还能订的亲子活动",
+  "candidate_slots": {
+    "date_text": "明天",
+    "crowd_tag_text": "亲子",
+    "entity_type": "event"
+  },
+  "need_realtime": true,
+  "need_explanation": false,
+  "need_recommendation": true,
+  "is_follow_up": true,
+  "is_negation": false,
+  "follow_up_type": "add_constraint",
+  "negated_entities": []
+}
+```
+
+### 7.2 字段说明
+
+#### `task_type`
+一级意图分类，取值见 §5.1。
+
+#### `intent_confidence`
+意图识别置信度，0.0 ~ 1.0。
+
+#### `query_text`
+用户原始输入文本（保留原文，不做修改）。
+
+#### `candidate_slots`
+从用户表达中提取的候选槽位。
+**注意：这里只做文本级提取，不做 ID 映射。**
+
+推荐的槽位 key：
+
+| key | 说明 | 示例值 |
+|-----|------|--------|
+| `keyword` | 核心搜索词 | "玩具" |
+| `category_text` | 类目文本 | "亲子活动" |
+| `crowd_tag_text` | 人群标签文本 | "亲子" |
+| `scene_tag_text` | 场景标签文本 | "周末" |
+| `city_text` | 城市文本 | "上海" |
+| `district_text` | 区县文本 | "浦东" |
+| `location_text` | 位置表达 | "附近""离我近" |
+| `price_text` | 价格表达 | "200以内""别太贵" |
+| `date_text` | 时间表达 | "明天""这个周末" |
+| `sort_text` | 排序偏好 | "便宜的""评分高" |
+| `entity_type` | 目标实体类型 | "product""event""store" |
+| `entity_ref` | 实体指代 | "这个""第一个""刚才那个" |
+
+#### `need_realtime`
+是否包含实时需求信号。触发关键词包括：
+* 现在、今天、明天
+* 还能订吗、还有票吗、还营业吗
+* 当前价格、现在多少钱
+* 还有库存吗
+
+#### `need_explanation`
+是否需要知识说明。触发关键词包括：
+* 规则是什么、怎么退款
+* 注意事项、使用须知
+* 适合什么人、有什么限制
+
+#### `is_follow_up`
+是否为多轮追问。
+
+#### `follow_up_type`
+多轮追问的类型（仅 `is_follow_up=true` 时有效）：
+
+| 值 | 说明 | 示例 |
+|---|------|------|
+| `add_constraint` | 追加条件 | "再便宜一点" |
+| `change_constraint` | 修改条件 | "换成北京的" |
+| `negate_result` | 否定结果 | "不要这个""换一个" |
+| `select_entity` | 选择实体 | "就第一个吧""这个不错" |
+| `ask_detail` | 追问详情 | "这个能退吗""具体在哪里" |
+| `switch_topic` | 切换话题 | "换个问题""我想问另一个" |
+
+#### `negated_entities`
+被用户否定的实体 ID 列表（如"不要这个"对应上一轮焦点实体）。
+
+---
+
+## 8. 多轮指代消解
+
+### 8.1 指代类型
+
+| 指代表达 | 消解规则 |
+|---------|---------|
+| "这个""它" | → session_context.focused_entity_id |
+| "第一个""第二个" | → session_context.candidate_entities[index] |
+| "刚才那个" | → session_context.last_selected_entity_ids[-1] |
+| "那几个" | → session_context.last_selected_entity_ids |
+| "换一个""别的" | → 否定 focused_entity_id，请求新候选 |
+
+### 8.2 消解失败处理
+
+当指代无法消解时（如 session_context 中无焦点实体）：
+
+* `intent_confidence` 下调至 0.5 以下
+* `candidate_slots` 中保留 `entity_ref` 原文
+* 下游 `route_tools` 应识别为需要澄清
+
+### 8.3 条件继承规则
+
+| 场景 | 处理 |
+|------|------|
+| 用户追加条件（"再便宜一点"） | 保留 session_context.confirmed_constraints，追加新槽位 |
+| 用户修改条件（"换成北京"） | 替换对应槽位，保留其他已确认条件 |
+| 用户切换话题（"换个问题"） | 清空 candidate_slots，标记 `follow_up_type=switch_topic` |
+| 用户否定结果（"不要这个"） | 将 focused_entity_id 加入 negated_entities |
+
+---
+
+## 9. 置信度策略
+
+### 9.1 置信度分级
+
+| 区间 | 含义 | 下游处理建议 |
+|------|------|------------|
+| >= 0.85 | 高置信 | 直接执行 |
+| 0.6 - 0.85 | 中置信 | 可保守执行，路由时倾向简单计划 |
+| 0.4 - 0.6 | 低置信 | 建议澄清，但仍可提取部分槽位 |
+| < 0.4 | 极低置信 | 强制澄清或返回兜底回答 |
+
+### 9.2 影响置信度的因素
+
+**提高置信度的因素：**
+* 用户表达明确、包含具体实体词
+* 意图与历史对话一致
+* 槽位完整度高
+
+**降低置信度的因素：**
+* 用户表达模糊（"帮我看看""有什么好的"）
+* 指代无法消解
+* 多种意图混杂且无法分离
+* 用户输入过短（少于 3 个字）
+
+---
+
+## 10. 降级策略
+
+### 10.1 LLM 调用失败
+
+| 场景 | 降级动作 |
+|------|---------|
+| LLM 超时（>500ms） | 使用规则引擎做简单意图分类（关键词匹配） |
+| LLM 返回格式异常 | 重试一次，仍失败则降级为 `chitchat` + 低置信度 |
+| LLM 完全不可用 | 降级为纯关键词搜索，task_type=product_search，置信度=0.3 |
+
+### 10.2 规则引擎降级
+
+当 LLM 不可用时，规则引擎应能处理以下基本场景：
+
+| 输入特征 | 降级判定 |
+|---------|---------|
+| 包含"退款""规则""怎么""须知" | task_type=faq_query |
+| 包含"现在""还有""还能""营业" | need_realtime=true |
+| 包含"推荐""找""有什么" | task_type=product_search 或 event_search |
+| 其他 | task_type=chitchat |
+
+---
+
+## 11. 实现方式建议
+
+### 11.1 V1 推荐：LLM + 结构化输出
+
+使用 LLM 的 function calling 或 JSON mode 实现：
+
+1. 构建 System Prompt，定义意图分类体系和槽位提取规则
+2. 将用户消息 + 最近上下文作为输入
+3. 要求 LLM 输出严格 JSON 格式的 `parsed_intent`
+4. 对输出做 JSON schema 校验
+
+### 11.2 Prompt 模板参考
+
+```text
+你是一个意图识别助手。根据用户的输入和对话上下文，输出以下结构化 JSON：
+
+{
+  "task_type": "枚举值，见下方列表",
+  "intent_confidence": 0.0~1.0,
+  "query_text": "用户原始输入",
+  "candidate_slots": {
+    // 从用户表达中提取的条件，只做文本提取，不做 ID 映射
+  },
+  "need_realtime": true/false,
+  "need_explanation": true/false,
+  "need_recommendation": true/false,
+  "is_follow_up": true/false,
+  "follow_up_type": "枚举值（仅追问时填写）",
+  "is_negation": true/false,
+  "negated_entities": []
+}
+
+task_type 可选值：
+- product_search: 商品搜索/推荐
+- event_search: 活动搜索/推荐
+- store_search: 门店搜索
+- faq_query: FAQ/规则问答
+- realtime_query: 强实时查询
+- mixed_search_knowledge: 搜索+知识
+- mixed_search_realtime: 搜索+实时
+- follow_up: 多轮追问
+- clarification_response: 回答澄清
+- chitchat: 闲聊/无法识别
+
+注意：
+1. candidate_slots 中只放用户说了的内容，不要自己推断
+2. intent_confidence 要真实反映你的判断确定度
+3. 如果用户说"这个""那个"，在 candidate_slots 中用 entity_ref 记录
+```
+
+### 11.3 后续演进方向
+
+* V2：LLM 输出 + 规则引擎交叉验证（双路互校）
+* V3：基于样本集微调小模型，替代通用 LLM（降成本、降延迟）
+
+---
+
+## 12. 样本集设计
+
+### 12.1 样本分类
+
+| 类别 | 数量建议 | 重点验证 |
+|------|---------|---------|
+| 商品搜索 | 30+ | task_type 准确，槽位完整 |
+| 活动搜索 | 30+ | 能区分活动与商品 |
+| 门店搜索 | 20+ | 能识别位置相关意图 |
+| FAQ 问答 | 30+ | 不会误判为搜索 |
+| 强实时查询 | 20+ | need_realtime=true 不遗漏 |
+| 混合意图 | 20+ | 能识别搜索+知识、搜索+实时 |
+| 多轮追问 | 30+ | follow_up_type 准确 |
+| 指代消解 | 20+ | entity_ref 正确提取 |
+| 否定/排除 | 15+ | is_negation 准确 |
+| 闲聊/边界 | 15+ | 不会把闲聊判为搜索 |
+
+### 12.2 重点对抗样本
+
+以下是容易误判的 case，必须覆盖：
+
+| 输入 | 正确判定 | 容易误判为 |
+|------|---------|-----------|
+| "这个活动明天还能订吗" | realtime_query + is_follow_up | event_search |
+| "有什么注意事项" | faq_query | event_search |
+| "便宜一点的" | follow_up + add_constraint | product_search |
+| "算了不要了" | follow_up + negate_result | chitchat |
+| "上海" | clarification_response | store_search |
+| "你好" | chitchat | 任何搜索类型 |
+| "帮我看看" | 低置信度搜索 | 高置信度搜索 |
+| "推荐几个活动并说明退款规则" | mixed_search_knowledge | event_search |
+| "现在还营业吗" | realtime_query | store_search |
+
+---
+
+## 13. 与 SessionState 的交互
+
+### 13.1 读取字段
+
+* `messages` — 构建上下文输入
+* `session_context.confirmed_constraints` — 辅助理解条件继承
+* `session_context.focused_entity_id` — 辅助指代消解
+* `session_context.candidate_entities` — 辅助"第N个"类指代
+* `session_context.last_selected_entity_ids` — 辅助"刚才那个"
+
+### 13.2 写入字段
+
+* `parsed_intent` — 写入完整解析结果
+* `execution_meta.current_node` — 更新为 "parse_intent"
+* `debug_trace` — 追加解析轨迹
+
+### 13.3 写入示例
+
+```json
+{
+  "parsed_intent": {
+    "task_type": "mixed_search_realtime",
+    "intent_confidence": 0.92,
+    "query_text": "明天还能订的亲子活动",
+    "candidate_slots": {
+      "date_text": "明天",
+      "crowd_tag_text": "亲子",
+      "entity_type": "event"
+    },
+    "need_realtime": true,
+    "need_explanation": false,
+    "need_recommendation": true,
+    "is_follow_up": true,
+    "is_negation": false,
+    "follow_up_type": "add_constraint",
+    "negated_entities": []
+  }
+}
+```
+
+---
+
+## 14. 观测与治理指标
+
+### 14.1 核心指标
+
+| 指标 | 说明 | 目标 |
+|------|------|------|
+| task_type 准确率 | 意图分类是否正确 | >= 90% |
+| 槽位提取召回率 | 用户表达的条件是否被提取 | >= 85% |
+| 槽位提取精确率 | 提取的槽位是否真的是用户说的 | >= 90% |
+| need_realtime 召回率 | 强实时问法是否被识别 | >= 95% |
+| 指代消解成功率 | "这个""第一个"类指代是否正确 | >= 80% |
+| 置信度校准度 | 高置信度时实际正确率 | >= 85% |
+| 平均耗时 | parse_intent 节点耗时 | P95 < 500ms |
+| LLM 调用失败率 | LLM 超时或格式异常 | < 3% |
+
+### 14.2 告警规则
+
+| 告警条件 | 级别 | 动作 |
+|---------|------|------|
+| task_type 准确率 < 80% | P1 | 检查 Prompt 或模型版本变更 |
+| need_realtime 漏判率 > 10% | P1 | 紧急修复，影响实时场景 |
+| 平均耗时 > 800ms | P2 | 检查 LLM 响应延迟 |
+| LLM 调用失败率 > 10% | P1 | 触发规则引擎降级 |
+
+---
+
+## 15. 与上下游的接口关系
+
+```text
+                    ┌──────────────┐
+                    │   messages   │
+                    │session_context│
+                    │ user_profile │
+                    └──────┬───────┘
+                           │ 读取
+                    ┌──────▼───────┐
+                    │ Query Parser │
+                    │ (parse_intent)│
+                    └──────┬───────┘
+                           │ 写入 parsed_intent
+                    ┌──────▼───────┐
+                    │normalize_params│
+                    │  参数标准化层  │
+                    └──────┬───────┘
+                           │ 写入 normalized_params
+                    ┌──────▼───────┐
+                    │  route_tools  │
+                    │  工具路由层   │
+                    └──────────────┘
+```
+
+职责分界线：
+
+* **Query Parser → normalize_params**：传递的是文本级槽位（如 `city_text="上海"`），不是 ID 级参数（如 `city_id=310000`）
+* **normalize_params → route_tools**：传递的是可执行参数 + 校验结果，不是原始文本
+
+---
+
+## 16. 风险与边界
+
+### 16.1 不要让 Query Parser 做太多事
+
+Query Parser 只做"理解"，不做"映射""决策""执行"。
+如果发现 Query Parser 的 Prompt 越来越长、输出越来越复杂，说明职责越界了。
+
+### 16.2 不要过度依赖 LLM 的稳定性
+
+LLM 输出可能波动，同一问题不同次调用结果可能不同。
+因此：
+
+* 输出必须做 JSON schema 校验
+* 关键字段（task_type、need_realtime）必须有规则引擎兜底
+* 不能假设 LLM 每次都返回完美结果
+
+### 16.3 不要忽视闲聊和边界输入
+
+用户可能输入"你好""谢谢""哈哈"等非业务内容。
+Query Parser 必须能识别并标记为 `chitchat`，避免触发不必要的搜索。
+
+### 16.4 指代消解的局限性
+
+当对话历史过长或焦点实体不明确时，指代消解可能失败。
+此时应降低置信度而不是猜测。
+
+---
+
+## 17. 结论
+
+Query Parser 是 Agent 编排链路中的第一个语义理解节点。
+它的核心价值不在于"做得多"，而在于"理解得准、输出得稳"。
+
+一个好的 Query Parser 应该做到：
+
+1. **意图分类准确** — 不把搜索判成 FAQ，不把 FAQ 判成搜索
+2. **槽位提取完整** — 用户说的条件不遗漏
+3. **实时需求不漏判** — "还能订吗"必须触发 need_realtime
+4. **多轮指代能消解** — "这个""第一个"能正确关联上下文
+5. **置信度真实可靠** — 高置信意味着真的可信，低置信意味着需要澄清
+6. **降级可用** — LLM 挂了也不至于完全不能工作

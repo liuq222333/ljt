@@ -1,0 +1,1083 @@
+下面是一份基于我们前面讨论整理的 **本地生活商品/活动智能检索与 Agent 系统实现文档（V1）**。
+我会把 **结构化层** 写得最详细，其他部分给到完整框架，方便你后面继续扩展。
+
+---
+
+# 本地生活商品 / 活动智能检索与 Agent 系统实现文档
+
+**版本**：V1
+**适用场景**：本地生活平台，包含商品售卖、活动报名、门店信息、智能搜索、智能推荐、Agent 问答
+**目标**：构建一套“可搜索、可解释、可实时校验”的商品/活动智能系统，支持 Agent 稳定调用
+
+---
+
+# 1. 项目目标
+
+本系统用于支持以下能力：
+
+1. 用户搜索商品、活动、门店
+2. Agent 根据用户自然语言完成推荐与问答
+3. 商品/活动可以被结构化检索
+4. 商品/活动详情和规则可以被解释
+5. 库存、价格、营业状态等可以实时校验
+6. 新发布商品和活动可以持续进入检索系统
+
+---
+
+# 2. 总体设计原则
+
+系统遵循以下原则：
+
+### 2.1 结构化检索优先
+
+商品、活动、门店的核心召回与筛选，不依赖大模型直接理解全量数据，而依赖结构化检索服务完成。
+
+### 2.2 知识解释独立
+
+详情、规则、FAQ、说明类信息单独作为知识层处理，用于 RAG 和解释型问答。
+
+### 2.3 实时信息单独校验
+
+库存、余票、实时价格、临时营业状态等信息，不依赖离线库，而在最终返回前走实时接口。
+
+### 2.4 Agent 只做编排，不直接扫底层数据
+
+Agent 负责理解用户意图、触发查询工具、组织答案。
+Agent 不直接扫描数据库原始表，也不直接处理复杂分页和筛选逻辑。
+
+---
+
+# 3. 总体架构
+
+## 3.1 逻辑分层
+
+系统分为四层：
+
+### 第一层：业务源系统
+
+负责原始数据生产：
+
+* 商品中心
+* 活动中心
+* 门店中心
+* 库存系统
+* 价格系统
+* 票务 / 预约系统
+
+### 第二层：智能数据层
+
+负责为搜索和 Agent 提供可用数据：
+
+* 结构化层
+* 知识层
+* 搜索索引
+* 向量索引
+* 查询服务
+* 实时校验服务
+
+### 第三层：Agent 编排层
+
+负责理解用户意图、调用工具、组织回答。
+
+### 第四层：用户交互层
+
+包括：
+
+* App
+* 小程序
+* H5
+* Web
+* API Gateway / BFF
+
+---
+
+## 3.2 数据分层定义
+
+### 结构化层
+
+用于支撑：
+
+* 搜索
+* 筛选
+* 排序
+* 推荐候选召回
+* Agent 查询候选商品 / 活动
+
+### 知识层
+
+用于支撑：
+
+* 详情解释
+* 规则问答
+* FAQ
+* 文本补充
+* RAG
+
+### 实时层
+
+用于支撑：
+
+* 库存
+* 余票
+* 实时价格
+* 当前营业状态
+* 当前可预约状态
+
+---
+
+# 4. 数据分层设计
+
+---
+
+## 4.1 结构化层定义
+
+结构化层是本系统的核心。
+它不是业务交易真相表，而是从业务系统同步出来的 **查询投影层 / 读模型**。
+
+结构化层主要负责：
+
+1. 快速查找候选商品 / 活动
+2. 承载类目、标签、地理、价格、时间等结构化字段
+3. 为搜索和 Agent 提供统一查询入口
+4. 作为搜索索引和推荐系统的基础数据源
+
+结构化层中的数据具有以下特点：
+
+* 字段扁平
+* 适当冗余
+* 以读为主
+* 可按条件高频查询
+* 可支撑结构化检索与搜索扩展
+
+---
+
+## 4.2 知识层定义
+
+知识层存放：
+
+* 商品详情长文本
+* 活动说明长文本
+* 使用规则
+* 预约规则
+* 退款规则
+* 门店特色介绍
+* FAQ
+* 评论摘要
+
+知识层主要用于：
+
+* Agent 回答“是什么”“适不适合”“有什么规则”
+* RAG 检索
+* 长文本解释
+
+---
+
+## 4.3 实时层定义
+
+实时层直接连接业务实时系统，提供：
+
+* 实时库存
+* 实时余票
+* 实时价格
+* 当前门店营业状态
+* 当前报名可用状态
+
+实时层不做长期存储真相，而负责在线确认。
+
+---
+
+# 5. 结构化层详细设计
+
+这一部分是全文最重要的部分。
+
+---
+
+## 5.1 结构化层的职责
+
+结构化层主要解决以下问题：
+
+### 5.1.1 候选召回
+
+根据用户查询，从大量商品 / 活动中快速找出候选项。
+
+### 5.1.2 条件筛选
+
+支持如下条件：
+
+* 类目
+* 标签
+* 城市 / 商圈
+* 经纬度 / 距离
+* 价格区间
+* 时间范围
+* 上下架状态
+* 审核状态
+* 可见状态
+
+### 5.1.3 排序
+
+支持：
+
+* 热度
+* 销量
+* 评分
+* 距离
+* 上新时间
+* 综合推荐分
+
+### 5.1.4 为 Agent 提供稳定输入
+
+Agent 查询时只看结构化层对外暴露的字段，不直接查业务底层原始表。
+
+---
+
+## 5.2 结构化层和业务商品表的区别
+
+### 业务商品表
+
+用于：
+
+* 商品创建
+* 商品编辑
+* 审核
+* 上下架
+* 交易
+* 售后
+* 运营管理
+
+特点：
+
+* 多表关联
+* 事务性强
+* 字段复杂
+* 面向写入
+
+### 结构化层商品表
+
+用于：
+
+* 搜索
+* 召回
+* 筛选
+* 排序
+* Agent 查询
+
+特点：
+
+* 字段扁平
+* 冗余适当
+* 面向查询
+* 高读低写
+
+因此：
+
+> 业务表是“真相源”，结构化层是“查询投影”。
+
+---
+
+## 5.3 结构化层内部组成
+
+结构化层内部建议拆成两部分：
+
+### A. MySQL / PostgreSQL 结构化快照层
+
+存放结构化投影表，作为查询镜像。
+
+### B. Elasticsearch / OpenSearch 搜索索引层
+
+用于关键词搜索、文本检索、标签召回、类目召回、地理检索和综合排序。
+
+---
+
+## 5.4 结构化层包含哪些能力
+
+结构化层不只是一个表，而是一组能力的集合，包括：
+
+### 5.4.1 类目树
+
+用于表示商品 / 活动所属类目体系。
+
+例如：
+
+* 玩具
+
+  * 毛绒玩具
+  * 模型玩具
+  * 手办
+* 美食
+
+  * 火锅
+  * 烧烤
+  * 咖啡
+
+类目树用于：
+
+* 主类目召回
+* 子类目扩展
+* 筛选展示
+* 查询扩展
+
+---
+
+### 5.4.2 标签系统
+
+用于表示商品 / 活动的补充属性。
+
+例如：
+
+* 毛绒
+* 公仔
+* 拼装
+* 收藏
+* 儿童
+* 亲子
+* 约会
+* 室内
+* 周末可用
+
+标签用于：
+
+* 辅助召回
+* 搜索扩展
+* 推荐解释
+* 用户意图匹配
+
+---
+
+### 5.4.3 标题 / 描述检索
+
+用于在商品自身的短文本中完成搜索匹配。
+
+字段通常包括：
+
+* title
+* subtitle
+* short_desc
+* summary_text
+
+这部分属于 **结构化检索层的文本检索能力**，不等同于知识层长文本。
+
+---
+
+### 5.4.4 其他结构化字段
+
+例如：
+
+* price
+* city_id
+* district_id
+* lat
+* lng
+* status
+* start_time
+* end_time
+* audit_status
+* searchable_status
+
+---
+
+## 5.5 结构化层推荐表设计
+
+---
+
+### 5.5.1 商品搜索快照表 `product_search_snapshot`
+
+建议字段如下：
+
+```text
+product_search_snapshot
+- id
+- product_id
+- seller_id
+- store_id
+- store_name
+- product_type
+- title
+- subtitle
+- summary_text
+- category_id
+- category_name
+- category_path
+- tag_ids
+- tag_names
+- city_id
+- city_name
+- district_id
+- district_name
+- business_area_id
+- business_area_name
+- lat
+- lng
+- base_price
+- display_price
+- currency
+- cover_image
+- sales_count
+- rating
+- review_count
+- hot_score
+- recommend_score
+- searchable_status
+- publish_status
+- audit_status
+- visible_status
+- source_status
+- created_at
+- updated_at
+- searchable_updated_at
+```
+
+---
+
+### 5.5.2 活动搜索快照表 `event_search_snapshot`
+
+```text
+event_search_snapshot
+- id
+- event_id
+- organizer_id
+- venue_id
+- venue_name
+- title
+- subtitle
+- summary_text
+- category_id
+- category_name
+- category_path
+- tag_ids
+- tag_names
+- audience_tags
+- city_id
+- city_name
+- district_id
+- district_name
+- lat
+- lng
+- min_price
+- max_price
+- event_start_time
+- event_end_time
+- weekday_mask
+- searchable_status
+- publish_status
+- audit_status
+- visible_status
+- sales_count
+- rating
+- hot_score
+- recommend_score
+- created_at
+- updated_at
+- searchable_updated_at
+```
+
+---
+
+### 5.5.3 门店搜索快照表 `store_search_snapshot`
+
+```text
+store_search_snapshot
+- id
+- store_id
+- merchant_id
+- store_name
+- title
+- summary_text
+- category_id
+- category_name
+- category_path
+- tag_names
+- city_id
+- district_id
+- business_area_id
+- lat
+- lng
+- avg_price
+- rating
+- review_count
+- hot_score
+- searchable_status
+- publish_status
+- visible_status
+- base_open_time_desc
+- created_at
+- updated_at
+```
+
+---
+
+## 5.6 辅助元数据表
+
+### 5.6.1 类目表 `category`
+
+```text
+category
+- category_id
+- parent_category_id
+- category_name
+- category_level
+- category_path
+- is_leaf
+- sort_order
+- status
+```
+
+### 5.6.2 标签表 `tag`
+
+```text
+tag
+- tag_id
+- tag_name
+- tag_type
+- status
+```
+
+### 5.6.3 查询扩展词典表 `query_expand_dict`
+
+```text
+query_expand_dict
+- id
+- query_term
+- expand_terms_json
+- expand_categories_json
+- expand_tags_json
+- status
+- updated_at
+```
+
+---
+
+## 5.7 结构化层检索策略
+
+结构化层检索采用 **多路召回 + 统一排序** 策略。
+
+---
+
+### 5.7.1 多路召回路径
+
+以用户搜索“玩具”为例，可以通过以下方式召回：
+
+#### 路径一：类目召回
+
+* category = 玩具
+* category_path 包含 玩具 下属子类
+
+#### 路径二：标签召回
+
+* tags 包含 玩具、模型、公仔、手办、毛绒
+
+#### 路径三：标题召回
+
+* title 包含 玩具、手办、模型、公仔
+
+#### 路径四：描述召回
+
+* summary_text 包含 玩具、毛绒、模型、布偶
+
+#### 路径五：可选语义召回
+
+* 使用向量召回找文本相关商品
+  仅作为补充，不作为主召回
+
+---
+
+### 5.7.2 查询扩展原则
+
+用户查询词可以扩展，但扩展必须受控。
+不建议完全依赖大模型在线自由扩展。
+
+推荐扩展来源：
+
+1. 类目树
+2. 标签体系
+3. 小规模高频词典
+4. 商品文本自身高频共现
+5. 搜索日志点击反馈
+
+---
+
+### 5.7.3 召回后排序
+
+召回结果统一去重后排序。
+推荐排序特征包括：
+
+* 类目精确匹配分
+* 标签匹配分
+* 标题匹配分
+* 描述匹配分
+* 热度分
+* 销量分
+* 评分分
+* 距离分
+* 上新时间分
+* 推荐综合分
+
+---
+
+## 5.8 结构化层查询服务设计
+
+不建议 Agent 直接写 SQL。
+建议由结构化查询服务统一对外提供接口。
+
+---
+
+### 5.8.1 商品查询服务接口
+
+```text
+search_products(
+  keyword,
+  city_id,
+  district_id,
+  lat,
+  lng,
+  radius,
+  category_id,
+  tags,
+  min_price,
+  max_price,
+  sort_by,
+  page,
+  page_size
+)
+```
+
+---
+
+### 5.8.2 活动查询服务接口
+
+```text
+search_events(
+  keyword,
+  city_id,
+  district_id,
+  lat,
+  lng,
+  radius,
+  category_id,
+  tags,
+  audience_tags,
+  min_price,
+  max_price,
+  start_date,
+  end_date,
+  sort_by,
+  page,
+  page_size
+)
+```
+
+---
+
+### 5.8.3 门店查询服务接口
+
+```text
+search_stores(
+  keyword,
+  city_id,
+  district_id,
+  lat,
+  lng,
+  radius,
+  category_id,
+  tags,
+  min_price,
+  max_price,
+  sort_by,
+  page,
+  page_size
+)
+```
+
+---
+
+## 5.9 结构化层状态字段建议
+
+对外可搜索数据必须有统一状态口径。
+
+建议至少包含：
+
+* `audit_status`
+* `publish_status`
+* `visible_status`
+* `searchable_status`
+
+其中：
+
+### `audit_status`
+
+* pending
+* approved
+* rejected
+
+### `publish_status`
+
+* on_shelf
+* off_shelf
+
+### `visible_status`
+
+* visible
+* hidden
+
+### `searchable_status`
+
+由系统综合计算得到，表示该对象是否可进入搜索结果。
+
+例如：
+
+```text
+searchable_status = approved AND on_shelf AND visible
+```
+
+---
+
+## 5.10 结构化层为什么不能只用业务库
+
+原因如下：
+
+1. 业务库表结构复杂，不适合高频检索
+2. 多表 join 成本高
+3. 业务库承载交易，不能被高频搜索压垮
+4. 容易暴露内部字段
+5. Agent 需要统一、稳定、可控的数据视图
+
+所以必须建设结构化层查询投影。
+
+---
+
+# 6. 知识层设计
+
+知识层存储对象说明和规则文本。
+建议至少包含以下对象类型：
+
+* 商品详情文档
+* 活动详情文档
+* 门店介绍文档
+* 平台规则文档
+* FAQ 文档
+
+---
+
+## 6.1 知识层建议字段
+
+```text
+knowledge_document
+- doc_id
+- object_type
+- object_id
+- title
+- content
+- summary
+- source_type
+- status
+- updated_at
+```
+
+其中：
+
+* `object_type` 可以是 product / event / store / policy / faq
+* `object_id` 用于绑定商品、活动或门店
+
+---
+
+## 6.2 知识层职责
+
+知识层用于回答：
+
+* 这个活动适不适合 5 岁儿童
+* 这个套餐周末能不能用
+* 这家店有什么特色
+* 退款规则是什么
+* 使用须知是什么
+
+---
+
+# 7. 实时层设计
+
+实时层不做主要离线存储，而通过接口查询实时业务真相。
+
+建议提供以下接口：
+
+```text
+check_product_inventory(product_id)
+get_live_product_price(product_id)
+check_event_availability(event_id, session_id)
+check_store_open_status(store_id, current_time)
+```
+
+---
+
+## 7.1 实时层职责
+
+实时层只负责“当前这一刻”的最终业务确认，例如：
+
+* 是否还有库存
+* 是否还有票
+* 当前门店是否营业
+* 当前是否还能预约
+* 最终价格是否变动
+
+---
+
+# 8. 数据同步设计
+
+---
+
+## 8.1 同步目标
+
+业务源系统中的商品、活动、门店数据需要同步到：
+
+1. 结构化层 MySQL / PostgreSQL
+2. 搜索索引 ES / OpenSearch
+3. 知识层文档库
+4. 可选向量索引
+
+---
+
+## 8.2 推荐同步方式
+
+推荐采用：
+
+### 主方式：事件驱动同步
+
+当商品 / 活动 / 门店发生以下行为时发送事件：
+
+* 创建
+* 编辑
+* 审核通过
+* 上架 / 下架
+* 删除 / 失效
+
+然后由同步服务消费消息，更新结构化层与搜索索引。
+
+### 兜底方式：定时任务补偿
+
+每隔 1～5 分钟扫描最近变更数据，补写或校验：
+
+* 丢失更新
+* 状态不一致
+* 索引缺失
+
+---
+
+## 8.3 同步链路示意
+
+```text
+业务主库
+-> 变更事件 MQ
+-> 同步服务
+-> 结构化层表
+-> 搜索索引
+-> 知识层文档
+```
+
+---
+
+# 9. Agent 设计
+
+Agent 的职责不是直接查底层数据，而是：
+
+1. 理解用户意图
+2. 提取查询条件
+3. 调用结构化查询服务
+4. 调用知识检索服务
+5. 调用实时校验服务
+6. 组织最终回答
+
+---
+
+## 9.1 Agent 适合的工具列表
+
+### 结构化检索工具
+
+* `search_products`
+* `search_events`
+* `search_stores`
+
+### 知识检索工具
+
+* `get_product_knowledge`
+* `get_event_knowledge`
+* `get_store_knowledge`
+* `search_faq`
+* `retrieve_policy`
+
+### 实时校验工具
+
+* `check_product_inventory`
+* `get_live_product_price`
+* `check_event_availability`
+* `check_store_open_status`
+
+---
+
+## 9.2 Agent 典型链路
+
+例如用户问：
+
+> 推荐一些玩具
+
+Agent 处理流程：
+
+1. 识别用户意图是“商品推荐”
+2. 识别主题词“玩具”
+3. 调用 `search_products(keyword=玩具, category=玩具, limit=20)`
+4. 由查询服务完成类目、标签、标题、描述的多路召回
+5. 返回候选商品
+6. Agent 按热度、适合人群、价格等组织成推荐结果
+
+---
+
+# 10. 搜索扩展策略
+
+---
+
+## 10.1 不建议完全依赖人工大词典
+
+如果所有扩展都手工维护，成本会很高。
+
+---
+
+## 10.2 推荐分层扩展策略
+
+### 第一层：类目树扩展
+
+主召回来源。
+
+### 第二层：标签扩展
+
+补充召回来源。
+
+### 第三层：高频 Query 小词典
+
+只维护高频词，如：
+
+* 玩具
+* 亲子
+* 火锅
+* 约会
+* 宠物
+* 手作
+
+### 第四层：标题 / 描述文本召回
+
+补充长尾匹配。
+
+### 第五层：语义召回
+
+仅作为补充，不作为主召回。
+
+---
+
+## 10.3 词典维护建议
+
+不需要维护“所有名词”。
+只维护：
+
+* 高频词
+* 容易歧义的词
+* 业务高价值场景词
+
+同时建议利用以下方式自动发现候选扩展词：
+
+* 商品标题高频词统计
+* 标签共现分析
+* 搜索点击日志
+* 类目共现统计
+
+推荐模式：
+
+> 机器生成候选，人工审核入库。
+
+---
+
+# 11. 推荐落地阶段
+
+---
+
+## 阶段一：基础可用版本
+
+实现：
+
+* 结构化层 MySQL 快照表
+* ES 搜索索引
+* 类目树
+* 标签系统
+* 标题 / 描述检索
+* 基础搜索服务
+* 定时同步任务
+
+---
+
+## 阶段二：增强版本
+
+增加：
+
+* 事件驱动同步
+* 高质量搜索排序
+* 高频 query 扩展词典
+* 基础知识层
+* 基础实时校验服务
+
+---
+
+## 阶段三：智能增强版本
+
+增加：
+
+* RAG 知识问答
+* 语义召回
+* 点击 / 转化反馈优化
+* 个性化排序
+* Agent 推荐策略优化
+
+---
+
+# 12. 风险与注意事项
+
+---
+
+## 12.1 不要让 Agent 直接访问业务主表
+
+这样会带来：
+
+* 性能风险
+* 业务耦合风险
+* 字段暴露风险
+* 查询不稳定风险
+
+---
+
+## 12.2 不要把结构化检索完全做成 RAG
+
+商品和活动搜索，本质还是结构化检索问题。
+
+---
+
+## 12.3 不要让词典变成唯一召回手段
+
+词典只能做增强，不能做唯一基础。
+
+---
+
+## 12.4 实时字段不要只依赖离线数据
+
+库存、余票、实时价格、当前营业状态必须实时确认。
+
+---
+
+# 13. 一句话总结
+
+本系统采用 **“结构化层找候选、知识层做解释、实时层做确认、Agent 负责编排”** 的设计思路。
+其中：
+
+* **结构化层** 是搜索和推荐的核心底座
+* **知识层** 负责规则和详情解释
+* **实时层** 负责最终业务状态校验
+* **Agent** 只负责理解用户和组织答案，不直接扫底层原始数据
+
+---
+
+如果你愿意，我下一步可以继续把这份文档补成更工程化的版本，直接给你：
+
+**“表结构 SQL 草案 + ES mapping 草案 + search_products 接口协议 + 商品同步时序图”**

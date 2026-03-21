@@ -1,0 +1,590 @@
+可以，我直接把正文贴出来。下面这版可以直接放进你的设计文档里，标题你可以写成：
+
+# `product_search_snapshot` ES / OpenSearch Mapping 草案
+
+这版 mapping 是按你前面的设计写的：
+结构化层是查询投影层，不是业务真相表；ES / OpenSearch 层负责关键词搜索、文本检索、标签召回、类目召回、地理检索和综合排序；`product_search_snapshot` 已经定义了商品标题、摘要、类目、标签、城市、价格、状态、热度、评分等核心字段。 
+
+---
+
+## 1. 设计目标
+
+`product_search_snapshot` 的 ES 索引主要承担以下职责：
+
+1. 支持标题 / 副标题 / 摘要的关键词检索
+2. 支持类目召回、标签召回、标题召回、描述召回
+3. 支持城市、区县、商圈、价格、状态等结构化过滤
+4. 支持地理距离检索和距离排序
+5. 支持按热度、销量、评分、推荐分、上新时间排序
+6. 为 `search_products` 查询服务提供统一索引层能力 
+
+---
+
+## 2. 索引命名建议
+
+```text
+index name:
+product_search_v1
+```
+
+说明：
+
+* `v1` 表示第一版正式索引
+* 后续如果 mapping 有不兼容变更，可以升级为 `product_search_v2`
+* 生产上建议使用别名：
+
+  * 写别名：`product_search_write`
+  * 读别名：`product_search_read`
+
+这样重建索引时更安全。
+
+---
+
+## 3. 文档主键建议
+
+```text
+_document_id = product_id
+```
+
+说明：
+
+* ES 文档 `_id` 直接使用 `product_id`
+* 这样同步更新、覆盖写入、删除文档都更简单
+* MySQL 快照表中的 `product_id` 是天然业务唯一键，这样和同步链路最一致 
+
+---
+
+## 4. Mapping 草案
+
+```json
+PUT product_search_v1
+{
+  "settings": {
+    "number_of_shards": 3,
+    "number_of_replicas": 1,
+    "analysis": {
+      "normalizer": {
+        "lowercase_normalizer": {
+          "type": "custom",
+          "filter": ["lowercase"]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "false",
+    "properties": {
+      "product_id": {
+        "type": "long"
+      },
+      "seller_id": {
+        "type": "long"
+      },
+      "store_id": {
+        "type": "long"
+      },
+      "store_name": {
+        "type": "keyword",
+        "ignore_above": 256,
+        "fields": {
+          "text": {
+            "type": "text"
+          }
+        }
+      },
+      "product_type": {
+        "type": "keyword",
+        "ignore_above": 64
+      },
+
+      "title": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "subtitle": {
+        "type": "text"
+      },
+      "summary_text": {
+        "type": "text"
+      },
+
+      "category_id": {
+        "type": "long"
+      },
+      "category_name": {
+        "type": "keyword",
+        "ignore_above": 128,
+        "fields": {
+          "text": {
+            "type": "text"
+          }
+        }
+      },
+      "category_path": {
+        "type": "keyword",
+        "ignore_above": 1024
+      },
+      "category_path_ids": {
+        "type": "long"
+      },
+
+      "tag_ids": {
+        "type": "long"
+      },
+      "tag_names": {
+        "type": "keyword",
+        "ignore_above": 128,
+        "fields": {
+          "text": {
+            "type": "text"
+          }
+        }
+      },
+
+      "city_id": {
+        "type": "long"
+      },
+      "city_name": {
+        "type": "keyword",
+        "ignore_above": 64
+      },
+      "district_id": {
+        "type": "long"
+      },
+      "district_name": {
+        "type": "keyword",
+        "ignore_above": 64
+      },
+      "business_area_id": {
+        "type": "long"
+      },
+      "business_area_name": {
+        "type": "keyword",
+        "ignore_above": 128
+      },
+
+      "location": {
+        "type": "geo_point"
+      },
+
+      "base_price": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "display_price": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "currency": {
+        "type": "keyword",
+        "ignore_above": 16
+      },
+
+      "cover_image": {
+        "type": "keyword",
+        "ignore_above": 1024
+      },
+
+      "sales_count": {
+        "type": "long"
+      },
+      "rating": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "review_count": {
+        "type": "long"
+      },
+      "hot_score": {
+        "type": "scaled_float",
+        "scaling_factor": 10000
+      },
+      "recommend_score": {
+        "type": "scaled_float",
+        "scaling_factor": 10000
+      },
+
+      "searchable_status": {
+        "type": "keyword",
+        "ignore_above": 32
+      },
+      "publish_status": {
+        "type": "keyword",
+        "ignore_above": 32
+      },
+      "audit_status": {
+        "type": "keyword",
+        "ignore_above": 32
+      },
+      "visible_status": {
+        "type": "keyword",
+        "ignore_above": 32
+      },
+      "source_status": {
+        "type": "keyword",
+        "ignore_above": 32
+      },
+
+      "created_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "updated_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "searchable_updated_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+
+      "suggest_text": {
+        "type": "completion"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 5. 字段设计说明
+
+### 5.1 为什么 `title`、`subtitle`、`summary_text` 用 `text`
+
+因为你的文档已经把“标题 / 描述检索”定义成结构化层的重要能力之一，这部分要承担标题召回和摘要召回，所以必须支持全文检索，不能只做精确匹配。
+
+建议：
+
+* `title` 作为最高权重文本字段
+* `subtitle` 次之
+* `summary_text` 再次之
+
+后面在查询 DSL 里可以做类似权重：
+
+```text
+title^5
+subtitle^3
+summary_text^2
+```
+
+---
+
+### 5.2 为什么 `category_name`、`tag_names` 同时保留 `keyword` 和 `text`
+
+因为你的检索路径是多路召回：
+
+* 类目召回
+* 标签召回
+* 标题召回
+* 描述召回 
+
+所以这类字段同时有两类需求：
+
+* 作为 filter / 精确筛选时，用 `keyword`
+* 作为补充文本匹配时，用 `text`
+
+这样更灵活。
+
+---
+
+### 5.3 为什么建议新增 `category_path_ids`
+
+你原始文档里有 `category_path`，但它更像展示字段或路径字符串。为了支持“父类目查全部子类目”，建议在 ES 中额外展开一个数组字段：
+
+```json
+"category_path_ids": [100, 110, 113]
+```
+
+这样查询父类目时，直接 terms filter 即可，不需要做字符串 contains，性能和准确性都更稳。
+
+---
+
+### 5.4 为什么用 `location` 替代 `lat` + `lng`
+
+你的结构化层职责里已经明确支持“经纬度 / 距离”过滤和排序。
+在 ES 里，真正适合做这个能力的是：
+
+```json
+"location": {
+  "type": "geo_point"
+}
+```
+
+同步写入时，把 MySQL 里的：
+
+* `lat`
+* `lng`
+
+转换成：
+
+```json
+"location": {
+  "lat": 31.2304,
+  "lon": 121.4737
+}
+```
+
+这样才能支持：
+
+* 附近搜索
+* 半径过滤
+* 按距离排序
+
+---
+
+### 5.5 为什么状态字段都用 `keyword`
+
+因为这些字段主要承担结构化过滤：
+
+* `searchable_status`
+* `publish_status`
+* `audit_status`
+* `visible_status`
+
+你的文档也已经定义了统一状态口径，特别是 `searchable_status` 是系统综合计算后的结果。
+
+所以这类字段只需要精确匹配，不需要全文分析。
+
+---
+
+### 5.6 为什么价格和分数字段用 `scaled_float`
+
+像：
+
+* `display_price`
+* `base_price`
+* `rating`
+* `hot_score`
+* `recommend_score`
+
+这类字段都要参与排序和范围过滤。
+`scaled_float` 一般比普通浮点更稳，适合金额和分数。
+
+建议：
+
+* 金额：`scaling_factor = 100`
+* 热度 / 推荐分：`scaling_factor = 10000`
+
+---
+
+### 5.7 为什么增加 `suggest_text`
+
+如果你后面想支持搜索联想、自动补全，可以直接复用该字段。
+
+例如把：
+
+* `title`
+* `subtitle`
+* `store_name`
+* `category_name`
+* 高频标签
+
+拼成 suggestion 输入源。
+
+这不是第一阶段必须，但加上比较顺手，而且和你后面的“高频 query 扩展词典”方向一致。
+
+---
+
+## 6. 建议的同步后 ES 文档结构
+
+```json
+{
+  "product_id": 100001,
+  "seller_id": 9001,
+  "store_id": 8001,
+  "store_name": "欢乐积木馆",
+  "product_type": "physical_goods",
+
+  "title": "儿童拼装积木机器人套装",
+  "subtitle": "6-10岁益智玩具",
+  "summary_text": "适合亲子互动，周末送礼，含多种机器人拼装玩法",
+
+  "category_id": 1103,
+  "category_name": "拼装玩具",
+  "category_path": "玩具/益智玩具/拼装玩具",
+  "category_path_ids": [1000, 1100, 1103],
+
+  "tag_ids": [201, 202, 203],
+  "tag_names": ["亲子", "益智", "儿童"] ,
+
+  "city_id": 310000,
+  "city_name": "上海",
+  "district_id": 310101,
+  "district_name": "黄浦区",
+  "business_area_id": 31010101,
+  "business_area_name": "人民广场",
+  "location": {
+    "lat": 31.2304,
+    "lon": 121.4737
+  },
+
+  "base_price": 199.00,
+  "display_price": 159.00,
+  "currency": "CNY",
+
+  "cover_image": "https://cdn.xxx.com/p/100001.jpg",
+
+  "sales_count": 2680,
+  "rating": 4.8,
+  "review_count": 356,
+  "hot_score": 87.1234,
+  "recommend_score": 91.5678,
+
+  "searchable_status": "enabled",
+  "publish_status": "on_shelf",
+  "audit_status": "approved",
+  "visible_status": "visible",
+  "source_status": "normal",
+
+  "created_at": "2026-03-01T10:00:00+08:00",
+  "updated_at": "2026-03-15T12:00:00+08:00",
+  "searchable_updated_at": "2026-03-15T12:05:00+08:00",
+
+  "suggest_text": {
+    "input": [
+      "儿童拼装积木机器人套装",
+      "积木机器人",
+      "拼装玩具",
+      "益智玩具",
+      "欢乐积木馆"
+    ]
+  }
+}
+```
+
+---
+
+## 7. 推荐查询约束
+
+### 7.1 基础过滤条件
+
+所有正常搜索请求，建议默认带上：
+
+```json
+{
+  "term": {
+    "searchable_status": "enabled"
+  }
+}
+```
+
+并且建议同时约束：
+
+```json
+publish_status = on_shelf
+audit_status = approved
+visible_status = visible
+```
+
+因为你的状态口径本身就是为了保证“可搜索对象”稳定进入结果集。
+
+---
+
+### 7.2 典型过滤维度
+
+这个索引至少支持这些 filter：
+
+* `city_id`
+* `district_id`
+* `business_area_id`
+* `category_id`
+* `category_path_ids`
+* `tag_ids`
+* `display_price` range
+* `location` geo_distance
+
+这些都和你文档中定义的结构化筛选能力一致。
+
+---
+
+## 8. 推荐排序字段
+
+你的文档里已经列了排序特征：
+
+* 热度
+* 销量
+* 评分
+* 距离
+* 上新时间
+* 综合推荐分 
+
+所以这个 mapping 已经预留了以下排序字段：
+
+* `hot_score`
+* `sales_count`
+* `rating`
+* `recommend_score`
+* `created_at`
+* `searchable_updated_at`
+* `_geo_distance(location, user_location)`
+
+---
+
+## 9. 这一版先不做的内容
+
+为了保证第一版简单可落地，我建议这版 mapping 先不做：
+
+1. 向量字段
+2. 复杂同义词词库在线热更新
+3. 多语言 analyzer
+4. nested 复杂对象结构
+5. 把所有 JSON 原样塞进 ES
+
+原因很简单：你的主文档已经明确“结构化检索优先，语义召回只是补充，不是主召回”。
+
+---
+
+## 10. 下一步最该补什么
+
+这份 mapping 写完后，最顺的下一步是补这两块：
+
+### A. `search_products` 接口协议
+
+把你文档里的：
+
+```text
+search_products(
+  keyword,
+  city_id,
+  district_id,
+  lat,
+  lng,
+  radius,
+  category_id,
+  tags,
+  min_price,
+  max_price,
+  sort_by,
+  page,
+  page_size
+)
+```
+
+补成真正的 request / response schema。
+
+### B. `product_search_snapshot -> ES` 同步写入规则
+
+尤其补清这几个字段怎么来：
+
+* `category_path_ids`
+* `tag_ids`
+* `tag_names`
+* `location`
+* `searchable_status`
+* `recommend_score`
+* `searchable_updated_at`
+
+这和你文档里的“事件驱动同步 + 定时补偿”正好衔接。
+
+---
+
+如果你要，我下一条可以直接继续写：
+
+**`search_products` 接口协议草案**
+我会按你这份 mapping 直接接着写，风格和这版保持一致。

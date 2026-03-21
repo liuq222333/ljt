@@ -1,0 +1,1172 @@
+下面继续补充两份子文档：
+
+1. **《Tool Router 详细设计 V1》**
+2. **《Session State 字段级设计 V1》**
+
+这两部分是最先要收口的，因为它们会反向约束：
+
+* graph 节点职责
+* 边的条件
+* 多轮会话策略
+* 实时层调用时机
+* Response Composer 输入结构
+
+---
+
+# 一、Tool Router 详细设计 V1
+
+## 1. 文档目标
+
+本文档定义 Agent 编排层中 Tool Router 的详细设计。
+Tool Router 的核心职责是：
+
+**根据当前用户意图、标准化参数、上下文状态和执行策略，生成一份可执行、可降级、可追踪的工具调用计划。**
+
+本文档重点覆盖：
+
+* 职责边界
+* 输入输出协议
+* 路由决策模型
+* 单工具 / 多工具 / 串行 / 并行规则
+* 澄清策略
+* 回退与降级策略
+* 与 LangGraph state 的结合方式
+* 推荐数据结构
+
+---
+
+## 2. 设计定位
+
+Tool Router 位于以下链路中：
+
+```text
+parse_intent
+-> normalize_params
+-> route_tools
+-> execute tools
+-> compose_response
+```
+
+在这个链路中：
+
+* `parse_intent` 负责理解用户想做什么
+* `normalize_params` 负责把条件转成可执行参数
+* `route_tools` 负责决定系统下一步怎么执行
+* `compose_response` 负责把结果变成用户可读回答
+
+因此，Tool Router 是：
+
+**执行计划生成器**，不是自然语言解释器，也不是最终回答生成器。
+
+---
+
+## 3. 职责边界
+
+## 3.1 Tool Router 负责的内容
+
+Tool Router 负责以下事项：
+
+### 3.1.1 工具选择
+
+确定当前请求需要调用哪些工具，例如：
+
+* 仅调用结构化搜索
+* 仅调用知识检索
+* 先结构化搜索，再调用实时接口
+* 先结构化搜索，再并行调用知识与实时接口
+
+### 3.1.2 执行模式决策
+
+确定工具之间的执行关系：
+
+* 单工具
+* 多工具
+* 串行
+* 并行
+* 条件分支
+* 提前结束
+
+### 3.1.3 输入依赖判断
+
+识别某工具是否依赖前一步输出，例如：
+
+* 实时库存查询必须先拿到候选商品 ID
+* 门店须知检索可以基于门店候选结果再做补充
+* FAQ 检索在部分纯问答场景中可以直接执行
+
+### 3.1.4 澄清需求判断
+
+判断当前是否可以直接执行，还是必须进入补充澄清，例如：
+
+* 缺关键城市
+* 缺目标对象
+* 缺时间条件
+* 请求动作不明确
+
+### 3.1.5 回退与降级策略生成
+
+在计划阶段提前定义常见异常下的应对策略，例如：
+
+* 实时层超时后继续输出快照结果
+* 知识层无命中后仅输出结构化结果
+* 搜索层无结果后自动转入知识解释或条件缩放
+
+### 3.1.6 执行风险控制
+
+根据任务风险控制是否放宽或收紧执行，例如：
+
+* 高风险指令优先澄清
+* 高时效请求优先实时确认
+* 高误导风险场景减少模型推断
+
+---
+
+## 3.2 Tool Router 不负责的内容
+
+Tool Router 不负责：
+
+### 3.2.1 原始意图理解
+
+例如“这句话到底是什么意思”不是它负责的。
+这属于 `parse_intent`。
+
+### 3.2.2 参数映射与纠错
+
+例如“浦东新区”映射到 `district_id`，或“便宜一点”转区间，不属于 Tool Router。
+这属于 `normalize_params`。
+
+### 3.2.3 工具内部执行
+
+例如：
+
+* `search_products` 的 DSL 怎么拼
+* `query_realtime_inventory` 调哪个服务
+* FAQ retriever 如何 rerank
+
+这些属于工具或接入层本身。
+
+### 3.2.4 最终文案回答生成
+
+例如“怎么向用户解释结果”不属于 Tool Router。
+这属于 `compose_response`。
+
+---
+
+## 4. 设计原则
+
+Tool Router 设计遵循以下原则。
+
+## 4.1 可执行优先
+
+路由输出必须是“能执行”的计划，而不是抽象建议。
+也就是说，最终输出必须落到：
+
+* 工具名
+* 输入来源
+* 依赖关系
+* 执行模式
+* 回退方案
+
+---
+
+## 4.2 最小必要调用
+
+只调用当前回答所需的最少工具，避免：
+
+* 无意义并发
+* 不必要实时请求
+* 对无候选结果的全量实时查询
+* 仅为了“看起来更智能”而乱查一堆接口
+
+---
+
+## 4.3 先低成本筛选，再高成本确认
+
+一般优先顺序建议为：
+
+```text
+结构化搜索 / 知识检索
+-> 候选收缩
+-> 实时确认
+-> 融合生成
+```
+
+例如：
+
+* 先搜出 TopN 活动
+* 再查 TopN 的实时余票
+* 最后融合输出
+
+而不是一上来对海量对象发实时请求。
+
+---
+
+## 4.4 用户显式条件优先
+
+Tool Router 必须尊重参数层输出中的优先级结构：
+
+```text
+用户显式条件 > 上下文记忆 > 模型推断条件 > 系统默认条件
+```
+
+路由时不能为了提高命中率而绕过用户明确约束。
+
+---
+
+## 4.5 失败可降级，降级要可解释
+
+系统允许降级，但必须清楚表达降级后事实边界。
+例如：
+
+* “当前库存接口超时，以下结果基于快照信息”
+* “未检索到规则说明，因此以下仅基于搜索结果回答”
+
+---
+
+## 4.6 工具调用与回答生成解耦
+
+Tool Router 输出的是执行计划。
+最终怎么组织答案，由 Response Composer 负责。
+
+---
+
+## 5. 输入协议设计
+
+## 5.1 输入结构
+
+推荐输入结构如下：
+
+```json
+{
+  "parsed_intent": {},
+  "normalized_params": {},
+  "session_context": {},
+  "tool_registry": {},
+  "execution_policy": {}
+}
+```
+
+---
+
+## 5.2 输入字段详细定义
+
+## 5.2.1 `parsed_intent`
+
+表示用户意图识别结果。
+
+推荐字段：
+
+```json
+{
+  "task_type": "product_search",
+  "intent_confidence": 0.92,
+  "query_text": "明天还能订的亲子活动",
+  "candidate_slots": {
+    "time_text": "明天",
+    "crowd_tag": "亲子"
+  },
+  "need_explanation": false,
+  "need_realtime": true
+}
+```
+
+关键字段说明：
+
+* `task_type`：任务类型，如 `product_search`、`event_search`、`store_search`、`faq_query`
+* `intent_confidence`：意图置信度
+* `need_explanation`：是否明显需要知识说明
+* `need_realtime`：是否明显需要实时确认
+
+---
+
+## 5.2.2 `normalized_params`
+
+表示已经过标准化与校验的参数。
+
+推荐结构：
+
+```json
+{
+  "task_type": "event_search",
+  "filters": {
+    "city_id": 310000,
+    "category_ids": [10021],
+    "date": "2026-03-21"
+  },
+  "sort": {
+    "sort_by": "recommend_score",
+    "order": "desc"
+  },
+  "explicit_constraints": {
+    "date": "2026-03-21"
+  },
+  "inferred_constraints": {
+    "tag_ids": [9007]
+  },
+  "default_constraints": {
+    "searchable_status": "enabled",
+    "publish_status": "on_shelf",
+    "audit_status": "approved",
+    "visible_status": "visible"
+  },
+  "missing_required_slots": [],
+  "validation_errors": []
+}
+```
+
+Tool Router 重点依赖这些字段：
+
+* `task_type`
+* `filters`
+* `missing_required_slots`
+* `validation_errors`
+* `explicit_constraints`
+* `default_constraints`
+
+---
+
+## 5.2.3 `session_context`
+
+用于辅助路由决策的会话上下文。
+
+推荐字段：
+
+```json
+{
+  "confirmed_constraints": {
+    "city_id": 310000
+  },
+  "pending_slots": [],
+  "candidate_entities": [],
+  "focused_entity_id": "",
+  "last_selected_entity_ids": [],
+  "current_stage": "searching",
+  "clarification_history": []
+}
+```
+
+Tool Router 重点关注：
+
+* 是否已经澄清过关键槽位
+* 是否已有候选对象
+* 当前会话焦点对象是什么
+* 当前处于会话哪个阶段
+
+---
+
+## 5.2.4 `tool_registry`
+
+表示当前可用工具清单及其能力声明。
+
+推荐结构：
+
+```json
+{
+  "search_products": {
+    "tool_type": "structured_search",
+    "entity_type": "product",
+    "requires_candidate_entities": false,
+    "supports_realtime": false
+  },
+  "search_events": {
+    "tool_type": "structured_search",
+    "entity_type": "event",
+    "requires_candidate_entities": false,
+    "supports_realtime": true
+  },
+  "retrieve_rules": {
+    "tool_type": "knowledge_retrieval",
+    "entity_type": "generic",
+    "requires_candidate_entities": false,
+    "supports_realtime": false
+  },
+  "query_realtime_inventory": {
+    "tool_type": "realtime_query",
+    "entity_type": "product",
+    "requires_candidate_entities": true,
+    "supports_realtime": true
+  }
+}
+```
+
+---
+
+## 5.2.5 `execution_policy`
+
+用于定义全局执行策略。
+
+推荐字段：
+
+```json
+{
+  "max_parallel_tools": 2,
+  "max_realtime_candidates": 10,
+  "allow_partial_answer": true,
+  "clarify_on_missing_required_slots": true,
+  "prefer_snapshot_when_realtime_timeout_ms": 1200,
+  "knowledge_optional_for_search": true
+}
+```
+
+---
+
+## 6. 输出协议设计
+
+## 6.1 输出结构
+
+推荐输出如下：
+
+```json
+{
+  "plan_id": "plan_20260320_001",
+  "plan_type": "multi_tool_serial",
+  "execution_mode": "serial",
+  "requires_clarification": false,
+  "clarification_prompt": "",
+  "steps": [],
+  "fallback_plan": [],
+  "routing_reason": [],
+  "plan_confidence": 0.91
+}
+```
+
+---
+
+## 6.2 输出字段定义
+
+## 6.2.1 `plan_id`
+
+当前计划唯一 ID，用于 trace、日志和回放。
+
+---
+
+## 6.2.2 `plan_type`
+
+建议枚举值：
+
+* `single_tool`
+* `multi_tool_serial`
+* `multi_tool_parallel`
+* `mixed_serial_parallel`
+* `clarification_required`
+* `direct_response`
+
+---
+
+## 6.2.3 `execution_mode`
+
+表示总执行模式：
+
+* `single`
+* `serial`
+* `parallel`
+* `hybrid`
+* `none`
+
+---
+
+## 6.2.4 `requires_clarification`
+
+标识当前是否需要先问用户补充信息。
+
+---
+
+## 6.2.5 `clarification_prompt`
+
+若需要澄清，给出可直接用于下一轮的澄清问题草稿。
+
+---
+
+## 6.2.6 `steps`
+
+执行步骤数组。
+
+推荐结构：
+
+```json
+{
+  "step_id": "s1",
+  "tool_name": "search_events",
+  "purpose": "structured_search",
+  "input_ref": "normalized_params",
+  "depends_on": [],
+  "output_key": "search_results",
+  "optional": false,
+  "timeout_ms": 800
+}
+```
+
+### 字段说明
+
+* `step_id`：步骤 ID
+* `tool_name`：工具名
+* `purpose`：用途，如 `structured_search`、`knowledge_retrieval`、`realtime_check`
+* `input_ref`：输入来源
+* `depends_on`：依赖前序步骤
+* `output_key`：结果写入哪个 state 字段
+* `optional`：失败后是否允许继续
+* `timeout_ms`：单步超时预算
+
+---
+
+## 6.2.7 `fallback_plan`
+
+定义某一步失败后的降级动作。
+
+推荐结构：
+
+```json
+{
+  "on_step": "s2",
+  "on_error": "timeout",
+  "action": "continue_without_realtime",
+  "add_disclaimer": true,
+  "write_trace": true
+}
+```
+
+---
+
+## 6.2.8 `routing_reason`
+
+记录路由理由，便于调试和分析。
+
+例如：
+
+```json
+[
+  "task_type=event_search",
+  "need_realtime=true",
+  "realtime_tool_requires_candidates=true",
+  "choose_serial_search_then_realtime"
+]
+```
+
+---
+
+## 7. 路由决策模型
+
+## 7.1 路由决策的核心维度
+
+Tool Router 主要基于以下维度决策：
+
+1. 任务类型
+2. 槽位完备度
+3. 是否需要结构化召回
+4. 是否需要知识解释
+5. 是否需要实时确认
+6. 候选对象是否已存在
+7. 风险等级
+8. 时效性要求
+9. 执行成本预算
+
+---
+
+## 7.2 一级决策：任务类型
+
+建议先按任务分为几类：
+
+### A. 结构化搜索型
+
+例如：
+
+* 找商品
+* 找活动
+* 找门店
+* 推荐若干候选
+
+典型工具：
+
+* `search_products`
+* `search_events`
+* `search_stores`
+
+---
+
+### B. 知识问答型
+
+例如：
+
+* 活动能不能退
+* 门店停车规则
+* 使用须知
+* 活动限制说明
+
+典型工具：
+
+* `retrieve_faq`
+* `retrieve_rules`
+* `retrieve_guides`
+
+---
+
+### C. 搜索 + 实时型
+
+例如：
+
+* 明天还能订的活动
+* 现在还营业的门店
+* 当前有库存的套餐
+
+典型路径：
+
+* structured search -> realtime query
+
+---
+
+### D. 搜索 + 知识型
+
+例如：
+
+* 推荐几个适合亲子的活动，并说明退款规则
+* 找几个门店，并告诉我停车规则
+
+典型路径：
+
+* structured search -> knowledge retrieval
+
+---
+
+### E. 搜索 + 实时 + 知识型
+
+例如：
+
+* 推荐几个今天还能去的亲子乐园，并告诉我入园注意事项
+
+典型路径：
+
+* structured search -> parallel(knowledge, realtime)
+
+---
+
+### F. 动作不明 / 槽位不足型
+
+例如：
+
+* 帮我订一个
+* 那这个怎么样
+* 附近有什么值得去的
+
+典型路径：
+
+* clarification_required
+
+---
+
+## 7.3 二级决策：槽位完备度
+
+### 可直接执行
+
+满足以下条件之一可直接执行：
+
+* 关键过滤参数完整
+* 即使部分参数缺失，系统有足够上下文兜底
+* 请求属于低风险、可保守执行场景
+
+### 需要澄清
+
+出现以下情况通常需要澄清：
+
+* 缺关键城市或范围
+* 缺目标时间
+* 动作对象不明确
+* 候选实体未确定却要做实体级动作
+* 多轮对话中“这个 / 那个”无法解析
+
+---
+
+## 7.4 三级决策：实时需求判断
+
+### 明显需要实时的信号
+
+以下表述一般触发实时需求：
+
+* 现在
+* 今天
+* 明天
+* 还能订吗
+* 还有票吗
+* 现在营业吗
+* 还有库存吗
+* 当前价格是多少
+
+### 不一定需要实时的情况
+
+以下场景一般先不查实时：
+
+* 泛推荐
+* 浏览式搜索
+* FAQ 解释
+* 规则问答
+* 纯 TopN 推荐
+
+---
+
+## 7.5 四级决策：知识补充需求判断
+
+以下情况建议引入知识层：
+
+* 用户显式问规则、说明、注意事项
+* 用户要“为什么推荐”
+* 用户问限制条件、适合人群、使用方式
+* 候选结果需要解释性补充
+
+---
+
+## 8. 典型路由模式
+
+## 8.1 模式 A：单工具结构化搜索
+
+### 适用场景
+
+* 商品推荐
+* 活动搜索
+* 门店搜索
+
+### 执行计划
+
+```json
+{
+  "plan_type": "single_tool",
+  "execution_mode": "single",
+  "steps": [
+    {
+      "step_id": "s1",
+      "tool_name": "search_products",
+      "purpose": "structured_search",
+      "input_ref": "normalized_params",
+      "depends_on": [],
+      "output_key": "search_results",
+      "optional": false
+    }
+  ]
+}
+```
+
+---
+
+## 8.2 模式 B：单工具知识检索
+
+### 适用场景
+
+* FAQ
+* 活动规则
+* 门店须知
+
+### 执行计划
+
+```json
+{
+  "plan_type": "single_tool",
+  "execution_mode": "single",
+  "steps": [
+    {
+      "step_id": "s1",
+      "tool_name": "retrieve_rules",
+      "purpose": "knowledge_retrieval",
+      "input_ref": "normalized_params",
+      "depends_on": [],
+      "output_key": "retrieved_docs",
+      "optional": false
+    }
+  ]
+}
+```
+
+---
+
+## 8.3 模式 C：先搜索后实时
+
+### 适用场景
+
+* 先找活动，再确认余票
+* 先找门店，再确认营业状态
+* 先找商品，再确认库存
+
+### 执行计划
+
+```json
+{
+  "plan_type": "multi_tool_serial",
+  "execution_mode": "serial",
+  "steps": [
+    {
+      "step_id": "s1",
+      "tool_name": "search_events",
+      "purpose": "structured_search",
+      "input_ref": "normalized_params",
+      "depends_on": [],
+      "output_key": "search_results",
+      "optional": false
+    },
+    {
+      "step_id": "s2",
+      "tool_name": "query_realtime_availability",
+      "purpose": "realtime_check",
+      "input_ref": "search_results.topn_ids",
+      "depends_on": ["s1"],
+      "output_key": "realtime_results",
+      "optional": true
+    }
+  ]
+}
+```
+
+---
+
+## 8.4 模式 D：先搜索后知识补充
+
+### 适用场景
+
+* 找门店并解释停车规则
+* 找活动并说明退款规则
+* 找景点并说明适合人群
+
+---
+
+## 8.5 模式 E：搜索后并行拉知识和实时
+
+### 适用场景
+
+* 既要“当前状态”，又要“说明信息”
+
+### 执行计划
+
+```json
+{
+  "plan_type": "mixed_serial_parallel",
+  "execution_mode": "hybrid",
+  "steps": [
+    {
+      "step_id": "s1",
+      "tool_name": "search_events",
+      "purpose": "structured_search",
+      "input_ref": "normalized_params",
+      "depends_on": [],
+      "output_key": "search_results",
+      "optional": false
+    },
+    {
+      "step_id": "s2",
+      "tool_name": "retrieve_activity_rules",
+      "purpose": "knowledge_retrieval",
+      "input_ref": "search_results.topn_entities",
+      "depends_on": ["s1"],
+      "output_key": "retrieved_docs",
+      "optional": true
+    },
+    {
+      "step_id": "s3",
+      "tool_name": "query_realtime_availability",
+      "purpose": "realtime_check",
+      "input_ref": "search_results.topn_ids",
+      "depends_on": ["s1"],
+      "output_key": "realtime_results",
+      "optional": true
+    }
+  ]
+}
+```
+
+---
+
+## 8.6 模式 F：澄清优先
+
+### 适用场景
+
+* 缺关键槽位
+* 指代不明
+* 风险高
+* 无法可执行
+
+### 输出示例
+
+```json
+{
+  "plan_type": "clarification_required",
+  "execution_mode": "none",
+  "requires_clarification": true,
+  "clarification_prompt": "你想看哪个城市的活动？如果方便，也可以告诉我更偏向亲子、演出还是展览。",
+  "steps": []
+}
+```
+
+---
+
+## 9. 路由规则表
+
+下面给出一版建议规则表。
+
+## 9.1 按任务类型
+
+| 条件                                                                         | 建议计划       |
+| -------------------------------------------------------------------------- | ---------- |
+| `task_type=product_search` 且 `need_realtime=false`                         | 单工具结构化搜索   |
+| `task_type=store_search` 且 `need_realtime=true`                            | 搜索后实时      |
+| `task_type=faq_query`                                                      | 单工具知识检索    |
+| `task_type=event_search` 且 `need_realtime=true` 且 `need_explanation=false` | 搜索后实时      |
+| `task_type=event_search` 且 `need_realtime=false` 且 `need_explanation=true` | 搜索后知识      |
+| `task_type=event_search` 且 `need_realtime=true` 且 `need_explanation=true`  | 搜索后并行知识+实时 |
+
+---
+
+## 9.2 按槽位缺失
+
+| 条件                          | 动作     |
+| --------------------------- | ------ |
+| `missing_required_slots` 为空 | 允许执行   |
+| 缺城市且无上下文位置                  | 澄清     |
+| 缺实体但要查询实体级状态                | 澄清     |
+| 缺时间但请求包含“明天/今天/现在”解析失败      | 澄清     |
+| 缺次要偏好槽位                     | 允许保守执行 |
+
+---
+
+## 9.3 按实时候选规模
+
+| 条件                                 | 动作            |
+| ---------------------------------- | ------------- |
+| 候选对象数 <= `max_realtime_candidates` | 允许实时查询        |
+| 候选对象数 > `max_realtime_candidates`  | 先截断 TopN 再查实时 |
+| 无候选对象                              | 不允许直接实时扫描     |
+
+---
+
+## 10. 回退与降级详细设计
+
+## 10.1 降级分类
+
+建议统一分为四类：
+
+1. **工具失败降级**
+2. **结果为空降级**
+3. **参数不完备降级**
+4. **成本受限降级**
+
+---
+
+## 10.2 工具失败降级
+
+### 实时接口超时
+
+动作：
+
+* 继续使用结构化快照结果
+* 在 `final_answer.disclaimers` 中加入提示
+* 在 trace 中记录超时
+
+### 知识检索失败
+
+动作：
+
+* 不输出基于规则的强断言
+* 只输出结构化结果或实时结果
+* 标注“未补充到相关说明”
+
+---
+
+## 10.3 结果为空降级
+
+### 结构化层无结果
+
+可选动作：
+
+* 放宽弱约束重试一次
+* 或转为知识说明
+* 或引导用户缩小 / 调整条件
+
+注意：
+
+* 不允许把“无结果”伪装成“接口失败”
+* 不允许模型自行脑补候选实体
+
+---
+
+## 10.4 参数不完备降级
+
+### 缺次要条件
+
+例如：
+
+* 没有价格偏好
+* 没有商圈偏好
+
+动作：
+
+* 使用默认排序保守执行
+
+### 缺关键条件
+
+例如：
+
+* 城市
+* 日期
+* 明确对象
+
+动作：
+
+* 优先澄清，不直接执行
+
+---
+
+## 10.5 成本受限降级
+
+### 实时预算不足
+
+动作：
+
+* 只对 TopN 做实时确认
+* 超过部分只保留快照信息
+
+### 并发预算不足
+
+动作：
+
+* 从并行改为串行
+* 或只保留主工具，舍弃可选工具
+
+---
+
+## 11. 与 LangGraph State 的结合方式
+
+Tool Router 的输出会直接写入 state 中的 `tool_plan`。
+
+推荐流程：
+
+```text
+parse_intent -> state.parsed_intent
+normalize_params -> state.normalized_params
+route_tools -> state.tool_plan
+executor nodes -> state.search_results / state.retrieved_docs / state.realtime_results
+compose_response -> state.final_answer
+```
+
+---
+
+## 11.1 `tool_plan` 推荐写法
+
+```json
+{
+  "plan_id": "plan_20260320_001",
+  "plan_type": "mixed_serial_parallel",
+  "execution_mode": "hybrid",
+  "requires_clarification": false,
+  "clarification_prompt": "",
+  "steps": [
+    {
+      "step_id": "s1",
+      "tool_name": "search_events",
+      "purpose": "structured_search",
+      "input_ref": "normalized_params",
+      "depends_on": [],
+      "output_key": "search_results",
+      "optional": false,
+      "timeout_ms": 800
+    },
+    {
+      "step_id": "s2",
+      "tool_name": "retrieve_activity_rules",
+      "purpose": "knowledge_retrieval",
+      "input_ref": "search_results.topn_entities",
+      "depends_on": ["s1"],
+      "output_key": "retrieved_docs",
+      "optional": true,
+      "timeout_ms": 1000
+    },
+    {
+      "step_id": "s3",
+      "tool_name": "query_realtime_availability",
+      "purpose": "realtime_check",
+      "input_ref": "search_results.topn_ids",
+      "depends_on": ["s1"],
+      "output_key": "realtime_results",
+      "optional": true,
+      "timeout_ms": 1200
+    }
+  ],
+  "fallback_plan": [
+    {
+      "on_step": "s3",
+      "on_error": "timeout",
+      "action": "continue_without_realtime",
+      "add_disclaimer": true
+    }
+  ],
+  "routing_reason": [
+    "task_type=event_search",
+    "need_realtime=true",
+    "need_explanation=true",
+    "choose_search_then_parallel_knowledge_and_realtime"
+  ],
+  "plan_confidence": 0.93
+}
+```
+
+---
+
+## 12. 推荐工程实现建议
+
+## 12.1 路由决策建议采用“规则优先 + LLM 辅助”
+
+不建议让 LLM 自由决定所有路由。
+更稳的做法是：
+
+1. `parse_intent` 用 LLM 提供语义理解
+2. `normalize_params` 输出结构化约束
+3. `route_tools` 以规则引擎为主
+4. 复杂模糊场景下再让 LLM 参与补充判断
+
+原因是：
+
+* 可控性更高
+* 可测试性更强
+* 更便于灰度和回归
+* 更适合生产治理
+
+---
+
+## 12.2 建议保留 `routing_reason`
+
+这个字段非常重要。
+它有三个价值：
+
+1. 便于 debug
+2. 便于运营分析
+3. 便于后续训练路由模型
+
+---
+
+## 13. Tool Router 最终结论
+
+Tool Router 的本质不是“决定要不要调工具”，而是：
+
+**把当前请求转换为一份有依赖关系、有执行模式、有降级方案的可执行计划。**
+
+这份计划是 LangGraph 中最关键的中间产物之一。
+它决定了：
+
+* graph 后续走向
+* 实时层成本
+* 知识层介入时机
+* 响应质量与稳定性
+
+---
+
+
+# 三、当前建议的下一步顺序
+
+到这里为止，你的主干已经更完整了。
+接下来最自然的顺序是：
+
+1. **知识层正式设计 V1**
+2. **实时层正式设计 V1**
+3. **Response Composer 详细设计 V1**
+4. **同步链路设计 V1**
+5. **监控、评估与治理 V1**
+6. **端到端时序图 V1**
+
+我建议下一条直接继续补：
+
+**《知识层正式设计 V1》**
+
+因为它和结构化层、实时层的边界最容易打架，越早定下来越好。
