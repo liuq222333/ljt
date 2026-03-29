@@ -29,7 +29,7 @@ public class InputGuardrail {
      * @return 清洗后的安全输入
      */
     public String check(String rawInput) {
-        if (rawInput == null || rawInput.isBlank()) {
+        if (rawInput == null || rawInput.trim().isEmpty()) {
             return "";
         }
 

@@ -4,12 +4,15 @@ import com.example.demo.demos.common.enums.FollowUpType;
 import com.example.demo.demos.common.enums.TaskType;
 import com.example.demo.demos.Agent.Pojo.CandidateSlots;
 import com.example.demo.demos.Agent.Pojo.ParsedIntent;
+import com.example.demo.demos.Agent.Runtime.SessionState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -51,6 +54,12 @@ public class RuleFallbackParser {
             "便宜一点", "再便宜", "近一点", "再近", "好一点",
             "评分高", "换成", "改成");
 
+    private static final List<String> SWITCH_TOPIC_KEYWORDS = Arrays.asList(
+            "换个问题", "我想问别的", "换个话题");
+
+    private static final List<String> ENTITY_REF_KEYWORDS = Arrays.asList(
+            "这个", "那个", "第一个", "第二个", "刚才那个", "它");
+
     private static final List<String> CHITCHAT_KEYWORDS = Arrays.asList(
             "你好", "谢谢", "再见", "哈哈", "嗯", "好的",
             "ok", "谢啦", "拜拜", "晚安", "早安");
@@ -77,6 +86,10 @@ public class RuleFallbackParser {
      * 置信度固定为 0.3（降级模式）。
      */
     public ParsedIntent parse(String input) {
+        return parse(input, null);
+    }
+
+    public ParsedIntent parse(String input, SessionState.SessionContext sessionContext) {
         ParsedIntent intent = new ParsedIntent();
         intent.setQueryText(input);
         intent.setIntentConfidence(0.3);
@@ -95,11 +108,20 @@ public class RuleFallbackParser {
         }
 
         // 2. 否定/追问检测
+        if (containsAny(text, SWITCH_TOPIC_KEYWORDS)) {
+            intent.setFollowUp(true);
+            intent.setFollowUpType(FollowUpType.SWITCH_TOPIC);
+            intent.setTaskType(TaskType.FOLLOW_UP);
+            return intent;
+        }
+
         if (containsAny(text, NEGATION_KEYWORDS)) {
             intent.setNegation(true);
             intent.setFollowUp(true);
             intent.setFollowUpType(FollowUpType.NEGATE_RESULT);
             intent.setTaskType(TaskType.FOLLOW_UP);
+            extractSlots(text, intent.getCandidateSlots());
+            applyNegationMetadata(text, intent, sessionContext);
             return intent;
         }
 
@@ -116,6 +138,30 @@ public class RuleFallbackParser {
 
         // 4. 实时检测
         boolean isRealtime = containsAny(text, REALTIME_KEYWORDS);
+
+        // 4.1 实体指代追问
+        if (containsAny(text, ENTITY_REF_KEYWORDS)) {
+            intent.setFollowUp(true);
+            intent.getCandidateSlots().setEntityRef(extractEntityRef(text));
+            if (isRealtime) {
+                intent.setTaskType(TaskType.REALTIME_QUERY);
+                intent.setNeedRealtime(true);
+                intent.setFollowUpType(FollowUpType.ASK_DETAIL);
+                extractSlots(text, intent.getCandidateSlots());
+                return intent;
+            }
+            if (isFaq) {
+                intent.setTaskType(TaskType.FAQ_QUERY);
+                intent.setNeedExplanation(true);
+                intent.setFollowUpType(FollowUpType.ASK_DETAIL);
+                extractSlots(text, intent.getCandidateSlots());
+                return intent;
+            }
+            intent.setFollowUpType(FollowUpType.SELECT_ENTITY);
+            intent.setTaskType(TaskType.FOLLOW_UP);
+            extractSlots(text, intent.getCandidateSlots());
+            return intent;
+        }
 
         // 5. 搜索类型检测
         boolean isEvent = containsAny(text, EVENT_KEYWORDS);
@@ -210,8 +256,114 @@ public class RuleFallbackParser {
             slots.setSceneTagText("周末");
         }
 
+        if (containsAny(text, ENTITY_REF_KEYWORDS)) {
+            slots.setEntityRef(extractEntityRef(text));
+        }
+
         // 关键词：去掉已识别的标签后，剩下的文本作为关键词
         slots.setKeyword(text);
+    }
+
+    private void applyNegationMetadata(String text,
+                                       ParsedIntent intent,
+                                       SessionState.SessionContext sessionContext) {
+        if (intent == null) {
+            return;
+        }
+        CandidateSlots slots = intent.getCandidateSlots();
+        if (slots == null) {
+            slots = new CandidateSlots();
+            intent.setCandidateSlots(slots);
+        }
+        if (!StringUtils.hasText(slots.getEntityRef()) && containsAny(text, ENTITY_REF_KEYWORDS)) {
+            slots.setEntityRef(extractEntityRef(text));
+        }
+        intent.setNegatedEntities(resolveNegatedEntityIds(text, slots.getEntityRef(), sessionContext));
+    }
+
+    private List<String> resolveNegatedEntityIds(String text,
+                                                 String entityRef,
+                                                 SessionState.SessionContext sessionContext) {
+        if (sessionContext == null) {
+            return Collections.emptyList();
+        }
+        List<String> negatedEntities = new ArrayList<String>();
+        String entityId = resolveNegatedEntityId(text, entityRef, sessionContext);
+        if (StringUtils.hasText(entityId)) {
+            negatedEntities.add(entityId);
+        }
+        return negatedEntities;
+    }
+
+    private String resolveNegatedEntityId(String text,
+                                          String entityRef,
+                                          SessionState.SessionContext sessionContext) {
+        if (StringUtils.hasText(entityRef)) {
+            return resolveEntityIdByReference(sessionContext, entityRef);
+        }
+        if (!containsAny(text, Arrays.asList("换一个", "换个", "别的", "重新来一个", "下一个"))) {
+            return null;
+        }
+        return resolveFocusedOrLastSelectedEntityId(sessionContext);
+    }
+
+    private String resolveEntityIdByReference(SessionState.SessionContext sessionContext, String entityRef) {
+        if (sessionContext == null || !StringUtils.hasText(entityRef)) {
+            return null;
+        }
+        if (entityRef.contains("第一")) {
+            return resolveCandidateEntityId(sessionContext, 0);
+        }
+        if (entityRef.contains("第二")) {
+            return resolveCandidateEntityId(sessionContext, 1);
+        }
+        if (entityRef.contains("刚才那个")) {
+            String lastSelected = resolveLastSelectedEntityId(sessionContext);
+            return StringUtils.hasText(lastSelected) ? lastSelected : sessionContext.getFocusedEntityId();
+        }
+        if (containsAny(entityRef, Arrays.asList("这个", "那个", "它"))) {
+            String focusedEntityId = sessionContext.getFocusedEntityId();
+            if (StringUtils.hasText(focusedEntityId)) {
+                return focusedEntityId;
+            }
+            String lastSelected = resolveLastSelectedEntityId(sessionContext);
+            if (StringUtils.hasText(lastSelected)) {
+                return lastSelected;
+            }
+            return resolveCandidateEntityId(sessionContext, 0);
+        }
+        return null;
+    }
+
+    private String resolveFocusedOrLastSelectedEntityId(SessionState.SessionContext sessionContext) {
+        if (sessionContext == null) {
+            return null;
+        }
+        if (StringUtils.hasText(sessionContext.getFocusedEntityId())) {
+            return sessionContext.getFocusedEntityId();
+        }
+        String lastSelected = resolveLastSelectedEntityId(sessionContext);
+        if (StringUtils.hasText(lastSelected)) {
+            return lastSelected;
+        }
+        return resolveCandidateEntityId(sessionContext, 0);
+    }
+
+    private String resolveLastSelectedEntityId(SessionState.SessionContext sessionContext) {
+        if (sessionContext == null || sessionContext.getLastSelectedEntityIds() == null
+                || sessionContext.getLastSelectedEntityIds().isEmpty()) {
+            return null;
+        }
+        List<String> lastSelected = sessionContext.getLastSelectedEntityIds();
+        return lastSelected.get(lastSelected.size() - 1);
+    }
+
+    private String resolveCandidateEntityId(SessionState.SessionContext sessionContext, int index) {
+        if (sessionContext == null || sessionContext.getCandidateEntities() == null
+                || index < 0 || index >= sessionContext.getCandidateEntities().size()) {
+            return null;
+        }
+        return sessionContext.getCandidateEntities().get(index);
     }
 
     /**
@@ -231,5 +383,28 @@ public class RuleFallbackParser {
             }
         }
         return false;
+    }
+
+    private String extractFirst(String text, List<String> keywords) {
+        for (String keyword : keywords) {
+            if (text.contains(keyword)) {
+                return keyword;
+            }
+        }
+        return null;
+    }
+
+    private String extractEntityRef(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        List<String> orderedRefs = Arrays.asList(
+                "\u521a\u624d\u90a3\u4e2a",
+                "\u7b2c\u4e00\u4e2a",
+                "\u7b2c\u4e8c\u4e2a",
+                "\u8fd9\u4e2a",
+                "\u90a3\u4e2a",
+                "\u5b83");
+        return extractFirst(text, orderedRefs);
     }
 }

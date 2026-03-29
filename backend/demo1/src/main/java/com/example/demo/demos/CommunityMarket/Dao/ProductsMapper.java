@@ -7,12 +7,57 @@ import com.example.demo.demos.CommunityMarket.Pojo.ProductImages;
 import com.example.demo.demos.CommunityMarket.Pojo.UserProducts;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
 public interface ProductsMapper {
     List<Product> getAllProducts();
+
+    @Select("SELECT id FROM products ORDER BY id ASC")
+    List<Long> selectAllProductIds();
+
+    @Select({
+            "<script>",
+            "SELECT id FROM products",
+            "WHERE 1 = 1",
+            "<if test='start != null'> AND updated_at <![CDATA[ >= ]]> #{start} </if>",
+            "<if test='end != null'> AND updated_at <![CDATA[ <= ]]> #{end} </if>",
+            "ORDER BY updated_at ASC, id ASC",
+            "<if test='limit != null'> LIMIT #{limit} </if>",
+            "</script>"
+    })
+    List<Long> selectProductIdsByUpdatedRange(@Param("start") LocalDateTime start,
+                                              @Param("end") LocalDateTime end,
+                                              @Param("limit") Integer limit);
+
+    @Select({
+            "<script>",
+            "SELECT id FROM products",
+            "WHERE 1 = 1",
+            "<if test='status != null and status != \"\"'> AND status = #{status} </if>",
+            "ORDER BY updated_at DESC, id ASC",
+            "<if test='limit != null'> LIMIT #{limit} </if>",
+            "</script>"
+    })
+    List<Long> selectProductIdsByStatus(@Param("status") String status,
+                                        @Param("limit") Integer limit);
+
+    @Select({
+            "<script>",
+            "SELECT id FROM products",
+            "WHERE 1 = 1",
+            "<if test='categoryId != null'> AND category_id = #{categoryId} </if>",
+            "<if test='status != null and status != \"\"'> AND status = #{status} </if>",
+            "ORDER BY updated_at DESC, id ASC",
+            "<if test='limit != null'> LIMIT #{limit} </if>",
+            "</script>"
+    })
+    List<Long> selectProductIdsByCategoryId(@Param("categoryId") Long categoryId,
+                                            @Param("status") String status,
+                                            @Param("limit") Integer limit);
 
     /**
      * 动态筛选商品（使用 XML 实现，传入 DTO）

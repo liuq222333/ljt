@@ -11,9 +11,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -30,28 +32,18 @@ public class KnowledgeService {
     @Resource
     private EmbeddingService embeddingService;
 
-    /**
-     * 添加知识并自动生成向量
-     */
     public Long addKnowledge(KnowledgeDTO dto) {
-        // 1. 保存知识到 knowledge_base 表
         KnowledgeBase entity = new KnowledgeBase();
         BeanUtils.copyProperties(dto, entity);
+        fillDefaults(entity);
         knowledgeBaseMapper.insert(entity);
         Long knowledgeId = entity.getId();
 
-        // 2. 生成向量并保存到 knowledge_vector 表
         try {
-            // 拼接标题和内容作为向量化输入
-            String textToEmbed = dto.getTitle() + "\n" + dto.getContent();
-
-            // 调用 Embedding API 生成向量
+            String textToEmbed = buildEmbeddingText(entity);
             float[] vector = embeddingService.embed(textToEmbed);
-
-            // 将向量转为 JSON 字符串
             String vectorJson = floatArrayToJson(vector);
 
-            // 保存到数据库
             KnowledgeVector vectorEntity = new KnowledgeVector();
             vectorEntity.setKnowledgeId(knowledgeId);
             vectorEntity.setVectorData(vectorJson);
@@ -59,33 +51,26 @@ public class KnowledgeService {
             knowledgeVectorMapper.insert(vectorEntity);
 
             log.info("知识向量生成成功: knowledgeId={}", knowledgeId);
-
         } catch (Exception e) {
-            // 向量生成失败不影响知识保存，记录日志即可
             log.error("生成知识向量失败: knowledgeId={}", knowledgeId, e);
         }
 
         return knowledgeId;
     }
 
-    /**
-     * 更新知识并重新生成向量
-     */
     public void updateKnowledge(Long id, KnowledgeDTO dto) {
-        // 1. 更新知识内容
         KnowledgeBase entity = new KnowledgeBase();
         BeanUtils.copyProperties(dto, entity);
         entity.setId(id);
+        fillDefaults(entity);
         knowledgeBaseMapper.updateById(entity);
 
-        // 2. 删除旧向量
-        QueryWrapper<KnowledgeVector> wrapper = new QueryWrapper<>();
+        QueryWrapper<KnowledgeVector> wrapper = new QueryWrapper<KnowledgeVector>();
         wrapper.eq("knowledge_id", id);
         knowledgeVectorMapper.delete(wrapper);
 
-        // 3. 重新生成向量
         try {
-            String textToEmbed = dto.getTitle() + "\n" + dto.getContent();
+            String textToEmbed = buildEmbeddingText(entity);
             float[] vector = embeddingService.embed(textToEmbed);
             String vectorJson = floatArrayToJson(vector);
 
@@ -96,21 +81,15 @@ public class KnowledgeService {
             knowledgeVectorMapper.insert(vectorEntity);
 
             log.info("知识向量更新成功: knowledgeId={}", id);
-
         } catch (Exception e) {
             log.error("更新知识向量失败: knowledgeId={}", id, e);
         }
     }
 
-    /**
-     * 删除知识及其向量
-     */
     public void deleteKnowledge(Long id) {
-        // 删除知识
         knowledgeBaseMapper.deleteById(id);
 
-        // 删除对应的向量
-        QueryWrapper<KnowledgeVector> wrapper = new QueryWrapper<>();
+        QueryWrapper<KnowledgeVector> wrapper = new QueryWrapper<KnowledgeVector>();
         wrapper.eq("knowledge_id", id);
         knowledgeVectorMapper.delete(wrapper);
     }
@@ -120,40 +99,165 @@ public class KnowledgeService {
     }
 
     public Page<KnowledgeBase> listKnowledge(int page, int size, String category) {
-        Page<KnowledgeBase> pageObj = new Page<>(page, size);
-        QueryWrapper<KnowledgeBase> wrapper = new QueryWrapper<>();
-        if (category != null && !category.isEmpty()) {
+        return listKnowledge(page, size, category, null);
+    }
+
+    public Page<KnowledgeBase> listKnowledge(int page, int size, String category, String docType) {
+        Page<KnowledgeBase> pageObj = new Page<KnowledgeBase>(page, size);
+        QueryWrapper<KnowledgeBase> wrapper = new QueryWrapper<KnowledgeBase>();
+        LocalDateTime now = LocalDateTime.now();
+        if (StringUtils.hasText(category)) {
             wrapper.eq("category", category);
         }
-        wrapper.eq("status", 1).orderByDesc("created_at");
+        if (StringUtils.hasText(docType)) {
+            wrapper.eq("doc_type", docType);
+        }
+        appendActiveKnowledgeFilter(wrapper, now);
+        wrapper.orderByDesc("priority")
+                .orderByDesc("published_at")
+                .orderByDesc("updated_at");
         return knowledgeBaseMapper.selectPage(pageObj, wrapper);
     }
 
     public List<KnowledgeBase> searchByKeyword(String keyword) {
-        QueryWrapper<KnowledgeBase> wrapper = new QueryWrapper<>();
-        wrapper.eq("status", 1)
-               .and(w -> w.like("title", keyword)
-                          .or().like("content", keyword)
-                          .or().like("keywords", keyword));
+        QueryWrapper<KnowledgeBase> wrapper = new QueryWrapper<KnowledgeBase>();
+        appendActiveKnowledgeFilter(wrapper, LocalDateTime.now());
+        if (StringUtils.hasText(keyword)) {
+            wrapper.and(w -> w.like("title", keyword)
+                    .or().like("content", keyword)
+                    .or().like("keywords", keyword)
+                    .or().like("related_questions", keyword));
+        }
+        wrapper.orderByDesc("priority")
+                .orderByDesc("helpful_count")
+                .orderByDesc("view_count")
+                .orderByDesc("updated_at");
         return knowledgeBaseMapper.selectList(wrapper);
     }
 
-    /**
-     * 工具方法：将 float[] 转为 JSON 字符串
-     */
+    public List<Long> listKnowledgeIdsByUpdatedRange(LocalDateTime start,
+                                                     LocalDateTime end,
+                                                     Integer limit,
+                                                     String docType) {
+        return listKnowledgeIdsByFilters(start, end, limit, docType, null, null, null);
+    }
+
+    public List<Long> listKnowledgeIdsByStatus(Integer status,
+                                               Integer limit,
+                                               String docType) {
+        return listKnowledgeIdsByFilters(null, null, limit, docType, status, null, null);
+    }
+
+    public List<Long> listKnowledgeIdsByEntity(String entityType,
+                                               String entityId,
+                                               Integer limit,
+                                               String docType,
+                                               Integer status) {
+        return listKnowledgeIdsByFilters(null, null, limit, docType, status, entityType, entityId);
+    }
+
+    private List<Long> listKnowledgeIdsByFilters(LocalDateTime start,
+                                                 LocalDateTime end,
+                                                 Integer limit,
+                                                 String docType,
+                                                 Integer status,
+                                                 String entityType,
+                                                 String entityId) {
+        QueryWrapper<KnowledgeBase> wrapper = new QueryWrapper<KnowledgeBase>();
+        if (start != null) {
+            wrapper.ge("updated_at", start);
+        }
+        if (end != null) {
+            wrapper.le("updated_at", end);
+        }
+        if (StringUtils.hasText(docType)) {
+            wrapper.eq("doc_type", docType);
+        }
+        if (status != null) {
+            wrapper.eq("status", status);
+        }
+        if (StringUtils.hasText(entityType)) {
+            wrapper.eq("entity_type", entityType);
+        }
+        if (StringUtils.hasText(entityId)) {
+            wrapper.eq("entity_id", entityId);
+        }
+        wrapper.orderByAsc("updated_at").orderByAsc("id");
+        if (limit != null && limit.intValue() > 0) {
+            wrapper.last("LIMIT " + Math.min(limit.intValue(), 200));
+        }
+        List<KnowledgeBase> rows = knowledgeBaseMapper.selectList(wrapper);
+        List<Long> ids = new ArrayList<Long>();
+        for (KnowledgeBase row : rows) {
+            if (row != null && row.getId() != null) {
+                ids.add(row.getId());
+            }
+        }
+        return ids;
+    }
+
+    private void appendActiveKnowledgeFilter(QueryWrapper<KnowledgeBase> wrapper, LocalDateTime now) {
+        wrapper.eq("status", 1);
+        wrapper.and(w -> w.isNull("effective_from").or().le("effective_from", now));
+        wrapper.and(w -> w.isNull("effective_to").or().ge("effective_to", now));
+    }
+
+    private void fillDefaults(KnowledgeBase entity) {
+        if (!StringUtils.hasText(entity.getDocType())) {
+            entity.setDocType(StringUtils.hasText(entity.getCategory()) ? entity.getCategory() : "faq");
+        }
+        if (!StringUtils.hasText(entity.getCategory())) {
+            entity.setCategory(entity.getDocType());
+        }
+        if (!StringUtils.hasText(entity.getSourceSystem())) {
+            entity.setSourceSystem("manual");
+        }
+        if (!StringUtils.hasText(entity.getVersion())) {
+            entity.setVersion("v1");
+        }
+        if (entity.getPriority() == null) {
+            entity.setPriority(0);
+        }
+        if (!StringUtils.hasText(entity.getLanguage())) {
+            entity.setLanguage("zh-CN");
+        }
+        if (entity.getStatus() == null) {
+            entity.setStatus(1);
+        }
+        if (entity.getPublishedAt() == null && entity.getStatus() == 1) {
+            entity.setPublishedAt(LocalDateTime.now());
+        }
+    }
+
+    public String buildEmbeddingText(KnowledgeBase entity) {
+        StringBuilder builder = new StringBuilder();
+        if (StringUtils.hasText(entity.getTitle())) {
+            builder.append(entity.getTitle()).append('\n');
+        }
+        if (StringUtils.hasText(entity.getSummary())) {
+            builder.append(entity.getSummary()).append('\n');
+        }
+        if (StringUtils.hasText(entity.getKeywords())) {
+            builder.append(entity.getKeywords()).append('\n');
+        }
+        if (StringUtils.hasText(entity.getContent())) {
+            builder.append(entity.getContent());
+        }
+        return builder.toString();
+    }
+
     private String floatArrayToJson(float[] vector) {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < vector.length; i++) {
             sb.append(vector[i]);
-            if (i < vector.length - 1) sb.append(",");
+            if (i < vector.length - 1) {
+                sb.append(",");
+            }
         }
         sb.append("]");
         return sb.toString();
     }
 
-    /**
-     * 工具方法：将 JSON 字符串转为 float[]
-     */
     public float[] jsonToFloatArray(String json) {
         String content = json.substring(1, json.length() - 1);
         String[] parts = content.split(",");

@@ -5,10 +5,6 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * 商品搜索快照实体 — 对应 product_search_snapshot 表。
- * 结构化查询投影层，字段扁平冗余，面向搜索场景。
- */
 @Data
 public class ProductSearchSnapshot {
 
@@ -24,9 +20,7 @@ public class ProductSearchSnapshot {
     private Long categoryId;
     private String categoryName;
     private String categoryPath;
-    /** 标签ID数组JSON，如 [1001,1002] */
     private String tagIds;
-    /** 标签名称数组JSON，如 ["美食","亲子"] */
     private String tagNames;
     private Long cityId;
     private String cityName;
@@ -45,13 +39,11 @@ public class ProductSearchSnapshot {
     private Long reviewCount;
     private BigDecimal hotScore;
     private BigDecimal recommendScore;
-    /** 搜索状态：searchable/not_searchable/expired/draft/disabled */
+    private Double distanceKm;
+    private Integer keywordScore;
     private String searchableStatus;
-    /** 上架状态：on_shelf/off_shelf */
     private String publishStatus;
-    /** 审核状态：pending/approved/rejected */
     private String auditStatus;
-    /** 可见状态：visible/hidden */
     private String visibleStatus;
     private String sourceStatus;
     private LocalDateTime createdAt;

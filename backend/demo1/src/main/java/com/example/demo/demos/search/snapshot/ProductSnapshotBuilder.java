@@ -4,20 +4,23 @@ import com.example.demo.demos.CommunityMarket.Pojo.Product;
 import com.example.demo.demos.common.enums.SearchableStatus;
 import com.example.demo.demos.search.entity.ProductSearchSnapshot;
 import com.example.demo.demos.search.entity.SearchCategory;
+import com.example.demo.demos.search.es.ProductSearchEsSyncService;
 import com.example.demo.demos.search.mapper.ProductSearchSnapshotMapper;
 import com.example.demo.demos.search.mapper.SearchCategoryMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Locale;
 
-/**
- * 商品快照构建器 — 从 Product + Category + Tag 汇总构建 ProductSearchSnapshot。
- * 与施工单 W02 对齐。
- */
 @Component
 public class ProductSnapshotBuilder {
 
@@ -32,17 +35,14 @@ public class ProductSnapshotBuilder {
     @Autowired
     private SearchableStatusCalculator statusCalculator;
 
-    /**
-     * 从现有 Product 构建搜索快照并写入快照表。
-     * 字段映射：Product → ProductSearchSnapshot
-     *
-     * @param product 源商品对象
-     * @return 构建好的快照对象
-     */
+    @Autowired
+    private ObjectProvider<ProductSearchEsSyncService> productSearchEsSyncServiceProvider;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     public ProductSearchSnapshot buildFromProduct(Product product) {
         ProductSearchSnapshot snapshot = new ProductSearchSnapshot();
 
-        // 基础字段映射
         snapshot.setProductId(product.getId());
         snapshot.setSellerId(product.getSellerId() != null ? product.getSellerId().longValue() : 0L);
         snapshot.setTitle(product.getTitle());
@@ -50,9 +50,8 @@ public class ProductSnapshotBuilder {
         snapshot.setBasePrice(product.getPrice());
         snapshot.setDisplayPrice(product.getPrice());
         snapshot.setCurrency("CNY");
-        snapshot.setCoverImage(product.getImageUrls());
+        snapshot.setCoverImage(extractCoverImage(product.getImageUrls()));
 
-        // 地理位置
         if (product.getLatitude() != null) {
             snapshot.setLat(BigDecimal.valueOf(product.getLatitude()));
         }
@@ -60,20 +59,17 @@ public class ProductSnapshotBuilder {
             snapshot.setLng(BigDecimal.valueOf(product.getLongitude()));
         }
 
-        // 类目关联
         if (product.getCategoryId() != null) {
             snapshot.setCategoryId(product.getCategoryId().longValue());
             enrichCategory(snapshot, product.getCategoryId().longValue());
         } else {
             snapshot.setCategoryId(0L);
-            snapshot.setCategoryName("未分类");
+            snapshot.setCategoryName("Uncategorized");
             snapshot.setCategoryPath("0");
         }
 
-        // 状态映射：Product.status → publish/audit/visible
         mapProductStatus(snapshot, product.getStatus());
 
-        // 计算 searchable_status
         SearchableStatus searchableStatus = statusCalculator.calculateProduct(
                 snapshot.getPublishStatus(),
                 snapshot.getAuditStatus(),
@@ -82,24 +78,18 @@ public class ProductSnapshotBuilder {
         );
         snapshot.setSearchableStatus(searchableStatus.getCode());
 
-        // 默认评分字段
         snapshot.setSalesCount(0L);
         snapshot.setRating(BigDecimal.ZERO);
         snapshot.setReviewCount(0L);
         snapshot.setHotScore(BigDecimal.ZERO);
         snapshot.setRecommendScore(BigDecimal.ZERO);
 
-        // 时间
         snapshot.setCreatedAt(product.getCreatedAt() != null ? product.getCreatedAt() : LocalDateTime.now());
         snapshot.setUpdatedAt(product.getUpdatedAt() != null ? product.getUpdatedAt() : LocalDateTime.now());
         snapshot.setSearchableUpdatedAt(LocalDateTime.now());
-
         return snapshot;
     }
 
-    /**
-     * 构建快照并写入数据库（upsert 语义）。
-     */
     public ProductSearchSnapshot buildAndSave(Product product) {
         ProductSearchSnapshot snapshot = buildFromProduct(product);
 
@@ -107,79 +97,119 @@ public class ProductSnapshotBuilder {
         if (existing != null) {
             snapshot.setId(existing.getId());
             productSearchSnapshotMapper.updateByProductId(snapshot);
-            log.info("更新商品快照: productId={}", product.getId());
+            log.info("updated product snapshot: productId={}", product.getId());
         } else {
             productSearchSnapshotMapper.insert(snapshot);
-            log.info("新建商品快照: productId={}", product.getId());
+            log.info("created product snapshot: productId={}", product.getId());
         }
 
+        ProductSearchEsSyncService syncService = productSearchEsSyncServiceProvider.getIfAvailable();
+        if (syncService != null) {
+            syncService.upsertSnapshot(snapshot);
+        }
         return snapshot;
     }
 
-    /**
-     * 从 category 表补充类目名称和路径。
-     */
     private void enrichCategory(ProductSearchSnapshot snapshot, Long categoryId) {
         SearchCategory category = searchCategoryMapper.selectById(categoryId);
         if (category != null) {
             snapshot.setCategoryName(category.getCategoryName());
             snapshot.setCategoryPath(category.getCategoryPath());
         } else {
-            snapshot.setCategoryName("未分类");
+            snapshot.setCategoryName("Uncategorized");
             snapshot.setCategoryPath(String.valueOf(categoryId));
         }
     }
 
-    /**
-     * 将现有 Product.status 映射到快照的多维度状态。
-     * 现有 Product.status 可能的值：active/inactive/deleted/pending 等。
-     */
     private void mapProductStatus(ProductSearchSnapshot snapshot, String productStatus) {
-        if (productStatus == null) {
+        if (!StringUtils.hasText(productStatus)) {
             snapshot.setPublishStatus("off_shelf");
             snapshot.setAuditStatus("pending");
             snapshot.setVisibleStatus("hidden");
-            snapshot.setSourceStatus(null);
+            snapshot.setSourceStatus("normal");
             return;
         }
 
-        snapshot.setSourceStatus(productStatus);
-
-        switch (productStatus.toLowerCase()) {
+        String normalizedStatus = productStatus.trim().toLowerCase(Locale.ROOT);
+        switch (normalizedStatus) {
             case "active":
             case "on_sale":
+            case "on_shelf":
+            case "onshelf":
+            case "1":
+            case "\u5728\u552e":
+                snapshot.setSourceStatus("normal");
                 snapshot.setPublishStatus("on_shelf");
                 snapshot.setAuditStatus("approved");
                 snapshot.setVisibleStatus("visible");
                 break;
             case "inactive":
             case "off_sale":
+            case "off_shelf":
+            case "offshelf":
+            case "0":
+            case "\u4e0b\u67b6":
+                snapshot.setSourceStatus("normal");
                 snapshot.setPublishStatus("off_shelf");
                 snapshot.setAuditStatus("approved");
                 snapshot.setVisibleStatus("hidden");
                 break;
             case "pending":
             case "review":
+            case "\u5f85\u5ba1\u6838":
+            case "\u5ba1\u6838\u4e2d":
+                snapshot.setSourceStatus("normal");
                 snapshot.setPublishStatus("off_shelf");
                 snapshot.setAuditStatus("pending");
                 snapshot.setVisibleStatus("hidden");
                 break;
             case "rejected":
+            case "\u9a73\u56de":
+            case "\u62d2\u7edd":
+                snapshot.setSourceStatus("normal");
                 snapshot.setPublishStatus("off_shelf");
                 snapshot.setAuditStatus("rejected");
                 snapshot.setVisibleStatus("hidden");
                 break;
             case "deleted":
             case "disabled":
+            case "\u5220\u9664":
+            case "\u7981\u7528":
+                snapshot.setSourceStatus(normalizedStatus);
                 snapshot.setPublishStatus("off_shelf");
                 snapshot.setAuditStatus("approved");
                 snapshot.setVisibleStatus("hidden");
                 break;
             default:
+                snapshot.setSourceStatus("normal");
                 snapshot.setPublishStatus("off_shelf");
                 snapshot.setAuditStatus("pending");
                 snapshot.setVisibleStatus("hidden");
                 break;
+        }
+    }
+
+    private String extractCoverImage(String imageUrls) {
+        if (!StringUtils.hasText(imageUrls)) {
+            return null;
+        }
+        String trimmed = imageUrls.trim();
+        if (!trimmed.startsWith("[")) {
+            return trimmed;
+        }
+        try {
+            List<String> urls = objectMapper.readValue(trimmed, new TypeReference<List<String>>() {});
+            if (urls == null) {
+                return null;
+            }
+            for (String url : urls) {
+                if (StringUtils.hasText(url)) {
+                    return url.trim();
+                }
+            }
+            return null;
+        } catch (Exception ex) {
+            return trimmed;
         }
     }
 }

@@ -1,14 +1,19 @@
 package com.example.demo.demos.search.mapper;
 
 import com.example.demo.demos.search.entity.ProductSearchSnapshot;
-import org.apache.ibatis.annotations.*;
+import com.example.demo.demos.search.model.ProductSearchQuery;
+import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.SelectProvider;
+import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * 商品搜索快照 Mapper — 对应 product_search_snapshot 表。
- */
 @Mapper
 public interface ProductSearchSnapshotMapper {
 
@@ -35,12 +40,13 @@ public interface ProductSearchSnapshotMapper {
     @Select("SELECT * FROM product_search_snapshot WHERE product_id = #{productId}")
     ProductSearchSnapshot selectByProductId(@Param("productId") Long productId);
 
-    @Select("SELECT * FROM product_search_snapshot WHERE searchable_status = 'searchable' " +
-            "ORDER BY recommend_score DESC LIMIT #{limit}")
+    @Select("SELECT * FROM product_search_snapshot WHERE searchable_status = 'searchable' ORDER BY recommend_score DESC LIMIT #{limit}")
     List<ProductSearchSnapshot> selectTopSearchable(@Param("limit") int limit);
 
-    @Select("SELECT * FROM product_search_snapshot WHERE updated_at > #{since} " +
-            "ORDER BY updated_at ASC")
+    @Select("SELECT * FROM product_search_snapshot WHERE searchable_status = 'searchable' ORDER BY product_id ASC LIMIT #{limit} OFFSET #{offset}")
+    List<ProductSearchSnapshot> selectSearchablePage(@Param("offset") int offset, @Param("limit") int limit);
+
+    @Select("SELECT * FROM product_search_snapshot WHERE updated_at > #{since} ORDER BY updated_at ASC")
     List<ProductSearchSnapshot> selectUpdatedSince(@Param("since") LocalDateTime since);
 
     @Delete("DELETE FROM product_search_snapshot WHERE product_id = #{productId}")
@@ -68,4 +74,16 @@ public interface ProductSearchSnapshotMapper {
 
     @Select("SELECT COUNT(*) FROM product_search_snapshot WHERE searchable_status = 'searchable'")
     long countSearchable();
+
+    @Select("SELECT product_id FROM product_search_snapshot ORDER BY product_id ASC")
+    List<Long> selectAllProductIds();
+
+    @Select("SELECT product_id FROM product_search_snapshot WHERE searchable_status = 'searchable' ORDER BY product_id ASC")
+    List<Long> selectSearchableProductIds();
+
+    @SelectProvider(type = ProductSearchSnapshotSqlProvider.class, method = "buildSearchSql")
+    List<ProductSearchSnapshot> searchForProducts(@Param("query") ProductSearchQuery query);
+
+    @SelectProvider(type = ProductSearchSnapshotSqlProvider.class, method = "buildCountSql")
+    long countForSearch(@Param("query") ProductSearchQuery query);
 }

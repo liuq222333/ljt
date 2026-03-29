@@ -1,394 +1,164 @@
-# 智能检索系统 - 剩余实现流程
-
+﻿# 智能检索系统 - 剩余实现流程
 > 创建日期：2026-03-21
-> 最后更新：2026-03-21（W01 完成）
+> 最后更新：2026-03-29
+> 对齐依据：截至 2026-03-29 的实际代码状态
 
-本文档列出从当前代码到目标架构之间，每个阶段需要具体做哪些事情。
-已有代码能复用的标注"复用"，需要新建的标注"新建"，需要改造的标注"改造"。
-
----
-
-## 阶段一：W00 统一口径 ✅ 已完成
-
-### 目标
-冻结所有核心枚举、schema、错误码，产出一份统一协议文档。
-
-### 完成情况
-
-**1. 核心枚举 — 全部落地到 `common/enums/` 包**
-
-| 枚举类 | 文件 | 取值数 | 说明 |
-|--------|------|--------|------|
-| TaskType | `common/enums/TaskType.java` | 10 | 一级意图分类（product_search/event_search/store_search/faq_query/realtime_query/mixed_search_knowledge/mixed_search_realtime/follow_up/clarification_response/chitchat） |
-| FollowUpType | `common/enums/FollowUpType.java` | 6 | 多轮追问类型 |
-| AnswerType | `common/enums/AnswerType.java` | 6 | 回答类型 |
-| ToolName | `common/enums/ToolName.java` | 3 | 工具名（structured_search/knowledge_retrieval/realtime_query） |
-| SearchableStatus | `common/enums/SearchableStatus.java` | 5 | 可搜索状态 |
-| ParamSource | `common/enums/ParamSource.java` | 5 | 参数来源 |
-| PlanType | `common/enums/PlanType.java` | 6 | 路由计划类型 |
-| KnowledgeStatus | `common/enums/KnowledgeStatus.java` | 4 | 知识文档状态（draft/active/deprecated/archived） |
-| RealtimeStatus | `common/enums/RealtimeStatus.java` | 5 | 实时查询状态 |
-
-**2. 核心 Schema — 全部落地到 `common/schema/` 包**
-
-| Schema | 文件 | 内嵌结构 |
-|--------|------|---------|
-| NormalizedParams | `common/schema/NormalizedParams.java` | Location, PriceRange, TimeRange |
-| ToolPlan | `common/schema/ToolPlan.java` | ToolStep |
-| FinalAnswer | `common/schema/FinalAnswer.java` | EntityCard, Citation, DebugTrace, NodeTrace |
-
-**3. 统一错误码 — 落地到 `common/error/` 包**
-
-| 文件 | 说明 |
-|------|------|
-| `common/error/ErrorCode.java` | 5 个模块 30+ 错误码（10=Agent, 20=Search, 30=Knowledge, 40=Realtime, 50=Sync） |
-| `common/error/BizException.java` | 业务异常基类，含错误码 |
-
-**4. 跨文档冲突收口**
-
-| 处理项 | 说明 |
-|--------|------|
-| Agent/Enums/TaskType.java | 标记 @Deprecated，添加 toCommon() 转换方法 |
-| Agent/Enums/FollowUpType.java | 标记 @Deprecated，添加 toCommon() 转换方法 |
-| ParsedIntent.java | import 迁移到 common.enums |
-| QueryParserService.java | import 迁移到 common.enums |
-| RuleFallbackParser.java | import 迁移到 common.enums |
+本文档只列“剩余工作”，不再重复已经完成的 W00-W03 全量内容。
 
 ---
 
-## 阶段二：W01 工程骨架改造 ✅ 已完成
+## 一、当前已经完成到什么程度
 
-### 当前状态
-已有 `backend/demo1` Spring Boot 工程，包含 Agent/CommunityMarket/Login/Notification 等模块。
-W00 已完成，`common/enums/`、`common/schema/`、`common/error/` 包已建好。
+已完成或基本完成：
+- W00 统一口径
+- W01 工程骨架
+- W02 快照层
+- W03 `product_search` ES 主链
+- W04 Runtime 基础骨架
+- W05 Python LangChain Query Parser
+- W06 参数标准化主链
+- W07 Python LangGraph Tool Router
+- W08 Composer 主链骨架
+- W09 知识层主链
+- W10 实时层主链
+- W11 多轮会话主链与冻结回归
 
-### 完成情况
+当前剩余工作不再是“从零搭建”，而是以下 5 类：
 
-**1. 模块结构重构**（已完成）
-
-| 新建目录 | 说明 |
-|---------|------|
-| `common/` | 公共组件（trace/error/schema/enums/retry/timeout/security/ratelimit/audit） |
-| `search/` | 结构化搜索模块（W02-W03 使用） |
-| `kb/` | 知识层模块（W09 使用） |
-| `realtime/` | 实时查询模块（W10 使用） |
-| `sync/` | 数据同步模块（W12 使用） |
-| `governance/` | 监控治理模块（W13 使用） |
-
-**2. 公共组件**（全部完成）
-
-| 文件 | 说明 |
-|------|------|
-| `common/error/ErrorCode.java` | 统一错误码常量（W00 已完成） |
-| `common/error/BizException.java` | 业务异常基类（W00 已完成） |
-| `common/trace/TraceContext.java` | request_id / trace_id 生成与 ThreadLocal 传递 |
-| `common/trace/TraceFilter.java` | HTTP 请求自动注入 trace + MDC + 响应头回传 |
-| `common/retry/RetryHelper.java` | 通用重试组件（支持配置次数/间隔） |
-| `common/timeout/TimeoutBudget.java` | 超时预算管理器（端到端 8s 最大超时） |
-
-**3. 安全组件**（全部完成）
-
-| 文件 | 说明 |
-|------|------|
-| `common/security/InputGuardrail.java` | Prompt Injection 检测（关键词+正则） |
-| `common/security/OutputGuardrail.java` | 敏感信息过滤（内部表名/地址/SQL/手机号） |
-| `common/security/InjectionPatterns.java` | 注入模式黑名单（关键词+正则） |
-
-**4. 限流组件**（全部完成）
-
-| 文件 | 说明 |
-|------|------|
-| `common/ratelimit/UserRateLimiter.java` | 用户级 QPS 限流（5 QPS 突发）+ 日调用量限制（200 次/天） |
-| `common/ratelimit/TokenQuotaManager.java` | Token 配额控制（Input 2000 / Output 1000 / 日预算 500K） |
-
-**5. 审计日志**（全部完成）
-
-| 文件 | 说明 |
-|------|------|
-| `common/audit/AuditLog.java` | 审计日志实体 |
-| `common/audit/AuditLogMapper.java` | MyBatis Mapper |
-| `common/audit/AuditLogger.java` | 异步审计日志写入组件 |
-| `resources/sql/audit_log.sql` | 审计日志表 DDL |
-
-**6. GlobalExceptionHandler 升级**（已完成）
-
-- 新增 BizException 处理（错误码 → HTTP 状态码映射）
-- 新增 TraceContext 集成（响应中返回 requestId）
-- 新增兜底异常处理（未捕获异常统一为 500）
+1. W12 同步补偿重建收尾
+2. W13 监控评估回放
+3. W08/W09/W10 收尾
+4. 生产级联调与上线准备
+5. 文档与治理口径持续收口
 
 ---
 
-## 阶段三：W02 结构化快照层（预计 5 天）— 下一步
+## 二、当前最重要的剩余工作
 
-### 当前状态
-已有 Product 表（CommunityMarket 模块），但没有快照表和 searchable_status 逻辑。
+### 1. W12 同步、补偿、重建收尾
 
-### 需要做的事
+这是当前正在进行的阶段，也是生产前必须完成的阶段。
 
-**1. 快照表 DDL**（新建）
-```sql
--- 需要新建的表：
-product_search_snapshot    -- 商品搜索快照
-event_search_snapshot      -- 活动搜索快照
-store_search_snapshot      -- 门店搜索快照
-category                   -- 类目表（如已有则补字段）
-tag                        -- 标签表
-query_expand_dict          -- 查询扩展词典
-```
+#### 当前已完成
+- [x] `SyncAdminService` / `SyncAdminController` 统一 sync admin 入口
+- [x] 产品链路 `status / reconcile / rebuild / repair`
+- [x] 知识链路 `status / reconcile / rebuild / repair`
+- [x] 产品、知识正式增量入口
+- [x] `SyncTaskRecord / SyncTaskTracker` 任务记录
+- [x] 失败重试与死信查询
+- [x] 产品、知识按 `entity_id` 列表、`updated_at` 范围、状态批量补偿
+- [x] 产品按 `categoryId` 批量补偿
+- [x] 知识按 `entityType/entityId` 批量补偿
+- [x] 产品、知识 detail reconcile 明细接口
+- [x] 产品、知识按 detail reconcile 结果批量修复
+- [x] 产品、知识全局 mismatch detail 接口
+- [x] 产品、知识按全局 reconcile 结果批量修复
+- [x] `report/baseline` 对账基线产物
+- [x] `products/index/validate` alias 校验入口
+- [x] `products/index/rollback/candidates` 与 `products/index/rollback/auto`
+- [x] 版本索引重建、alias 切换、回滚、定向索引补偿入口
 
-**2. 快照构建器**（新建）
-- [ ] `search/snapshot/ProductSnapshotBuilder.java` — 从 Product + Category + Tag 汇总
-- [ ] `search/snapshot/SearchableStatusCalculator.java` — searchable_status 统一计算
-- [ ] `search/snapshot/SnapshotScheduler.java` — 定时全量/增量构建
+#### 剩余项
+- [ ] alias 重建与回滚自动化校验最后收口
+- [ ] 更完整的修复策略治理
+- [ ] 基于 baseline report 接入 W13 replay / golden cases
 
-**3. 对接现有数据**
-- [ ] 从现有 Product 表读取数据构建快照
-- [ ] 从现有 Category 数据（如 CategoryService）映射到新类目体系
+### 2. W13 监控、评估、治理
 
----
+这一阶段已经启动首批后端能力，但还远未收口。
 
-## 阶段四：W03 ES 索引与检索接口（预计 5 天）
+剩余项：
+- [x] replay 数据结构与回放入口
+- [x] eval run 历史落库与查询入口
+- [x] release status / overview / metrics summary / metrics trend
+- [x] release records / gray configs / release preflight
+- [x] replay -> golden case bootstrap
+- [x] eval run compare
+- [x] golden case 批量导入 / 导出 / 批量启停
+- [x] metrics daily 日聚合持久化
+- [x] 错误归因 summary
+- [x] golden case 版本快照
+- [x] 基于版本快照直接运行 eval regression
+- [x] eval run 按 `sourceType/versionId` 过滤
+- [x] release preflight 支持固定版本回归检查
+- [x] release record 绑定版本与基线校验
+- [x] release record 直接触发绑定版本回归
+- [x] 批量版本回归入口
+- [x] 版本详情运行概览：`latestRun / recentRuns`
+- [x] replay checkpoint / tool I/O 细粒度落库与 detail 查询
+- [x] 版本快照 compare：新增/删除/规则变化对比
+- [x] gray config 详情 / 应用到 release record / release 状态流转
+- [x] `metrics/error-attribution/trend`
+- [x] `eval-cases/stats`
+- [x] replay 候选池：按时间范围、问题样本、是否已存在 query 过滤
+- [x] replay 批量 bootstrap：从 replay 批量生成 eval case / golden case
+- [x] release 事件历史：创建、gray config 应用、状态流转、回归执行留痕
+- [ ] golden cases / regression set 深化
+- [ ] 日常指标与错误归因维度
+- [ ] 发布、灰度、版本控制流程深化
 
-### 当前状态
-无 ES 相关代码。
+### 3. W08/W09/W10 收尾
 
-### 需要做的事
+虽然这三块主链都已经可运行，但仍有尾项没收完。
 
-**1. ES 基础**（新建）
-- [ ] 添加 ES 依赖（spring-data-elasticsearch 或 RestHighLevelClient）
-- [ ] ES 连接配置
-- [ ] `search/es/ProductSearchMapping.json` — mapping 定义
-- [ ] `search/es/IndexManager.java` — 索引创建/alias 管理/reindex
+W08：
+- [ ] citation 规则细化
+- [ ] entity merge / conflict resolution 增强
+- [ ] 更稳定的表达层治理
 
-**2. 数据同步**（新建）
-- [ ] `search/es/DocumentProjector.java` — 快照 → ES 文档转换
-- [ ] `search/es/BulkIndexer.java` — 批量写入/删除
+W09：
+- [ ] chunk 模型
+- [ ] 知识同步链路
+- [ ] 上下线治理
 
-**3. 检索接口**（新建）
-- [ ] `search/service/SearchProductsService.java` — search_products 核心逻辑
-- [ ] `search/service/DslBuilder.java` — 动态构建 ES DSL
-- [ ] `search/service/SearchDegradeHandler.java` — 搜索降级（无结果放宽/热门兜底）
-- [ ] `search/controller/SearchController.java` — REST 接口（内部调用）
-
----
-
-## 阶段五：W04 Agent Runtime 改造（预计 5 天）
-
-### 当前状态
-`AgentChatServiceImpl` 是单次调用模式：buildPayload → callLLM → handleToolCalls → return。
-
-### 需要做的事
-
-**1. Session State**（新建）
-- [ ] `agent/state/SessionState.java` — 运行时状态容器
-- [ ] `agent/state/SessionStore.java` — Session 存储（先用内存 Map，后续可换 Redis）
-
-**2. 节点接口定义**（新建）
-- [ ] `agent/node/AgentNode.java` — 节点接口（input: SessionState, output: SessionState）
-- [ ] `agent/node/ParseIntentNode.java` — 空实现占位
-- [ ] `agent/node/NormalizeParamsNode.java` — 空实现占位
-- [ ] `agent/node/RouteToolsNode.java` — 空实现占位
-- [ ] `agent/node/ExecuteToolsNode.java` — 空实现占位
-- [ ] `agent/node/ComposeResponseNode.java` — 空实现占位
-
-**3. 运行时引擎**（改造）
-- [ ] `agent/runtime/AgentRuntime.java` — 节点编排引擎（替代现有 AgentChatServiceImpl 的直连逻辑）
-- [ ] 改造 `AgentChatServiceImpl.chat()` → 调用 AgentRuntime
-
-**4. 性能预算**（新建）
-- [ ] `agent/runtime/TimeoutBudgetManager.java` — 全链路超时管理
-- [ ] 各节点超时配置化（读取 application.yml）
-
-**5. 调试追踪**（新建）
-- [ ] `agent/trace/DebugTrace.java` — 记录每个节点的输入/输出/耗时/异常
-- [ ] `agent/trace/ExecutionMeta.java` — 请求级元数据
+W10：
+- [ ] 真实 realtime gateway 联调
+- [ ] 限流、监控、熔断验证
 
 ---
 
-## 阶段六：W05 Query Parser（预计 3 天，部分已完成）
+## 三、按阶段拆分的剩余实现流程
 
-### 当前状态
-已有 QueryParserService（LLM+结构化输出）、RuleFallbackParser（规则降级）、ParsedIntent/CandidateSlots POJO。
-import 已迁移到 common.enums。
+### 阶段 5：W12 同步、补偿、重建
 
-### 需要做的事
+这是当前正在进行的阶段。
 
-**1. 意图识别**（已完成）
-- [x] `Agent/Service/QueryParserService.java` — LLM + JSON 输出解析
-- [x] `Agent/Service/RuleFallbackParser.java` — 规则引擎降级
-- [x] `Agent/Pojo/ParsedIntent.java` — 意图识别结果 POJO
-- [x] `Agent/Pojo/CandidateSlots.java` — 候选槽位 POJO
+建议顺序：
+1. 补 alias 自动校验与回滚验证
+2. 补修复策略治理与固化
+3. 基于 baseline report 衔接 W13 回放与评估输入
+4. 转入 W13
 
-**2. 接入节点骨架**（待 W04 完成后）
-- [ ] 实现 ParseIntentNode 接口，将 QueryParserService 包装为节点
+### 阶段 6：W13 监控、评估、回放
 
-**3. 样本集**（新建）
-- [ ] `test/resources/intent_samples/search.json` — 搜索类样本
-- [ ] `test/resources/intent_samples/faq.json` — FAQ 类样本
-- [ ] `test/resources/intent_samples/realtime.json` — 强实时类样本
-- [ ] `test/resources/intent_samples/multi_turn.json` — 多轮指代类样本
+依赖 W12 收口。
 
-**4. 准确率测试**（新建）
-- [ ] 批量测试脚本，输出识别准确率
+建议顺序：
+1. golden cases / regression set 深化
+2. 灰度与版本治理深化
+3. 指标趋势持久化与更多归因
+4. 衔接 W14 联调上线
 
----
+### 阶段 7：W14 联调、压测、上线
 
-## 阶段七：W06 参数标准化（预计 5 天）
+依赖 W12/W13。
 
-### 当前状态
-无参数标准化逻辑。
-
-### 需要做的事
-- [ ] `agent/node/impl/NormalizeParamsNodeImpl.java`
-- [ ] 各维度标准化器（KeywordNormalizer, CategoryNormalizer, LocationNormalizer 等）
-- [ ] name→id 映射服务（查 category 表、tag 表）
-- [ ] 参数来源标记
-- [ ] 约束校验（互斥条件、范围合法性等）
+建议顺序：
+1. 联调
+2. 压测
+3. 故障演练
+4. 上线收尾
 
 ---
 
-## 阶段八：W07 Tool Router 改造（预计 5 天）
+## 四、当前推荐推进顺序
 
-### 当前状态
-`AgentToolHandler` 只支持单工具 `backend_api`。
+1. 以 W11 冻结回归为基线
+2. 继续收尾 W12
+3. 并行收尾 W08/W09/W10
+4. 继续推进 W13
+5. 最后做 W14
 
-### 需要做的事
+从 2026-03-29 开始，最近一步应该是：
 
-**1. 路由决策**（新建）
-- [ ] `agent/node/impl/RouteToolsNodeImpl.java`
-- [ ] 路由规则引擎（基于 task_type + 参数特征决定工具组合）
-
-**2. 工具执行改造**（改造）
-- [ ] `agent/node/impl/ExecuteToolsNodeImpl.java`
-- [ ] 注册 3 个工具：structured_search / knowledge_retrieval / realtime_query
-- [ ] 支持串行/并行执行
-- [ ] 工具执行结果写入 SessionState
-
-**3. 保留兼容**
-- [ ] 现有 `backend_api` 工具保留，作为通用后端调用的降级通道
-
----
-
-## 阶段九：W08 Response Composer 改造（预计 5 天）
-
-### 当前状态
-`KnowledgeEnhancer` 只做知识注入 Prompt，`buildPresentationInstruction` 只做简单展示指引。
-
-### 需要做的事
-- [ ] `agent/node/impl/ComposeResponseNodeImpl.java`
-- [ ] `agent/composer/PreAnswerBuilder.java` — 程序化构建 pre_answer_object
-- [ ] `agent/composer/ConflictResolver.java` — 多来源冲突处理
-- [ ] `agent/composer/DisclaimerGenerator.java` — disclaimer 生成
-- [ ] `agent/composer/CitationGenerator.java` — citation 生成
-- [ ] 改造最终输出为 FinalAnswer schema（替代简单 reply 字符串）
-
----
-
-## 阶段十：W09 知识层升级（预计 8 天，可并行）
-
-### 当前状态
-- 已有：knowledge_base 表、knowledge_vector 表、EmbeddingService、KnowledgeSearchService
-- 问题：无 chunk、无时效管理、无冲突处理、向量全量内存计算
-
-### 需要做的事
-
-**1. 文档模型升级**（改造）
-- [ ] knowledge_base 表加字段：doc_type, effective_date, expire_date, version, priority, owner
-- [ ] 新建 knowledge_chunk 表
-- [ ] 实现 chunk 切分逻辑
-
-**2. 检索升级**（改造）
-- [ ] KnowledgeSearchService 改造：向量检索从全量内存 → 向量数据库/ES knn
-- [ ] 实现 hybrid retrieval（向量 + BM25 融合）
-- [ ] 实现 rerank
-
-**3. 时效管理**（新建）
-- [ ] 知识过期自动下线 Job
-- [ ] 知识状态流转（draft → active → deprecated → archived）
-- [ ] 知识冲突检测
-
-**4. 接入 Agent**（改造）
-- [ ] 包装为 `retrieve_knowledge` 工具，可被 Tool Router 调度
-
----
-
-## 阶段十一：W10 实时层（预计 5 天，可并行）
-
-### 当前状态
-无。
-
-### 需要做的事
-- [ ] `realtime/protocol/RealtimeRequest.java` — 统一请求协议
-- [ ] `realtime/protocol/RealtimeResponse.java` — 统一响应协议
-- [ ] `realtime/service/RealtimeAvailabilityService.java` — 库存/余票查询
-- [ ] `realtime/service/StoreOpenStatusService.java` — 营业状态查询
-- [ ] 批量查询 + 超时 + 部分失败处理
-- [ ] 包装为 `realtime_query` 工具，可被 Tool Router 调度
-
----
-
-## 阶段十二：W11 多轮会话（预计 8 天）
-
-### 当前状态
-无多轮管理，每次请求独立。
-
-### 需要做的事
-- [ ] SessionState 扩展：pending_slots / confirmed_constraints / focused_entity_id
-- [ ] 上下文继承与清空规则
-- [ ] 消息历史摘要（超过 10 轮时）
-- [ ] 6 条混合链路端到端跑通
-- [ ] Session 过期与恢复
-
----
-
-## 阶段十三：W12 同步补偿（预计 8 天）
-
-### 需要做的事
-- [ ] 主表→快照：全量 + 增量 + 补偿
-- [ ] 快照→ES：全量 + 增量 + 补偿
-- [ ] 知识→检索库：全量 + 增量 + 补偿
-- [ ] 死信队列
-- [ ] alias 重建与回滚
-- [ ] reconciliation 对账
-
----
-
-## 阶段十四：W13 监控评估（预计 8 天）
-
-### 需要做的事
-- [ ] 指标埋点（请求量/成功率/P95/降级率/意图准确率/路由准确率）
-- [ ] 评估集：50+ golden test case
-- [ ] replay 机制
-- [ ] 灰度发布框架
-
----
-
-## 阶段十五：W14 联调上线（预计 8 天）
-
-### 需要做的事
-- [ ] 前端渲染适配（cards/badges/disclaimers/citations/next_actions）
-- [ ] 17 个验收场景逐一通过
-- [ ] 压测（50 QPS / P95 < 4s）
-- [ ] 三阶段灰度（内部→5%→20%→50%→100%）
-- [ ] 运维手册 + 回滚预案
-
----
-
-## 快速参考：现有文件 → 目标改动
-
-| 现有文件 | 改动类型 | 说明 |
-|---------|---------|------|
-| AgentChatController | 保留 | 入口不变 |
-| GlobalExceptionHandler | 改造 | ✅ 已升级：支持 BizException + TraceContext + 兜底异常 |
-| AgentChatRequest | 改造 | 可能加 session_id 字段 |
-| AgentChatResponse | 改造 | 替换为 FinalAnswer 或包装 FinalAnswer |
-| AgentChatServiceImpl | 重构 | 改为调用 AgentRuntime 节点引擎 |
-| AgentToolHandler | 改造 | 拆分为多工具注册 + 执行 |
-| ApiRoute / ApiRouteService | 保留 | 作为 backend_api 通用工具的路由配置 |
-| KnowledgeEnhancer | 废弃 | 功能合并到 ComposeResponseNode |
-| KnowledgeSearchService | 改造 | 向量检索优化 + hybrid + rerank |
-| EmbeddingService | 保留 | 可直接复用 |
-| KnowledgeBase / KnowledgeVector | 改造 | 加字段 |
-| knowledge_base.sql | 改造 | 加字段 |
-| DeepSeekPayload / DeepSeekResponse | 保留 | LLM 协议不变 |
-| AgentAiProperties | 改造 | 加节点超时配置等 |
+**继续收尾 W12，并推进 W13 的发布治理、更多归因趋势与回归池治理。**

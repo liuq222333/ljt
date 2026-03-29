@@ -1,60 +1,32 @@
 package com.example.demo.demos.Agent.Service.Impl;
 
-import com.example.demo.demos.Agent.Config.AgentAiProperties;
-import com.example.demo.demos.Agent.Pojo.AgentChatMessage;
 import com.example.demo.demos.Agent.Pojo.AgentChatRequest;
 import com.example.demo.demos.Agent.Pojo.AgentChatResponse;
+import com.example.demo.demos.Agent.Runtime.AgentCheckpointStore;
+import com.example.demo.demos.Agent.Runtime.AgentRuntime;
+import com.example.demo.demos.Agent.Runtime.SessionState;
 import com.example.demo.demos.Agent.Service.AgentChatService;
-import com.example.demo.demos.Agent.Service.KnowledgeEnhancer;
-import com.example.demo.demos.Agent.Service.helper.AgentToolHandler;
-import com.example.demo.demos.Agent.Service.helper.deepseek.DeepSeekPayload;
-import com.example.demo.demos.Agent.Service.helper.deepseek.DeepSeekResponse;
-import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import com.example.demo.demos.governance.replay.GovernanceReplayStore;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
-import org.springframework.web.client.HttpStatusCodeException;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
-
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
- * Concrete {@link AgentChatService} implementation that orchestrates the
- * DeepSeek HTTP call and the follow-up tool execution.
+ * W04 Agent Runtime facade.
+ * 现阶段不再直接做“单次 LLM + 工具回调”，而是把请求交给节点化 Runtime。
  */
 @Service
 public class AgentChatServiceImpl implements AgentChatService {
 
-    private static final String DEFAULT_SYSTEM_PROMPT =
-            "You are a helpful assistant for a community marketplace. Respond in concise Simplified Chinese and, when users clearly want to publish an item, call the publish_product tool with structured arguments.";
+    private final AgentRuntime agentRuntime;
+    private final AgentCheckpointStore agentCheckpointStore;
+    private final GovernanceReplayStore governanceReplayStore;
 
-    private final RestTemplate restTemplate;
-    private final AgentAiProperties properties;
-    private final AgentToolHandler agentToolHandler;
-    private final KnowledgeEnhancer knowledgeEnhancer;
-
-    public AgentChatServiceImpl(RestTemplateBuilder restTemplateBuilder,
-                                AgentAiProperties properties,
-                                AgentToolHandler agentToolHandler,
-                                KnowledgeEnhancer knowledgeEnhancer) {
-        this.restTemplate = restTemplateBuilder
-                .setConnectTimeout(Duration.ofSeconds(10))
-                .setReadTimeout(Duration.ofSeconds(30))
-                .build();
-        this.properties = properties;
-        this.agentToolHandler = agentToolHandler;
-        this.knowledgeEnhancer = knowledgeEnhancer;
+    public AgentChatServiceImpl(AgentRuntime agentRuntime,
+                                AgentCheckpointStore agentCheckpointStore,
+                                GovernanceReplayStore governanceReplayStore) {
+        this.agentRuntime = agentRuntime;
+        this.agentCheckpointStore = agentCheckpointStore;
+        this.governanceReplayStore = governanceReplayStore;
     }
 
     @Override
@@ -62,80 +34,19 @@ public class AgentChatServiceImpl implements AgentChatService {
         if (request == null || CollectionUtils.isEmpty(request.getMessages())) {
             throw new IllegalArgumentException("Conversation cannot be empty");
         }
-        if (!StringUtils.hasText(properties.getKey())) {
-            throw new IllegalStateException("DeepSeek API key is not configured");
-        }
-        //构建payload
-        DeepSeekPayload payload = buildPayload(request);
-        payload.setTools(agentToolHandler.getToolDefinitions());
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-        headers.setBearerAuth(properties.getKey());
-
-        HttpEntity<DeepSeekPayload> entity = new HttpEntity<>(payload, headers);
-
-        try {
-            ResponseEntity<DeepSeekResponse> response = restTemplate.postForEntity(
-                    properties.getUrl(), entity, DeepSeekResponse.class);
-
-            DeepSeekResponse body = response.getBody();
-            if (body == null) {
-                throw new IllegalStateException("DeepSeek API returned an empty body");
-            }
-
-            DeepSeekResponse.ResponseMessage message = body.extractMessage();
-            if (message != null && !CollectionUtils.isEmpty(message.getToolCalls())) {
-                AgentChatResponse toolResp = agentToolHandler.handleToolCalls(body, message.getToolCalls(), authorization);
-                if (toolResp != null) {
-                    return toolResp;
-                }
-            }
-
-            String reply = message != null ? message.getContent() : null;
-            if (!StringUtils.hasText(reply)) {
-                reply = "抱歉，我暂时没有获取到有效回答哦~";
-            }
-
-            AgentChatResponse agentChatResponse = new AgentChatResponse();
-            agentChatResponse.setReply(reply.trim());
-            agentChatResponse.setModel(body.getModel());
-            agentChatResponse.setRequestId(body.getId());
-            agentChatResponse.setUsage(body.getUsage());
-            return agentChatResponse;
-        } catch (HttpStatusCodeException ex) {
-            String detail = ex.getResponseBodyAsString(StandardCharsets.UTF_8);
-            throw new IllegalStateException("Failed to call DeepSeek: " + ex.getRawStatusCode() + " - " + detail, ex);
-        } catch (RestClientException ex) {
-            throw new IllegalStateException("Failed to call DeepSeek: " + ex.getMessage(), ex);
-        }
-    }
-
-    private DeepSeekPayload buildPayload(AgentChatRequest request) {
-        DeepSeekPayload payload = new DeepSeekPayload();
-        payload.setModel(StringUtils.hasText(request.getModel()) ? request.getModel() : properties.getModel());
-        payload.setTemperature(request.getTemperature() != null ? request.getTemperature() : properties.getTemperature());
-        payload.setMaxTokens(request.getMaxTokens() != null ? request.getMaxTokens() : properties.getMaxTokens());
-        payload.setStream(request.getStream() != null ? request.getStream() : properties.getStream());
-
-        List<AgentChatMessage> history = request.getMessages().stream()
-                .filter(Objects::nonNull)
-                .map(AgentChatMessage::normalize)
-                .filter(msg -> StringUtils.hasText(msg.getContent()))
-                .collect(Collectors.toList());
-        if (history.isEmpty()) {
-            throw new IllegalArgumentException("Conversation cannot be empty");
-        }
-        List<AgentChatMessage> finalMessages = new ArrayList<>(history.size() + 1);
-        AgentChatMessage system = new AgentChatMessage();
-        system.setRole("system");
-        String userQuestion = knowledgeEnhancer.extractUserQuestion(history);
-        String enhancedPrompt = knowledgeEnhancer.enhancePrompt(DEFAULT_SYSTEM_PROMPT, userQuestion);
-        system.setContent(enhancedPrompt);
-        finalMessages.add(system);
-        finalMessages.addAll(history);
-        payload.setMessages(finalMessages);
-        return payload;
+        SessionState state = agentRuntime.run(request, authorization);
+        governanceReplayStore.record(request, state);
+        AgentChatResponse response = new AgentChatResponse();
+        response.setReply(state.getFinalAnswer().getAnswerText());
+        response.setFinalAnswer(state.getFinalAnswer());
+        response.setModel("agent-runtime");
+        response.setRequestId(state.getExecutionMeta().getRequestId());
+        response.setTraceId(state.getExecutionMeta().getTraceId());
+        response.setSessionId(state.getExecutionMeta().getSessionId());
+        response.setCompletedNodes(state.getExecutionMeta().getCompletedNodes());
+        response.setDegraded(state.getExecutionMeta().isDegraded());
+        response.setRestoredFromCheckpoint(state.getExecutionMeta().isRestoredFromCheckpoint());
+        response.setCheckpointCount(agentCheckpointStore.count(state.getExecutionMeta().getSessionId()));
+        return response;
     }
 }

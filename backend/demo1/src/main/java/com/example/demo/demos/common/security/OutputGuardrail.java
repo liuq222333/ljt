@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -58,7 +59,7 @@ public class OutputGuardrail {
      * @return 脱敏后的输出
      */
     public String filter(String output) {
-        if (output == null || output.isBlank()) {
+        if (output == null || output.trim().isEmpty()) {
             return output;
         }
 
@@ -74,7 +75,7 @@ public class OutputGuardrail {
 
         // 2. 敏感模式替换
         for (Pattern pattern : SENSITIVE_PATTERNS) {
-            var matcher = pattern.matcher(result);
+            Matcher matcher = pattern.matcher(result);
             if (matcher.find()) {
                 log.warn("OutputGuardrail 检测到敏感模式: {}", pattern.pattern());
                 result = matcher.replaceAll("[敏感信息已隐藏]");

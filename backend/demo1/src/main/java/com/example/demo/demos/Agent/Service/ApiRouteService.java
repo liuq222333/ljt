@@ -13,4 +13,5 @@ import java.util.List;
 public interface ApiRouteService {
     ApiRoute findEnabledRoute(String resource, String action);
     List<ApiRoute> listEnabledRoutes(String resource, String operationType);
+    List<ApiRoute> listAllEnabledRoutes();
 }

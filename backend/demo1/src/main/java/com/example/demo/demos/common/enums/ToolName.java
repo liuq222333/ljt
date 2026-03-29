@@ -13,7 +13,10 @@ public enum ToolName {
     KNOWLEDGE_RETRIEVAL("knowledge_retrieval", "知识检索"),
 
     /** 实时查询（库存/营业状态/余票等实时接口） */
-    REALTIME_QUERY("realtime_query", "实时查询");
+    REALTIME_QUERY("realtime_query", "实时查询"),
+
+    /** 动态后端接口代理（基于 api_routes 的业务接口调用） */
+    BACKEND_API_PROXY("backend_api_proxy", "动态后端接口代理");
 
     private final String code;
     private final String description;

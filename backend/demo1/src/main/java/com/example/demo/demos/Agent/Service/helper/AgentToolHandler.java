@@ -4,6 +4,7 @@ import com.example.demo.demos.Agent.Config.AgentAiProperties;
 import com.example.demo.demos.Agent.Entity.ApiRoute;
 import com.example.demo.demos.Agent.Pojo.AgentChatResponse;
 import com.example.demo.demos.Agent.Service.ApiRouteService;
+import com.example.demo.demos.Agent.Service.BackendApiProxyService;
 import com.example.demo.demos.Agent.Service.helper.deepseek.DeepSeekPayload;
 import com.example.demo.demos.Agent.Service.helper.deepseek.DeepSeekResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -49,12 +50,15 @@ public class AgentToolHandler {
     private final RestTemplate backendRestTemplate;
     private final ObjectMapper objectMapper;
     private final List<DeepSeekPayload.ToolDefinition> toolDefinitions;
+    private final BackendApiProxyService backendApiProxyService;
 
     public AgentToolHandler(ApiRouteService apiRouteService,
                             AgentAiProperties agentAiProperties,
-                            RestTemplateBuilder restTemplateBuilder) {
+                            RestTemplateBuilder restTemplateBuilder,
+                            BackendApiProxyService backendApiProxyService) {
         this.apiRouteService = apiRouteService;
         this.agentAiProperties = agentAiProperties;
+        this.backendApiProxyService = backendApiProxyService;
         this.backendRestTemplate = restTemplateBuilder
                 .setConnectTimeout(Duration.ofSeconds(5))
                 .setReadTimeout(Duration.ofSeconds(15))
@@ -107,10 +111,18 @@ public class AgentToolHandler {
             return buildAgentResponse(body, "No enabled route matches resource=" + args.getResource() + ", action=" + args.getAction());
         }
         try {
-            Object result = invokeRoute(route, args, authorization);
+            BackendApiProxyService.InvocationRequest request = new BackendApiProxyService.InvocationRequest();
+            request.setResource(args.getResource());
+            request.setAction(args.getAction());
+            request.setId(args.getId());
+            request.setPathVariables(args.getPathVariables());
+            request.setParams(args.getParams());
+            request.setPayload(args.getPayload());
+            request.setAuthorization(args.getAuthorization());
+            BackendApiProxyService.InvocationResult executionResult = backendApiProxyService.invoke(request, authorization);
             Map<String, Object> wrapped = new HashMap<>();
-            wrapped.put("presentation_hint", buildPresentationInstruction(route, result));
-            wrapped.put("data", result);
+            wrapped.put("presentation_hint", executionResult.getPresentationHint());
+            wrapped.put("data", executionResult.getData());
             String serialized = objectMapper.writeValueAsString(wrapped);
             return buildAgentResponse(body, serialized);
         } catch (Exception ex) {

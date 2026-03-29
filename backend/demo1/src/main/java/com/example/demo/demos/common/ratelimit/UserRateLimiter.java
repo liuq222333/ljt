@@ -41,7 +41,7 @@ public class UserRateLimiter {
      * @param userId 用户 ID
      */
     public void checkLimit(String userId) {
-        if (userId == null || userId.isBlank()) {
+        if (userId == null || userId.trim().isEmpty()) {
             return;
         }
 

@@ -16,12 +16,49 @@ public class KnowledgeBase {
     private Long id;
 
     private String category;
+
+    @TableField("doc_type")
+    private String docType;
+
     private String title;
     private String content;
+    private String summary;
     private String keywords;
 
     @TableField("related_questions")
     private String relatedQuestions;
+
+    @TableField("source_system")
+    private String sourceSystem;
+
+    @TableField("entity_type")
+    private String entityType;
+
+    @TableField("entity_id")
+    private String entityId;
+
+    @TableField("city_ids")
+    private String cityIds;
+
+    @TableField("category_ids")
+    private String categoryIds;
+
+    @TableField("tag_ids")
+    private String tagIds;
+
+    private String version;
+    private Integer priority;
+    private String owner;
+    private String language;
+
+    @TableField("effective_from")
+    private LocalDateTime effectiveFrom;
+
+    @TableField("effective_to")
+    private LocalDateTime effectiveTo;
+
+    @TableField("published_at")
+    private LocalDateTime publishedAt;
 
     @TableField("view_count")
     private Integer viewCount;

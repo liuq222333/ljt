@@ -14,6 +14,14 @@ import java.util.List;
 public class AgentChatRequest {
     /** 有序的历史消息，新消息放在列表末尾。 */
     private List<AgentChatMessage> messages = Collections.emptyList();
+    /** 可选：外部传入会话 ID，用于承接 session memory。 */
+    private String sessionId;
+    /** 可选：用户 ID，用于记录 user_profile。 */
+    private String userId;
+    /** 可选：是否返回调试追踪。 */
+    private Boolean debug;
+    /** 可选：是否从最近 checkpoint 恢复运行。 */
+    private Boolean recoverFromLatestCheckpoint = Boolean.FALSE;
     /** 可选：覆盖模型随机性（temperature）。 */
     private Double temperature;
     /** 可选：覆盖最大生成 Token 数。 */

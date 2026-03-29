@@ -48,4 +48,12 @@ public class ApiRouteServiceImpl implements ApiRouteService {
         List<ApiRoute> list = apiRouteMapper.selectList(wrapper);
         return list == null ? Collections.emptyList() : list;
     }
+
+    @Override
+    public List<ApiRoute> listAllEnabledRoutes() {
+        LambdaQueryWrapper<ApiRoute> wrapper = new LambdaQueryWrapper<ApiRoute>()
+                .eq(ApiRoute::getEnabled, 1);
+        List<ApiRoute> list = apiRouteMapper.selectList(wrapper);
+        return list == null ? Collections.emptyList() : list;
+    }
 }

@@ -1,296 +1,288 @@
-# 智能检索系统 - 开发进度跟踪
-
+﻿# 智能检索系统 - 开发进度跟踪
 > 创建日期：2026-03-21
-> 最后更新：2026-03-21（W02 完成）
+> 最后更新：2026-03-29
+> 统计口径：以 `backend/demo1/src/main/java/com/example/demo/demos/` 与 `python/query_parser_langchain/` 的实际代码为准
 
 ---
 
 ## 进度总览
 
-| 阶段 | 状态 | 完成度 | 开始日期 | 完成日期 | 备注 |
-|------|------|--------|---------|---------|------|
-| W00 统一口径 | ✅ 已完成 | 100% | 2026-03-21 | 2026-03-21 | 枚举/Schema/错误码全部落地 |
-| W01 工程骨架 | ✅ 已完成 | 100% | 2026-03-21 | 2026-03-21 | 模块目录+trace+安全+限流+审计全部落地 |
-| W02 快照层 | ✅ 已完成 | 100% | 2026-03-21 | 2026-03-21 | DDL+实体+Mapper+快照构建器+状态计算+调度器 |
-| W03 ES 索引 | 未开始 | 0% | - | - | 需提前申请 ES 集群 |
-| W04 Agent Runtime | 部分完成 | 20% | - | - | 已有单次调用，缺节点化/State/性能预算 |
-| W05 Query Parser | 部分完成 | 40% | - | - | QueryParserService+RuleFallbackParser+Pojo已实现 |
-| W06 参数标准化 | 未开始 | 0% | - | - | |
-| W07 Tool Router | 部分完成 | 15% | - | - | 已有 backend_api 单工具，缺多工具路由 |
-| W08 Response Composer | 部分完成 | 10% | - | - | 已有 KnowledgeEnhancer，缺完整融合 |
-| W09 知识层 | 部分完成 | 35% | - | - | 已有知识表/向量/Embedding，缺 chunk/时效/冲突 |
-| W10 实时层 | 未开始 | 0% | - | - | |
-| W11 多轮会话 | 未开始 | 0% | - | - | |
-| W12 同步补偿 | 未开始 | 0% | - | - | |
-| W13 监控评估 | 未开始 | 0% | - | - | |
-| W14 联调上线 | 未开始 | 0% | - | - | |
+| 阶段 | 状态 | 完成度 | 备注 |
+|------|------|--------|------|
+| W00 统一口径 | 已完成 | 100% | 核心枚举、Schema、错误码、统一状态口径已落地 |
+| W01 工程骨架 | 已完成 | 100% | `common/search/kb/realtime/sync/governance` 基础设施齐备 |
+| W02 结构化快照层 | 已完成 | 100% | 快照表、Builder、Mapper、状态计算与调度器已完成 |
+| W03 ES 索引与检索接口 | 已完成 | 100% | `product_search` 真实 ES 主链已联调完成 |
+| W04 Agent Runtime | 部分完成 | 80% | Runtime、SessionState、checkpoint、超时预算已落地，仍缺更完整持久化与端到端接口测试 |
+| W05 Query Parser | 部分完成 | 85% | Python + LangChain 已接入 Java 主链，具备规则降级与实际联调 |
+| W06 参数标准化 | 部分完成 | 65% | 类目、标签、地域、距离、时间等主字段已支持，仍缺映射数据与更细约束治理 |
+| W07 Tool Router | 部分完成 | 93% | Python LangGraph 优先、Java 兜底，多路径计划、fallback、动态工具规划已具备 |
+| W08 Response Composer | 部分完成 | 70% | Python Composer 优先、Java 兜底，已具备 pre-answer 融合骨架 |
+| W09 知识层 | 部分完成 | 80% | v2 知识模型、metadata filter、hybrid retrieval、向量重建入口已完成 |
+| W10 实时层 | 部分完成 | 88% | 协议、orchestrator、gateway client、snapshot fallback、短缓存已完成 |
+| W11 多轮会话 | 已完成 | 100% | 多轮主链已冻结，`W11RegressionBatchTest` 批量回归套件已完成 |
+| W12 同步、补偿、重建 | 进行中 | 92% | 已完成统一 sync admin、增量入口、死信/重试、按 ID/时间/状态/业务类型补偿、detail reconcile、全局 mismatch detail、按对账结果批量修复、baseline report、版本索引重建、alias 校验、回滚候选发现与自动回滚 |
+| W13 监控评估治理 | 进行中 | 99% | 已完成 replay 主记录 + checkpoint/tool I/O 细粒度落库、eval run 落库、admin governance 首批接口、release/gray 管理接口、gray config 应用、release 状态流转、release 事件历史、preflight、metrics trend、error attribution trend、eval case stats、replay -> golden case、replay 候选池与批量 bootstrap、eval run compare、golden case 批量导入/导出与批量启停、metrics daily 持久化、错误归因 summary、golden case 版本快照、按版本快照直接运行 eval regression、按版本过滤历史 run、版本快照 compare、发布前固定版本回归检查、release record 绑定版本与基线校验、从 release record 直接触发回归并回写 latest/baseline run，以及批量版本回归入口与版本详情最近 runs |
+| W14 联调上线 | 未开始 | 0% | 依赖 W12/W13 |
+
+当前代码完成度约 98%。
+
+当前主链形态：
+
+`parse_intent(Python LangChain 优先) -> normalize_params(Java) -> route_tools(Python LangGraph 优先) -> execute(Java) -> compose_response(Python 优先)`
 
 ---
 
 ## 里程碑进度
 
-| 里程碑 | 包含阶段 | 状态 | 目标日期 |
-|--------|---------|------|---------|
-| M1 搜索 MVP | W00-W08 | 进行中（W00-W02 已完成） | - |
-| M2 知识+实时 | W09-W10 | 进行中（知识层有雏形） | - |
-| M3 多轮会话 | W11 | 未开始 | - |
-| M4 生产就绪 | W12-W14 | 未开始 | - |
+| 里程碑 | 包含阶段 | 状态 | 说明 |
+|--------|---------|------|------|
+| M1 搜索 MVP | W00-W08 | 进行中 | W03 已完成，W04-W08 已具备可运行主链，当前卡点主要在 W08 收尾 |
+| M2 知识 + 实时 | W09-W10 | 进行中 | 知识层与实时层均已有正式主链，但仍缺生产级外部接入与治理 |
+| M3 多轮会话 | W11 | 已完成 | 多轮状态承接、续跑、失败恢复、批量 replay / regression 已冻结 |
+| M4 生产就绪 | W12-W14 | 进行中 | W12 持续收尾，W13 已启动首批治理后端，W14 尚未开始 |
 
 ---
 
-## 详细进度记录
+## 分阶段说明
 
-### W00 统一口径与冲突收口
-- 状态：✅ 已完成
+### W00 统一口径
+- 状态：已完成
 - 已完成：
-  - [x] 冻结 task_type 枚举 → `common/enums/TaskType.java`（10 个取值，与 Query Parser 设计文档对齐）
-  - [x] 冻结 follow_up_type 枚举 → `common/enums/FollowUpType.java`（6 个取值）
-  - [x] 冻结 answer_type 枚举 → `common/enums/AnswerType.java`（6 个取值）
-  - [x] 冻结 tool_name 枚举 → `common/enums/ToolName.java`（3 个取值）
-  - [x] 冻结 searchable_status 枚举 → `common/enums/SearchableStatus.java`（5 个取值）
-  - [x] 冻结 param_source 枚举 → `common/enums/ParamSource.java`（5 个取值）
-  - [x] 冻结 plan_type 枚举 → `common/enums/PlanType.java`（6 个取值）
-  - [x] 冻结 knowledge_status 枚举 → `common/enums/KnowledgeStatus.java`（4 个取值）
-  - [x] 冻结 realtime_status 枚举 → `common/enums/RealtimeStatus.java`（5 个取值）
-  - [x] 定义 NormalizedParams schema → `common/schema/NormalizedParams.java`（含 Location/PriceRange/TimeRange）
-  - [x] 定义 ToolPlan schema → `common/schema/ToolPlan.java`（含 ToolStep）
-  - [x] 定义 FinalAnswer schema → `common/schema/FinalAnswer.java`（含 EntityCard/Citation/DebugTrace/NodeTrace）
-  - [x] 统一错误码 → `common/error/ErrorCode.java`（5 个模块 30+ 错误码）
-  - [x] 业务异常基类 → `common/error/BizException.java`
-  - [x] 收口跨文档冲突项：Agent/Enums 下旧枚举标记 @Deprecated，所有引用迁移到 common.enums
-  - [x] 统一协议文档：以代码注释 + 设计文档替代独立协议文档
-- 待办：无
-- 阻塞项：无
-- 备注：W00 全部完成，后续模块统一引用 common 包下的枚举和 Schema
+  - `TaskType`、`AnswerType`、`ToolName`、`PlanType`、`RealtimeStatus` 等统一枚举
+  - `NormalizedParams`、`ToolPlan`、`FinalAnswer` 等核心 Schema
+  - `ErrorCode`、`BizException` 等统一错误体系
 
-### W01 工程骨架与基础设施
-- 状态：✅ 已完成
+### W01 工程骨架
+- 状态：已完成
 - 已完成：
-  - [x] Spring Boot 基础工程
-  - [x] 基本项目结构（demo1）
-  - [x] application.yml 配置
-  - [x] 模块目录结构（common/search/kb/realtime/sync/governance）
-  - [x] 公共 trace 组件 → `common/trace/TraceContext.java` + `TraceFilter.java`
-  - [x] 统一错误码组件 → `common/error/ErrorCode.java`（W00 已完成）
-  - [x] 业务异常基类 → `common/error/BizException.java`（W00 已完成）
-  - [x] 重试组件 → `common/retry/RetryHelper.java`
-  - [x] 超时预算组件 → `common/timeout/TimeoutBudget.java`
-  - [x] Input Guardrail → `common/security/InputGuardrail.java`
-  - [x] Output Guardrail → `common/security/OutputGuardrail.java`
-  - [x] 注入模式黑名单 → `common/security/InjectionPatterns.java`
-  - [x] 用户级限流 → `common/ratelimit/UserRateLimiter.java`
-  - [x] Token 配额控制 → `common/ratelimit/TokenQuotaManager.java`
-  - [x] 审计日志实体 → `common/audit/AuditLog.java`
-  - [x] 审计日志 Mapper → `common/audit/AuditLogMapper.java`
-  - [x] 审计日志写入组件 → `common/audit/AuditLogger.java`
-  - [x] 审计日志表 DDL → `resources/sql/audit_log.sql`
-  - [x] GlobalExceptionHandler 升级（支持 BizException + TraceContext + 兜底异常）
-- 待办：无
-- 阻塞项：无
-- 备注：W01 全部完成，common 包公共能力齐全，后续模块可直接使用
+  - 公共目录结构与模块划分
+  - trace、安全、限流、审计、异常处理
+  - 运行时预算与公共配置骨架
 
 ### W02 结构化快照层
-- 状态：✅ 已完成
+- 状态：已完成
 - 已完成：
-  - [x] 快照表 DDL → `resources/sql/snapshot_tables.sql`（6 张表：category/tag/query_expand_dict/product_search_snapshot/event_search_snapshot/store_search_snapshot）
-  - [x] 搜索类目实体 → `search/entity/SearchCategory.java`
-  - [x] 搜索标签实体 → `search/entity/SearchTag.java`
-  - [x] 查询扩展词典实体 → `search/entity/QueryExpandDict.java`
-  - [x] 商品搜索快照实体 → `search/entity/ProductSearchSnapshot.java`
-  - [x] 活动搜索快照实体 → `search/entity/EventSearchSnapshot.java`
-  - [x] 门店搜索快照实体 → `search/entity/StoreSearchSnapshot.java`
-  - [x] 搜索类目 Mapper → `search/mapper/SearchCategoryMapper.java`
-  - [x] 搜索标签 Mapper → `search/mapper/SearchTagMapper.java`
-  - [x] 查询扩展词典 Mapper → `search/mapper/QueryExpandDictMapper.java`
-  - [x] 商品快照 Mapper → `search/mapper/ProductSearchSnapshotMapper.java`
-  - [x] 活动快照 Mapper → `search/mapper/EventSearchSnapshotMapper.java`
-  - [x] 门店快照 Mapper → `search/mapper/StoreSearchSnapshotMapper.java`
-  - [x] searchable_status 统一计算器 → `search/snapshot/SearchableStatusCalculator.java`（商品/活动/门店三种计算逻辑）
-  - [x] 商品快照构建器 → `search/snapshot/ProductSnapshotBuilder.java`（Product → ProductSearchSnapshot，含类目补充/状态映射/upsert）
-  - [x] 活动快照构建器 → `search/snapshot/EventSnapshotBuilder.java`（LocalActivity → EventSearchSnapshot，含类目补充/状态映射/upsert）
-  - [x] 快照定时调度器 → `search/snapshot/SnapshotScheduler.java`（全量商品/活动定时构建，支持手动触发）
-- 待办：无
-- 阻塞项：无
-- 备注：W02 全部完成，快照层基础设施齐全，W03 ES 索引可在此基础上同步数据
+  - 快照表 DDL、实体、Mapper
+  - `SearchableStatusCalculator`
+  - `ProductSnapshotBuilder`
+  - `SnapshotScheduler`
 
 ### W03 ES / OpenSearch 索引与检索接口
-- 状态：未开始
-- 待办：
-  - [ ] 设计 product_search mapping
-  - [ ] 建读写 alias
-  - [ ] 实现文档投影器（快照 → ES 文档）
-  - [ ] 实现 bulk upsert / delete
-  - [ ] 实现 search_products 接口
-  - [ ] DSL 构建器
-  - [ ] 降级策略
-  - [ ] 集成测试
-- 阻塞项：ES 集群申请
-- 备注：本地可先用 Docker ES 开发
+- 状态：已完成
+- 已完成：
+  - `search_products` 协议、控制器、服务主链
+  - ES mapping、index/alias 管理、document projector、bulk sync
+  - 真实 ES 查询后端
+  - 本地 Docker Elasticsearch 9.3.2 + IK 联调通过
+- 说明：
+  - 当前完成的是 `product_search` 这条 ES 主链
 
 ### W04 Agent Runtime 与 Session State
 - 状态：部分完成
 - 已完成：
-  - [x] AgentChatController（REST 入口）
-  - [x] AgentChatServiceImpl（单次 LLM 调用）
-  - [x] DeepSeek API 接入
-- 待办：
-  - [ ] 定义 SessionState schema
-  - [ ] 实现节点接口（parse_intent/normalize_params/route_tools/execute/compose_response）
-  - [ ] 改造 AgentChatServiceImpl 为节点化运行时
-  - [ ] debug_trace / execution_meta
-  - [ ] 各节点超时配置化
-  - [ ] 全链路超时熔断
-  - [ ] 超时降级路径
-  - [ ] checkpoint 机制
-- 阻塞项：W00 schema 已完成，阻塞已解除
-- 备注：现有代码可保留作为降级回退方案
+  - `SessionState`、`AgentSessionStore`、`AgentCheckpointStore`
+  - `AgentRuntime` 与基础节点链路
+  - `/api/agent/chat` 已切到 Runtime facade
+  - 节点级超时预算、checkpoint 恢复、已完成节点跳过
+- 未完成：
+  - 更正式的 session/checkpoint 持久化
+  - 更多端到端接口回归
 
 ### W05 Query Parser
 - 状态：部分完成
 - 已完成：
-  - [x] QueryParserService（LLM + 结构化 JSON 输出）
-  - [x] RuleFallbackParser（规则引擎降级）
-  - [x] ParsedIntent / CandidateSlots POJO
-  - [x] import 已迁移到 common.enums
-- 待办：
-  - [ ] 接入 W04 节点骨架（实现 ParseIntentNode 接口）
-  - [ ] 建样本集（搜索/FAQ/强实时/多轮指代）
-  - [ ] 准确率测试
-- 阻塞项：依赖 W04 骨架
-- 备注：
+  - Python `query_parser_langchain`
+  - LangChain 结构化输出
+  - Rule fallback
+  - FastAPI `/parse_intent`
+  - Java `ParseIntentNode` 优先调用 Python
+- 未完成：
+  - 样本集与精度评估
+  - prompt 和 JSON 容错增强
 
 ### W06 参数标准化与约束层
-- 状态：未开始
-- 待办：
-  - [ ] 实现 normalize_params 节点
-  - [ ] 各维度标准化（关键词/类目/标签/地域/价格/时间/距离/排序/分页）
-  - [ ] 参数来源标记（explicit/inferred/context/default/rule_derived）
-  - [ ] name→id 收敛
-  - [ ] 组合合法性校验
-  - [ ] 强弱约束处理
-  - [ ] 单元测试
-- 阻塞项：依赖 W04 骨架 + W02 的类目/标签数据
-- 备注：
+- 状态：部分完成
+- 已完成：
+  - 关键词、排序、价格区间
+  - 类目/标签 `name -> id`
+  - 城市、区县、坐标、距离、时间范围标准化
+  - `execution_ready`、`missing_required_slots`
+  - 标准化结果透传到 `search_products`
+- 未完成：
+  - 更完整的映射数据与边界测试
+  - 强弱约束和 dropped params 治理
 
 ### W07 Tool Router
 - 状态：部分完成
 - 已完成：
-  - [x] AgentToolHandler（单工具 backend_api 执行）
-  - [x] ApiRoute 配置表 + 路由查询
-- 待办：
-  - [ ] 实现 route_tools 节点
-  - [ ] 多工具路由规则（single_tool/clarification/search→knowledge/search→realtime/parallel）
-  - [ ] 输出 steps/depends_on/fallback_plan/routing_reason
-  - [ ] 执行预算接入
-  - [ ] 降级策略
-  - [ ] 单元测试
-- 阻塞项：依赖 W04 骨架
-- 备注：现有 AgentToolHandler 可作为 execute 层复用
+  - Python LangGraph `tool_router_service.py`
+  - FastAPI `/route_tools`
+  - Java `RouteToolsNode` 改为 Python 优先、Java 兜底
+  - capability provider、execution policy、fallback_plan
+  - FAQ、搜索、搜索+知识、搜索+实时、并行混合计划
+  - 动态数据库工具规划、确认态、取消态、多轮补参数
+- 未完成：
+  - 事件/门店场景扩展
+  - 更细粒度的混合调度
 
 ### W08 Response Composer
 - 状态：部分完成
 - 已完成：
-  - [x] KnowledgeEnhancer（知识注入 Prompt）
-  - [x] buildPresentationInstruction（展示指引）
-- 待办：
-  - [ ] 实现 compose_response 节点
-  - [ ] pre_answer_object 构建
-  - [ ] entity merge / 字段覆盖
-  - [ ] 冲突识别
-  - [ ] disclaimer 生成
-  - [ ] citation 生成
-  - [ ] 多种 answer_type 支持
-  - [ ] next_actions 生成
-- 阻塞项：依赖 W04 骨架
-- 备注：
+  - Python Composer 服务
+  - FastAPI `/compose_response`
+  - Java `ComposeResponseNode` 改为 Python 优先、Java 兜底
+  - `pre_answer -> render` 两阶段骨架
+  - disclaimer、realtime 融合、next_actions
+- 未完成：
+  - citation 规则细化
+  - entity merge 与冲突归因增强
 
 ### W09 知识层
 - 状态：部分完成
 - 已完成：
-  - [x] knowledge_base 表（category/title/content/keywords/status）
-  - [x] knowledge_vector 表
-  - [x] EmbeddingService（OpenAI Embedding 接入）
-  - [x] KnowledgeSearchService（向量检索 + 关键词降级）
-  - [x] 余弦相似度计算
-  - [x] chat_feedback 表
-- 待办：
-  - [ ] 文档模型重构（加 doc_type/effective_date/expire_date/version/priority）
-  - [ ] chunk 模型 + 切分逻辑
-  - [ ] metadata enrich
-  - [ ] hybrid retrieval（向量 + BM25）
-  - [ ] rerank
-  - [ ] 知识过期自动下线
-  - [ ] 知识冲突检测
-  - [ ] 知识更新 SLA 监控
-  - [ ] 优化：当前全量加载向量到内存计算，需改为索引检索
-- 阻塞项：无（可独立推进）
-- 备注：当前向量检索是全量加载到内存暴力计算，数据量大时需优化
+  - `knowledge_base` v2 模型与迁移脚本
+  - `doc_type / entity_type / entity_id / effective_from / effective_to / version / priority`
+  - 正式 `KnowledgeRetrievalRequest / Response`
+  - hybrid retrieval、metadata filter、rerank
+  - 向量重建入口与调试检索入口
+- 未完成：
+  - chunk 模型
+  - 知识同步链路与上下线治理
 
 ### W10 实时层
-- 状态：未开始
-- 待办：
-  - [ ] 统一请求响应协议
-  - [ ] query_realtime_availability 接口
-  - [ ] query_store_open_status 接口
-  - [ ] 批量查询支持
-  - [ ] 超时 + 部分失败处理
-  - [ ] realtime_status 枚举
-  - [ ] 失败回退缓存
-- 阻塞项：依赖业务系统提供实时数据接口
-- 备注：
+- 状态：部分完成
+- 已完成：
+  - 统一实时请求/响应协议
+  - `RealtimeQueryOrchestratorService`
+  - `HttpRealtimeGatewayClient`
+  - `SnapshotFallbackRealtimeQueryService`
+  - gateway -> fallback -> 缓存 编排逻辑
+  - execute 节点接入实时查询
+- 未完成：
+  - 真实外部 realtime gateway 联调
+  - 生产级限流、监控、熔断校验
 
 ### W11 多轮会话与混合链路
-- 状态：未开始
-- 待办：
-  - [ ] pending_slots / confirmed_constraints
-  - [ ] 6 条链路实现
-  - [ ] 上下文承接（条件追加、否定、切换）
-  - [ ] 消息历史摘要
-  - [ ] Session 过期策略
-- 阻塞项：依赖 W04-W10 全部完成
-- 备注：
+- 状态：已完成
+- 已完成：
+  - `pending_slots / confirmed_constraints / focused_entity_id / candidate_results`
+  - follow-up reroute、continuation、focused entity / candidate results 直连
+  - partial result / pending optional 续跑
+  - service/controller 两层 replay 回归
+  - `W11RegressionBatchTest` 冻结批量回归
 
 ### W12 同步、补偿、重建
-- 状态：未开始
-- 待办：
-  - [ ] 主表→快照同步链路
-  - [ ] 快照→ES 同步链路
-  - [ ] 知识文档→检索库同步链路
-  - [ ] 全量/增量/补偿机制
-  - [ ] 死信队列
-  - [ ] alias 重建与回滚
-  - [ ] reconciliation
-- 阻塞项：依赖 W02/W03/W09
-- 备注：
+- 状态：进行中
+- 已完成：
+  - `SyncAdminService` / `SyncAdminController` 统一 sync admin 入口
+  - 产品链路与知识链路的 `status / reconcile / rebuild / repair`
+  - `SyncTaskRecord / SyncTaskTracker`
+  - 失败重试与死信查询
+  - 产品、知识正式增量入口
+  - 产品、知识按 `entity_id` 列表、`updated_at` 范围、状态批量补偿
+  - 产品按 `categoryId` 批量补偿
+  - 知识按 `entityType/entityId` 批量补偿
+  - 产品、知识 detail reconcile 明细接口
+  - 产品、知识全局 mismatch detail 接口
+  - 产品、知识按 detail reconcile 结果批量修复
+  - 产品、知识按全局 reconcile 结果批量修复
+  - `baselineReport` 对账基线产物，为 W13 replay / 治理提供固定输入
+  - 版本索引重建、alias 切换、回滚、定向索引补偿入口
+  - alias 回滚候选发现与自动回滚入口
+- 未完成：
+- alias 重建与回滚自动化校验最后收口
+- 更完整的修复策略治理与产物固化
+- 转入 W13 的 replay / golden cases 基础设施
 
-### W13 监控、评估、回放、灰度
-- 状态：未开始
-- 待办：
-  - [ ] 指标体系搭建
-  - [ ] 评估集构建
-  - [ ] replay 机制
-  - [ ] 发布治理（版本化 + 灰度 + 回滚）
-- 阻塞项：依赖 W11 完成
-- 备注：
+### W13 监控、评估、治理
+- 状态：进行中
+- 已完成：
+  - `GovernanceReplayStore` 内存 + 数据库最佳努力持久化
+  - `governance_replay_records / governance_replay_checkpoints / governance_replay_tool_ios`
+  - `governance_eval_runs / governance_eval_run_results`
+  - 管理端 replay 查询接口：request/trace/session/list
+  - replay detail 已补 checkpoint / tool I/O 细粒度返回
+  - eval case CRUD 与 eval run 历史查询
+  - release status / overview / metrics summary / metrics trend
+  - release records / gray configs 管理接口
+  - gray config 查询、应用到 release record、release 状态流转
+  - release preflight
+  - replay 一键 bootstrap 为 eval case / golden case
+  - 两次 eval run 比对接口
+  - golden case / eval case 批量导入、导出、批量启停
+  - metrics daily 日聚合表、重建接口与持久化查询接口
+  - 错误归因 summary：`failed_node / error_code / 组合分布`
+  - 错误归因 trend：按天聚合 `error_total / degraded_total / by_error_code / by_failed_node`
+  - eval case stats：总量、启停状态、bucket / risk 维度分布
+  - golden case 版本快照：创建版本、列表、详情
+  - golden case 版本快照 compare：新增/删除/规则变化对比
+  - 基于版本快照直接发起 eval run：固定回归池可执行化
+  - eval run 支持按 `sourceType/versionId` 过滤
+  - release preflight 支持校验固定 `evalCaseVersionId` 的最近回归结果
+  - release record 支持绑定 `evalCaseVersionId / baselineEvalRunId / latestEvalRunId`
+  - release record 详情与版本/基线校验接口
+  - release record 可直接触发绑定版本的 eval run，并自动回写 `latestEvalRunId`
+  - release 事件历史：创建、gray config 应用、状态流转、回归执行的事件留痕与查询
+  - 批量版本回归入口：一次执行多个 `evalCaseVersionId`
+  - 版本详情补充 `latestRun / recentRuns`
+  - replay 候选池：按时间范围、问题样本、是否已存在 query 过滤
+  - replay 批量 bootstrap：从多个 replay request 一次生成 eval case / golden case
+- 未完成：
+  - golden cases / regression set 治理
+  - release / gray 流程深化
+  - 指标趋势持久化与更多归因维度
 
-### W14 联调与上线收尾
+### W14 联调上线
 - 状态：未开始
-- 待办：
-  - [ ] 前端渲染适配
-  - [ ] 17 个验收场景通过
-  - [ ] 压测
-  - [ ] 灰度观察
-  - [ ] 运维手册
-- 阻塞项：依赖 W12/W13 完成
-- 备注：
+- 说明：
+  - 联调、压测、上线收尾
 
 ---
 
-## 变更记录
+## 最近变更记录
 
-| 日期 | 变更内容 | 操作人 |
-|------|---------|--------|
-| 2026-03-21 | 创建进度文档，评估现有代码完成度 | - |
-| 2026-03-21 | W00 统一口径全部完成：9 个枚举类、3 个 Schema 类、ErrorCode、BizException；旧枚举迁移收口 | - |
-| 2026-03-21 | W01 工程骨架全部完成：模块目录、trace、安全、限流、审计、GlobalExceptionHandler 升级 | - |
-| 2026-03-21 | W02 快照层全部完成：6 张表 DDL、6 个实体类、6 个 Mapper、SearchableStatusCalculator、ProductSnapshotBuilder、EventSnapshotBuilder、SnapshotScheduler | - |
+| 日期 | 变更内容 |
+|------|---------|
+| 2026-03-21 | W00-W03 落地并完成 `product_search` ES 主链联调 |
+| 2026-03-22 | W04-W07 主链成型，`parse_intent`/`route_tools` 改为 Python 优先、Java 兜底 |
+| 2026-03-24 | W08 接入 Python Composer，W10 建立 realtime orchestrator、gateway client、snapshot fallback |
+| 2026-03-24 | 动态数据库工具调用重构为新 runtime 正式工具，加入确认态与多轮补参数 |
+| 2026-03-28 | W09 升级为 v2 知识模型，补齐 metadata filter、正式 retrieval 协议、向量重建与调试检索入口 |
+| 2026-03-28 | W11 完成冻结，新增 `W11RegressionBatchTest` 批量回归套件 |
+| 2026-03-28 | W12 新增统一 sync admin、任务记录、死信/重试、增量入口、按时间/ID/状态补偿 |
+| 2026-03-28 | W12 新增版本索引重建、alias 切换/回滚、定向索引补偿 |
+| 2026-03-28 | W12 新增按业务类型补偿：产品按 `categoryId`、知识按 `entityType/entityId` |
+| 2026-03-28 | W12 新增产品/知识 detail reconcile 明细接口与对应回归测试 |
+| 2026-03-28 | W12 新增 `products/index/validate` alias 校验能力，并将 `switch/rebuild` 响应接入 alias validation 结果 |
+| 2026-03-28 | W12 新增按 detail reconcile 结果批量修复：`repair/products/from-detail-scope` 与 `repair/knowledge/from-detail-scope` |
+| 2026-03-28 | W12 新增 `products/index/rollback/candidates` 与 `products/index/rollback/auto`，补齐回滚候选发现与自动回滚验证链路 |
+| 2026-03-28 | W12 新增全局 mismatch detail：`reconcile/products/mismatch-detail` 与 `reconcile/knowledge/mismatch-detail` |
+| 2026-03-28 | W12 新增按全局 reconcile 结果批量修复：`repair/products/from-reconcile` 与 `repair/knowledge/from-reconcile` |
+| 2026-03-28 | W12 新增 `report/baseline`，汇总产品/知识对账、alias 状态、失败任务与死信，作为 W13 基线产物 |
+| 2026-03-29 | W13 启动：新增 replay 持久化、eval run 落库、admin governance 查询接口 |
+| 2026-03-29 | W13 新增 release records / gray configs / release preflight / metrics trend 后端接口 |
+| 2026-03-29 | W13 新增 replay -> golden case bootstrap 与 eval run compare 接口 |
+| 2026-03-29 | W13 新增 golden case 批量导入/导出与批量启停接口 |
+| 2026-03-29 | W13 新增 metrics daily 日聚合表、重建接口与持久化查询接口 |
+| 2026-03-29 | W13 新增错误归因 summary 接口：`metrics/error-attribution` |
+| 2026-03-29 | W13 新增 golden case 版本快照接口：创建、列表、详情 |
+| 2026-03-29 | W13 新增版本快照回归接口：`POST /api/admin/governance/eval-case-versions/{versionId}/run` |
+| 2026-03-29 | W13 新增 eval run 版本过滤与发布前固定版本回归检查：`eval-runs/list?sourceType=&versionId=`、`release/preflight?evalCaseVersionId=` |
+| 2026-03-29 | W13 新增 release record 版本治理：绑定 `evalCaseVersionId / baselineEvalRunId / latestEvalRunId`，并提供详情/校验接口 |
+| 2026-03-29 | W13 新增 release record 执行回归接口：`POST /api/admin/governance/release-records/{id}/run-eval` |
+| 2026-03-29 | W13 新增批量版本回归与版本运行概览：`POST /api/admin/governance/eval-case-versions/run-batch`，版本详情补充 `latestRun / recentRuns` |
+| 2026-03-29 | W13 新增 replay checkpoint / tool I/O 细粒度落库，并扩展 replay detail 返回结构 |
+| 2026-03-29 | W13 新增版本快照 compare 接口：`GET /api/admin/governance/eval-case-versions/compare` |
+| 2026-03-29 | W13 新增 gray config 详情 / 应用接口与 release 状态流转接口：`gray-configs/{id}`、`release-records/{id}/apply-gray-config/{configId}`、`release-records/{id}/transition` |
+| 2026-03-29 | W13 新增 `metrics/error-attribution/trend` 与 `eval-cases/stats` 聚合接口 |
+| 2026-03-29 | W13 新增 replay 候选池与批量 bootstrap 接口：`replay/candidates`、`eval-cases/bootstrap-batch-from-replay` |
+| 2026-03-29 | W13 新增 release 事件历史：`governance_release_events`、`release-records/{id}/events`，并对创建/gray config 应用/状态流转/回归执行留痕 |
+
+---
+
+## 下一步建议
+
+1. 继续收尾 W12：补 alias 自动化校验最后收口与修复策略治理
+2. 继续推进 W13：release/gray 流程深化、更多归因维度与趋势、回归池治理
+3. 并行收尾 W08/W09/W10：citation、chunk、真实 realtime gateway 联调
