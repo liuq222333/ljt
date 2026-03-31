@@ -1,6 +1,6 @@
 ﻿# 智能检索系统 - 开发计划
 > 创建日期：2026-03-21
-> 最后更新：2026-03-29
+> 最后更新：2026-03-30
 > 对齐依据：[开发进度.txt](D:\code\aaaaljt\智能检索设计\开发进度.txt)
 
 ---
@@ -14,7 +14,7 @@
 - 实时状态确认
 - 多轮上下文承接
 
-当前系统已完成搜索主链、知识主链、实时层骨架，以及 Python 优先的 Query Parser / Tool Router / Response Composer。计划重点已转入 W12，同步推进生产化收尾。
+当前系统已完成搜索主链、知识主链、实时层骨架，以及 Python 优先的 Query Parser / Tool Router / Response Composer。计划重点已转入 W12 收尾与 W13 真实联调并行推进。
 
 ---
 
@@ -35,7 +35,7 @@
 | W10 | 收口中 | 88% | 实时层 orchestrator、fallback、gateway client 已具备 |
 | W11 | 已完成 | 100% | 多轮会话主干已落地，`W11RegressionBatchTest` 已冻结 |
 | W12 | 进行中 | 92% | 同步、补偿、重建已进入生产化收口，已补全 mismatch detail、按全局 reconcile 批量修复与 baseline report |
-| W13-W14 | 生产阶段 | 99% / 0% | W13 已启动首批治理后端，并补到 replay checkpoint/tool I/O 细粒度落库、replay 候选池与批量 bootstrap、golden case bootstrap、compare、批量导入/导出与批量启停、metrics daily 持久化、错误归因 summary/trend、eval case stats、版本快照、版本快照 compare、基于版本快照直接运行 eval regression、按版本过滤历史 run、发布前固定版本回归检查、release record 绑定版本与基线校验、gray config 应用、release 状态流转、release 事件历史、从 release record 直接触发回归，以及批量版本回归和版本运行概览，W14 尚未开始 |
+| W13-W14 | 生产阶段 | 97% / 0% | W13 已完成 replay checkpoint/tool I/O 细粒度落库、replay 候选池与批量 bootstrap、golden case bootstrap、compare、批量导入/导出与批量启停、metrics daily 持久化、错误归因 summary/trend、eval case stats、版本快照、版本快照 compare、基于版本快照直接运行 eval regression、按版本过滤历史 run、发布前固定版本回归检查、release record 绑定版本与基线校验、gray config 应用、release 状态流转、release 事件历史、从 release record 直接触发回归、批量版本回归和版本运行概览，并已补齐治理后端真实写接口与 focused tests；当前剩余项为治理台五页真实联调验收，W14 尚未开始 |
 
 ---
 
@@ -122,10 +122,11 @@ W10：
 
 ### 阶段 C：W13/W14 预备与生产阶段
 已开始 W13 首批后端能力，后续仍依赖 W12 继续收口。
+截至 2026-03-30，治理后端缺失源码已最小恢复并重新编译通过，当前进入前后端真实联调阶段。
 
 重点：
 - W13：replay、评估集、灰度与版本治理
-  当前已完成 replay 持久化、checkpoint/tool I/O 细粒度回放、replay 候选池与批量 bootstrap、eval run 落库、release/gray 管理接口、gray config 应用、release 状态流转、release 事件历史、preflight、metrics trend、错误归因 summary/trend、eval case stats、golden case bootstrap、eval run compare、golden case 批量导入/导出与批量启停、metrics daily 持久化、golden case 版本快照、版本快照 compare、基于版本快照直接运行 eval regression、按版本过滤历史 run、发布前固定版本回归检查、release record 绑定版本与基线校验、从 release record 直接触发回归，以及批量版本回归和版本运行概览
+  当前已完成 replay 持久化、checkpoint/tool I/O 细粒度回放、replay 候选池与批量 bootstrap、eval run 落库、release/gray 管理接口、gray config 应用、release 状态流转、release 事件历史、preflight、metrics trend、错误归因 summary/trend、eval case stats、golden case bootstrap、eval run compare、golden case 批量导入/导出与批量启停、metrics daily 持久化、golden case 版本快照、版本快照 compare、基于版本快照直接运行 eval regression、按版本过滤历史 run、发布前固定版本回归检查、release record 绑定版本与基线校验、从 release record 直接触发回归、批量版本回归和版本运行概览，以及真实写接口与 focused tests；当前主要剩余项为治理台逐页联调验收
 - W14：压测和上线收尾
 
 ---
@@ -185,9 +186,9 @@ W10：
 
 1. 继续收尾 W12
 2. 并行收尾 W08/W09/W10
-3. 开始 W13
+3. 推进 W13 五页真实联调与验收
 4. 最后做 W14
 
 一句话概括：
 
-当前已经过了“从 0 到 1 搭底座”的阶段，计划重点已转向“W12 同步补偿正式化 + W13 生产治理预备”。 
+当前已经过了“从 0 到 1 搭底座”的阶段，计划重点已转向“W12 同步补偿正式化 + W13 真实联调收口”。 

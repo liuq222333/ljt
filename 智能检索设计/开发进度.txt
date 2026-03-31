@@ -1,6 +1,6 @@
 ﻿# 智能检索系统 - 开发进度跟踪
 > 创建日期：2026-03-21
-> 最后更新：2026-03-29
+> 最后更新：2026-03-30
 > 统计口径：以 `backend/demo1/src/main/java/com/example/demo/demos/` 与 `python/query_parser_langchain/` 的实际代码为准
 
 ---
@@ -22,10 +22,10 @@
 | W10 实时层 | 部分完成 | 88% | 协议、orchestrator、gateway client、snapshot fallback、短缓存已完成 |
 | W11 多轮会话 | 已完成 | 100% | 多轮主链已冻结，`W11RegressionBatchTest` 批量回归套件已完成 |
 | W12 同步、补偿、重建 | 进行中 | 92% | 已完成统一 sync admin、增量入口、死信/重试、按 ID/时间/状态/业务类型补偿、detail reconcile、全局 mismatch detail、按对账结果批量修复、baseline report、版本索引重建、alias 校验、回滚候选发现与自动回滚 |
-| W13 监控评估治理 | 进行中 | 99% | 已完成 replay 主记录 + checkpoint/tool I/O 细粒度落库、eval run 落库、admin governance 首批接口、release/gray 管理接口、gray config 应用、release 状态流转、release 事件历史、preflight、metrics trend、error attribution trend、eval case stats、replay -> golden case、replay 候选池与批量 bootstrap、eval run compare、golden case 批量导入/导出与批量启停、metrics daily 持久化、错误归因 summary、golden case 版本快照、按版本快照直接运行 eval regression、按版本过滤历史 run、版本快照 compare、发布前固定版本回归检查、release record 绑定版本与基线校验、从 release record 直接触发回归并回写 latest/baseline run，以及批量版本回归入口与版本详情最近 runs |
+| W13 监控评估治理 | 进行中 | 97% | 已完成 replay 主记录 + checkpoint/tool I/O 细粒度落库、eval run 落库、admin governance 读写接口、release/gray 管理接口、gray config 应用、release 状态流转、release 事件历史、preflight、metrics trend、error attribution trend、eval case stats、replay -> golden case、replay 候选池与批量 bootstrap、eval run compare、golden case 批量导入/导出与批量启停、metrics daily 持久化、错误归因 summary、golden case 版本快照、按版本快照直接运行 eval regression、按版本过滤历史 run、版本快照 compare、发布前固定版本回归检查、release record 绑定版本与基线校验、从 release record 直接触发回归并回写 latest/baseline run、批量版本回归入口与版本详情最近 runs，以及治理台前端五页骨架；本轮已补齐治理状态持久化、`preflight` 只读化、真实 eval run 执行、版本/运行 compare 修正与前端版本列表修正；当前剩余项为五页真实联调与最终验收，以及发布状态机约束、run 新鲜度规则、治理持久化结构进一步正式化 |
 | W14 联调上线 | 未开始 | 0% | 依赖 W12/W13 |
 
-当前代码完成度约 98%。
+当前代码完成度约 96%。
 
 当前主链形态：
 
@@ -40,7 +40,7 @@
 | M1 搜索 MVP | W00-W08 | 进行中 | W03 已完成，W04-W08 已具备可运行主链，当前卡点主要在 W08 收尾 |
 | M2 知识 + 实时 | W09-W10 | 进行中 | 知识层与实时层均已有正式主链，但仍缺生产级外部接入与治理 |
 | M3 多轮会话 | W11 | 已完成 | 多轮状态承接、续跑、失败恢复、批量 replay / regression 已冻结 |
-| M4 生产就绪 | W12-W14 | 进行中 | W12 持续收尾，W13 已启动首批治理后端，W14 尚未开始 |
+| M4 生产就绪 | W12-W14 | 进行中 | W12 持续收尾，W13 治理后端与治理台前端已基本成型，W14 尚未开始 |
 
 ---
 
@@ -228,10 +228,25 @@
   - 版本详情补充 `latestRun / recentRuns`
   - replay 候选池：按时间范围、问题样本、是否已存在 query 过滤
   - replay 批量 bootstrap：从多个 replay request 一次生成 eval case / golden case
+- 本轮新增（2026-03-30）：
+  - 治理台前端 5 页（总览、回放、评估、发布、联调诊断）已形成可联调结构
+  - 后端治理模块源码缺失已最小恢复，并补齐真实写路径：`AdminGovernanceController` 不再返回 placeholder，已接入 `AdminGovernanceService` 的样本/版本/回归集/release/gray config 写逻辑
+  - 后端重新编译验证通过：`mvn -q -DskipTests compile`
+  - 新增 `AdminGovernanceServiceTest`，覆盖 eval case、版本快照、回归集、release/gray config 的 focused 写路径回归
+  - 补齐治理状态持久化：新增 `governance_admin_states` 与 `GovernanceAdminStateStore`，解决治理写路径重启即丢问题
+  - `release/preflight` 改为只读检查，不再隐式创建 eval run
+  - `createEvalRun` 改为真实执行 `QueryParserService + AgentRuntime`，不再伪造全通过结果
+  - 修正版本快照 compare 与 eval run compare，补齐 `expected* / riskLevel / newCase / removedCase` 差异识别
+  - 前端评估页修正版本列表过滤，不再只看 `golden` bucket
 - 未完成：
-  - golden cases / regression set 治理
+  - 前后端五页真实联调与最终验收
+  - 发布状态机约束：收紧到更符合设计文档的 `draft -> ready -> gray -> released -> rolled_back`
+  - `preflight / verification` 的 run 新鲜度规则
+  - 治理数据持久化从单表 JSON 快照继续演进为更正式的表结构
+  - golden cases / regression set 生产治理细节深化
   - release / gray 流程深化
   - 指标趋势持久化与更多归因维度
+  - 前后端逐页联调与真实数据回显验收（总览、回放、评估、发布、联调诊断）
 
 ### W14 联调上线
 - 状态：未开始
@@ -251,6 +266,7 @@
 | 2026-03-28 | W09 升级为 v2 知识模型，补齐 metadata filter、正式 retrieval 协议、向量重建与调试检索入口 |
 | 2026-03-28 | W11 完成冻结，新增 `W11RegressionBatchTest` 批量回归套件 |
 | 2026-03-28 | W12 新增统一 sync admin、任务记录、死信/重试、增量入口、按时间/ID/状态补偿 |
+| 2026-03-30 | W13 修复治理 review 问题：补齐治理状态持久化、`preflight` 只读化、真实 eval run、版本/运行 compare 修正与前端版本列表修正 |
 | 2026-03-28 | W12 新增版本索引重建、alias 切换/回滚、定向索引补偿 |
 | 2026-03-28 | W12 新增按业务类型补偿：产品按 `categoryId`、知识按 `entityType/entityId` |
 | 2026-03-28 | W12 新增产品/知识 detail reconcile 明细接口与对应回归测试 |
@@ -278,6 +294,7 @@
 | 2026-03-29 | W13 新增 `metrics/error-attribution/trend` 与 `eval-cases/stats` 聚合接口 |
 | 2026-03-29 | W13 新增 replay 候选池与批量 bootstrap 接口：`replay/candidates`、`eval-cases/bootstrap-batch-from-replay` |
 | 2026-03-29 | W13 新增 release 事件历史：`governance_release_events`、`release-records/{id}/events`，并对创建/gray config 应用/状态流转/回归执行留痕 |
+| 2026-03-30 | 治理台联调进入“编译恢复 + 骨架可回显”阶段：补齐 `demosAdmin/Governance` 最小后端源码，修复 `BackendApiProxyService` 类型冲突，后端 `compile` 已重新通过；同时识别到部分写接口仍为 placeholder，已列入下一轮真实联调收口清单 |
 
 ---
 

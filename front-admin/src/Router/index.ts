@@ -7,6 +7,35 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../components/Home.vue'),
     children: [
       {
+        path: '',
+        redirect: '/admin/governance/dashboard'
+      },
+      {
+        path: 'admin/governance/dashboard',
+        name: 'GovernanceDashboard',
+        component: () => import('../components/governance/GovernanceDashboard.vue')
+      },
+      {
+        path: 'admin/governance/replay',
+        name: 'GovernanceReplayCenter',
+        component: () => import('../components/governance/GovernanceReplayCenter.vue')
+      },
+      {
+        path: 'admin/governance/eval',
+        name: 'GovernanceEvalCenter',
+        component: () => import('../components/governance/GovernanceEvalCenter.vue')
+      },
+      {
+        path: 'admin/governance/release',
+        name: 'GovernanceReleaseCenter',
+        component: () => import('../components/governance/GovernanceReleaseCenter.vue')
+      },
+      {
+        path: 'admin/governance/diagnostics',
+        name: 'GovernanceDiagnosticsCenter',
+        component: () => import('../components/governance/GovernanceDiagnosticsCenter.vue')
+      },
+      {
         path: 'notifications/publish',
         name: 'NotificationPublish',
         component: () => import('../components/NotificationPublish.vue')

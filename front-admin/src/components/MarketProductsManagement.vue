@@ -113,12 +113,12 @@ async function fetchList() {
   }
 }
 
-function getFirstImage(jsonStr: string): string | null {
+function getFirstImage(jsonStr: string): string | undefined {
   try {
     const arr = JSON.parse(jsonStr)
     if (Array.isArray(arr) && arr.length > 0) return arr[0]
   } catch (e) {}
-  return null
+  return undefined
 }
 
 function getStatusClass(status: string) {
