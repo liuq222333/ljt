@@ -7,6 +7,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [vue()],
+    test: {
+      environment: 'jsdom',
+      css: true,
+      include: ['src/__tests__/**/*.spec.ts'],
+    },
     server: {
       proxy: {
         '/api': {

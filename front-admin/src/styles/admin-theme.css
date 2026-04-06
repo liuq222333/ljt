@@ -1,0 +1,13 @@
+.admin-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.admin-panel {
+  background: var(--admin-bg-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-panel);
+  box-shadow: var(--admin-shadow-panel);
+}
