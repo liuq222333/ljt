@@ -1,248 +1,168 @@
-﻿<template>
-  <section class="page">
-    <header class="head">
-      <div>
-        <p class="kicker">Governance</p>
-        <h1>治理总览</h1>
-        <p class="desc">集中查看回放、评估、发布、灰度与错误归因的当前状态。</p>
-      </div>
-      <div class="actions">
-        <button class="ghost" @click="copyCurrentLink">复制当前链接</button>
-        <button class="primary" :disabled="loading" @click="loadDashboard">{{ loading ? '刷新中...' : '刷新数据' }}</button>
-      </div>
-    </header>
+<template>
+  <section class="admin-page governance-dashboard">
+    <AdminPageHeader eyebrow="治理" title="治理总览" description="查看治理状态、最近记录与关键待办。">
+      <template #actions>
+        <button class="admin-button admin-button--secondary" type="button" @click="copyCurrentLink">
+          复制链接
+        </button>
+        <button class="admin-button admin-button--primary" type="button" :disabled="loading" @click="loadDashboard">
+          {{ loading ? '刷新中...' : '刷新数据' }}
+        </button>
+      </template>
+    </AdminPageHeader>
 
-    <div v-if="error" class="error">{{ error }}</div>
+    <AdminStateBlock v-if="error" tone="danger" :message="error" />
 
-    <section class="cards">
-      <component
-        :is="card.to ? 'router-link' : 'article'"
+    <section class="admin-metric-grid">
+      <AdminMetricCard
         v-for="card in cards"
         :key="card.label"
-        class="card"
-        :class="{ linkable: Boolean(card.to) }"
-        v-bind="card.to ? { to: card.to } : {}"
-      >
-        <span>{{ card.label }}</span>
-        <strong>{{ card.value }}</strong>
-        <p>{{ card.meta }}</p>
-      </component>
+        :label="card.label"
+        :value="card.value"
+        :meta="card.meta"
+        :to="card.to"
+      />
     </section>
 
-    <section class="quick-grid">
-      <router-link class="quick" to="/admin/governance/replay">
-        <strong>回放中心</strong>
-        <span>排查 request、checkpoint 和 tool I/O</span>
-      </router-link>
-      <router-link class="quick" to="/admin/governance/eval">
-        <strong>评估与回归</strong>
-        <span>管理 golden cases、版本快照和回归集</span>
-      </router-link>
-      <router-link class="quick" to="/admin/governance/release">
-        <strong>发布与灰度</strong>
-        <span>做 preflight、版本回归和灰度流转</span>
-      </router-link>
-      <router-link class="quick" to="/admin/governance/diagnostics">
-        <strong>联调诊断</strong>
-        <span>查看连接模式、本地状态和排查建议</span>
-      </router-link>
-    </section>
-
-    <section class="grid">
-      <article class="panel wide">
-        <h2>最近 7 天趋势</h2>
+    <section class="admin-overview-grid">
+      <AdminPanel class="admin-panel--wide" title="最近趋势" description="最近 7 天回放与降级走势。">
         <div class="trend-list">
           <div v-for="item in trendItems" :key="item.date" class="trend-row">
-            <div class="trend-date">{{ item.date }}</div>
-            <div class="trend-main">
-              <div class="bar"><div class="fill replay" :style="{ width: `${item.replayWidth}%` }"></div></div>
-              <div class="bar"><div class="fill degraded" :style="{ width: `${item.degradedWidth}%` }"></div></div>
+            <div class="trend-date">{{ item.date || '-' }}</div>
+            <div class="trend-bars">
+              <div class="trend-bar">
+                <div class="trend-bar__fill trend-bar__fill--replay" :style="{ width: `${item.replayWidth}%` }" />
+              </div>
+              <div class="trend-bar">
+                <div class="trend-bar__fill trend-bar__fill--degraded" :style="{ width: `${item.degradedWidth}%` }" />
+              </div>
             </div>
             <div class="trend-meta">回放 {{ item.replayTotal }} / 降级 {{ item.degradedTotal }}</div>
           </div>
+          <div v-if="trendItems.length === 0" class="admin-empty">暂无趋势数据</div>
         </div>
-      </article>
+      </AdminPanel>
 
-      <article class="panel">
-        <h2>日聚合指标</h2>
-        <div class="list">
-          <article v-for="item in metricsDaily" :key="item.date" class="item">
-            <div class="item-main">
-              <strong>{{ item.date || '-' }}</strong>
-              <p>回放 {{ item.replayTotal ?? 0 }} / 降级 {{ item.degradedTotal ?? 0 }}</p>
-              <p>错误 {{ item.errorTotal ?? 0 }} / 均耗时 {{ item.avgDurationMs ?? 0 }} ms</p>
-            </div>
+      <AdminPanel title="日聚合指标">
+        <div class="admin-list">
+          <article v-for="item in metricsDaily" :key="item.date" class="admin-list-item">
+            <strong>{{ item.date || '-' }}</strong>
+            <p>回放 {{ item.replayTotal ?? 0 }} / 降级 {{ item.degradedTotal ?? 0 }}</p>
+            <p>错误 {{ item.errorTotal ?? 0 }} / 均耗时 {{ item.avgDurationMs ?? 0 }} ms</p>
           </article>
-          <div v-if="metricsDaily.length === 0" class="empty">暂无日聚合指标</div>
+          <div v-if="metricsDaily.length === 0" class="admin-empty">暂无日聚合指标</div>
         </div>
-      </article>
+      </AdminPanel>
 
-      <article class="panel">
-        <h2>错误归因摘要</h2>
-        <ul class="summary">
+      <AdminPanel title="系统状态">
+        <ul class="admin-summary">
           <li><span>错误总量</span><strong>{{ dashboard.error_attribution_summary?.error_total ?? 0 }}</strong></li>
           <li><span>降级总量</span><strong>{{ dashboard.error_attribution_summary?.degraded_total ?? 0 }}</strong></li>
           <li><span>错误率</span><strong>{{ formatRate(dashboard.error_attribution_summary?.error_rate) }}</strong></li>
           <li><span>降级率</span><strong>{{ formatRate(dashboard.error_attribution_summary?.degraded_rate) }}</strong></li>
-        </ul>
-      </article>
-
-      <article class="panel">
-        <h2>评估池概况</h2>
-        <ul class="summary">
-          <li><span>总样本</span><strong>{{ dashboard.eval_case_stats?.total ?? 0 }}</strong></li>
-          <li><span>启用样本</span><strong>{{ dashboard.eval_case_stats?.enabled_total ?? 0 }}</strong></li>
-          <li><span>停用样本</span><strong>{{ dashboard.eval_case_stats?.disabled_total ?? 0 }}</strong></li>
+          <li><span>评估总样本</span><strong>{{ dashboard.eval_case_stats?.total ?? 0 }}</strong></li>
           <li><span>高风险样本</span><strong>{{ riskCount('high') }}</strong></li>
         </ul>
-      </article>
+      </AdminPanel>
 
-      <article class="panel">
-        <h2>联调检查清单</h2>
-        <div class="list">
+      <AdminPanel class="admin-panel--wide" title="最近记录">
+        <div class="record-columns">
+          <section class="record-group">
+            <h3>最近发布</h3>
+            <div class="admin-list">
+              <router-link
+                v-for="item in dashboard.recent_releases || []"
+                :key="item.id"
+                class="admin-list-item admin-list-item--link"
+                :to="{ path: '/admin/governance/release', query: { releaseId: item.id } }"
+              >
+                <strong>{{ item.releaseName }}</strong>
+                <p>{{ item.releaseStatus || 'draft' }} / {{ item.targetScope || '-' }}</p>
+              </router-link>
+              <div v-if="!(dashboard.recent_releases || []).length" class="admin-empty">暂无发布记录</div>
+            </div>
+          </section>
+
+          <section class="record-group">
+            <h3>最近回放</h3>
+            <div class="admin-list">
+              <router-link
+                v-for="item in dashboard.recent_replays || []"
+                :key="item.requestId"
+                class="admin-list-item admin-list-item--link"
+                :to="{ path: '/admin/governance/replay', query: { request: item.requestId } }"
+              >
+                <strong>{{ item.lastUserMessage || item.requestId }}</strong>
+                <p>{{ item.taskType || 'unknown' }} / {{ item.answerType || 'unknown' }}</p>
+              </router-link>
+              <div v-if="!(dashboard.recent_replays || []).length" class="admin-empty">暂无回放记录</div>
+            </div>
+          </section>
+
+          <section class="record-group">
+            <h3>最近评估版本</h3>
+            <div class="admin-list">
+              <router-link
+                v-for="item in dashboard.recent_eval_versions || []"
+                :key="item.id"
+                class="admin-list-item admin-list-item--link"
+                :to="{ path: '/admin/governance/eval', query: { versionId: item.id } }"
+              >
+                <strong>{{ item.versionName }}</strong>
+                <p>{{ item.bucket || 'all' }} / {{ item.totalCases ?? 0 }} 条</p>
+              </router-link>
+              <div v-if="!(dashboard.recent_eval_versions || []).length" class="admin-empty">暂无评估版本</div>
+            </div>
+          </section>
+        </div>
+      </AdminPanel>
+
+      <AdminPanel title="关键待办">
+        <div class="admin-list">
           <router-link
             v-for="item in integrationChecks"
             :key="item.label"
-            class="item link-item checklist-item"
+            class="admin-list-item admin-list-item--link checklist-item"
             :to="item.to"
           >
-            <div class="item-main">
+            <div class="checklist-main">
               <strong>{{ item.label }}</strong>
               <p>{{ item.detail }}</p>
             </div>
-            <span class="check-badge" :class="item.level">{{ item.status }}</span>
+            <span class="check-badge" :class="`check-badge--${item.level}`">{{ item.status }}</span>
           </router-link>
         </div>
-      </article>
+      </AdminPanel>
 
-      <article class="panel">
-        <h2>错误趋势</h2>
-        <div class="list">
-          <article v-for="item in errorTrendItems" :key="item.date" class="item">
-            <div class="item-main">
-              <strong>{{ item.date || '-' }}</strong>
-              <p>错误 {{ item.errorTotal ?? 0 }} / 降级 {{ item.degradedTotal ?? 0 }}</p>
-              <p>Top 节点：{{ item.topFailedNode || '-' }}</p>
-            </div>
+      <AdminPanel title="错误趋势">
+        <div class="admin-list">
+          <article v-for="item in errorTrendItems" :key="item.date" class="admin-list-item">
+            <strong>{{ item.date || '-' }}</strong>
+            <p>错误 {{ item.errorTotal ?? 0 }} / 降级 {{ item.degradedTotal ?? 0 }}</p>
+            <p>Top 节点：{{ item.topFailedNode || '-' }}</p>
           </article>
-          <div v-if="errorTrendItems.length === 0" class="empty">暂无错误趋势</div>
+          <div v-if="errorTrendItems.length === 0" class="admin-empty">暂无错误趋势</div>
         </div>
-      </article>
-
-      <article class="panel">
-        <h2>最近发布</h2>
-        <div class="list">
-          <router-link
-            v-for="item in dashboard.recent_releases || []"
-            :key="item.id"
-            class="item link-item"
-            :to="{ path: '/admin/governance/release', query: { releaseId: item.id } }"
-          >
-            <div class="item-main">
-              <strong>{{ item.releaseName }}</strong>
-              <p>{{ item.releaseStatus || 'draft' }} / {{ item.targetScope || '-' }}</p>
-            </div>
-          </router-link>
-          <div v-if="!(dashboard.recent_releases || []).length" class="empty">暂无发布记录</div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <h2>最近回放</h2>
-        <div class="list">
-          <router-link
-            v-for="item in dashboard.recent_replays || []"
-            :key="item.requestId"
-            class="item link-item"
-            :to="{ path: '/admin/governance/replay', query: { request: item.requestId } }"
-          >
-            <div class="item-main">
-              <strong>{{ item.lastUserMessage || item.requestId }}</strong>
-              <p>{{ item.taskType || 'unknown' }} / {{ item.answerType || 'unknown' }}</p>
-            </div>
-          </router-link>
-          <div v-if="!(dashboard.recent_replays || []).length" class="empty">暂无回放记录</div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <h2>最近版本快照</h2>
-        <div class="list">
-          <router-link
-            v-for="item in dashboard.recent_eval_versions || []"
-            :key="item.id"
-            class="item link-item"
-            :to="{ path: '/admin/governance/eval', query: { versionId: item.id } }"
-          >
-            <div class="item-main">
-              <strong>{{ item.versionName }}</strong>
-              <p>{{ item.bucket || 'all' }} / {{ item.totalCases ?? 0 }} 条</p>
-            </div>
-          </router-link>
-          <div v-if="!(dashboard.recent_eval_versions || []).length" class="empty">暂无版本快照</div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <h2>最近回归集</h2>
-        <div class="list">
-          <router-link
-            v-for="item in dashboard.recent_regression_sets || []"
-            :key="item.id"
-            class="item link-item"
-            :to="{ path: '/admin/governance/eval', query: { regressionId: item.id } }"
-          >
-            <div class="item-main">
-              <strong>{{ item.setName }}</strong>
-              <p>{{ item.bucket || 'all' }} / {{ item.totalCases ?? 0 }} 条 / {{ item.riskLevel || 'mixed' }}</p>
-            </div>
-          </router-link>
-          <div v-if="!(dashboard.recent_regression_sets || []).length" class="empty">暂无回归集</div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <h2>最近灰度配置</h2>
-        <div class="list">
-          <router-link
-            v-for="item in dashboard.recent_gray_configs || []"
-            :key="item.id"
-            class="item link-item"
-            :to="{ path: '/admin/governance/release', query: { grayConfigId: item.id } }"
-          >
-            <div class="item-main">
-              <strong>{{ item.configName }}</strong>
-              <p>{{ item.queryBucket || 'all' }} / {{ item.trafficPercent ?? 0 }}% / {{ item.enabled ? '启用' : '停用' }}</p>
-            </div>
-          </router-link>
-          <div v-if="!(dashboard.recent_gray_configs || []).length" class="empty">暂无灰度配置</div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <h2>最近评估运行</h2>
-        <div class="list">
-          <router-link
-            v-for="item in dashboard.recent_eval_runs || []"
-            :key="item.id"
-            class="item link-item"
-            :to="{ path: '/admin/governance/eval', query: { runId: item.id } }"
-          >
-            <div class="item-main">
-              <strong>#{{ item.id }} / {{ item.sourceType || 'live_cases' }}</strong>
-              <p>{{ item.bucket || 'all' }} / 通过率 {{ formatRate(item.passRate) }}</p>
-            </div>
-          </router-link>
-          <div v-if="!(dashboard.recent_eval_runs || []).length" class="empty">暂无评估运行</div>
-        </div>
-      </article>
+      </AdminPanel>
     </section>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { fetchErrorAttributionTrend, fetchGovernanceDashboard, fetchGovernanceMetricsDaily, getGovernanceApiBase, type GovernanceDashboard, type GovernanceErrorAttributionTrendItem, type GovernanceMetricsDailyItem } from '../../api/adminGovernance'
+import {
+  fetchErrorAttributionTrend,
+  fetchGovernanceDashboard,
+  fetchGovernanceMetricsDaily,
+  getGovernanceApiBase,
+  type GovernanceDashboard,
+  type GovernanceErrorAttributionTrendItem,
+  type GovernanceMetricsDailyItem,
+} from '../../api/adminGovernance'
+import AdminMetricCard from '../admin/AdminMetricCard.vue'
+import AdminPageHeader from '../admin/AdminPageHeader.vue'
+import AdminPanel from '../admin/AdminPanel.vue'
+import AdminStateBlock from '../admin/AdminStateBlock.vue'
 
 const loading = ref(false)
 const error = ref('')
@@ -288,7 +208,7 @@ const trendItems = computed(() => {
   const maxReplay = Math.max(1, ...source.map((item) => Number(item.replay_total || 0)))
   const maxDegraded = Math.max(1, ...source.map((item) => Number(item.degraded_total || 0)))
   return source.map((item) => ({
-    date: item.date,
+    date: item.date as string | undefined,
     replayTotal: Number(item.replay_total || 0),
     degradedTotal: Number(item.degraded_total || 0),
     replayWidth: (Number(item.replay_total || 0) / maxReplay) * 100,
@@ -304,12 +224,13 @@ const integrationChecks = computed(() => {
   const enabledCases = Number(dashboard.value.eval_case_stats?.enabled_total || 0)
   const releaseTotal = (dashboard.value.recent_releases || []).length
   const w12Ready = Boolean(dashboard.value.overview?.w12_ready)
+  const apiBase = getGovernanceApiBase()
   return [
     {
       label: '治理后端模式',
-      status: getGovernanceApiBase() ? '直连' : '代理',
+      status: apiBase ? '直连' : '代理',
       level: 'info',
-      detail: getGovernanceApiBase() || '使用本地 /api 代理',
+      detail: apiBase || '使用本地 /api 代理',
       to: '/admin/governance/dashboard',
     },
     {
@@ -345,7 +266,11 @@ const integrationChecks = computed(() => {
 
 async function copyCurrentLink() {
   try {
-    await navigator.clipboard.writeText(window.location.href)
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(window.location.href)
+      return
+    }
+    error.value = '当前环境不支持复制链接'
   } catch {
     error.value = '复制链接失败'
   }
@@ -374,5 +299,229 @@ onMounted(loadDashboard)
 </script>
 
 <style scoped>
-.page{display:flex;flex-direction:column;gap:20px}.head,.actions{display:flex;gap:16px;align-items:flex-start}.head{justify-content:space-between}.kicker{margin:0 0 6px;color:#0ea5e9;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase}.head h1{margin:0;font-size:30px}.desc{margin:8px 0 0;color:#52606d}.cards,.grid,.quick-grid{display:grid;gap:16px}.cards{grid-template-columns:repeat(4,minmax(0,1fr))}.quick-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.panel.wide{grid-column:span 2}.card,.panel,.quick{border-radius:20px;background:#fff;padding:18px;border:1px solid rgba(148,163,184,.12);box-shadow:0 18px 40px rgba(15,23,42,.08)}.card{display:block;color:#0f172a;text-decoration:none}.card.linkable{transition:.18s ease}.card.linkable:hover{border-color:#7dd3fc;background:#f0f9ff;transform:translateY(-1px)}.card span{color:#64748b;font-size:13px}.card strong{display:block;margin-top:10px;font-size:28px}.quick,.link-item{display:flex;flex-direction:column;gap:8px;text-decoration:none;color:#0f172a;background:linear-gradient(180deg,#ffffff,#f8fafc)}.quick span{color:#64748b;font-size:13px}.panel h2{margin:0 0 14px;font-size:18px}.trend-list,.list{display:flex;flex-direction:column;gap:10px}.trend-row,.item{display:flex;gap:12px;padding:12px 14px;border-radius:16px;background:#f8fafc;border:1px solid #e2e8f0}.link-item{transition:.18s ease}.link-item:hover{border-color:#7dd3fc;background:#f0f9ff}.checklist-item{flex-direction:row;justify-content:space-between;align-items:center}.check-badge{padding:6px 10px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:12px;font-weight:700}.check-badge.good{background:#ccfbf1;color:#0f766e}.check-badge.warn{background:#ffedd5;color:#9a3412}.check-badge.info{background:#dbeafe;color:#1d4ed8}.trend-date{width:96px;font-weight:700}.trend-main{flex:1;display:flex;flex-direction:column;gap:8px}.trend-meta{width:180px;text-align:right;color:#475569;font-size:13px}.bar{height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden}.fill{height:100%;border-radius:999px}.fill.replay{background:#0284c7}.fill.degraded{background:#ea580c}.item-main strong{display:block;margin-bottom:4px}.item-main p{margin:0;color:#64748b;font-size:13px}.summary{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}.summary li{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0}.summary span{color:#64748b}.primary,.ghost{border:0;border-radius:14px;padding:11px 16px;cursor:pointer;font-weight:600}.primary{background:linear-gradient(135deg,#0f172a,#0f766e);color:#fff}.ghost{background:#e2e8f0;color:#334155}.error,.empty{padding:12px 16px;border-radius:14px}.error{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}.empty{color:#94a3b8;text-align:center}@media (max-width:980px){.head,.cards,.grid,.quick-grid{grid-template-columns:1fr;display:grid}.panel.wide{grid-column:auto}.trend-row,.item,.checklist-item{flex-direction:column}.trend-date,.trend-meta{width:auto;text-align:left}}
+.governance-dashboard {
+  gap: 12px;
+}
+
+.admin-button {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-button--secondary {
+  background: var(--admin-bg-surface);
+  color: var(--admin-text-secondary);
+}
+
+.admin-button--secondary:hover {
+  border-color: var(--admin-border-strong);
+  color: var(--admin-text-primary);
+}
+
+.admin-button--primary {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent);
+  color: #ffffff;
+}
+
+.admin-button--primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.admin-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.9fr);
+  gap: 12px;
+}
+
+.admin-panel--wide {
+  grid-column: 1 / -1;
+}
+
+.trend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trend-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 170px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-bg-subtle);
+}
+
+.trend-date {
+  color: var(--admin-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trend-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.trend-bar {
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+
+.trend-bar__fill {
+  height: 100%;
+}
+
+.trend-bar__fill--replay {
+  background: #2f5f95;
+}
+
+.trend-bar__fill--degraded {
+  background: #b5612a;
+}
+
+.trend-meta {
+  text-align: right;
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+}
+
+.admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-list-item {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-bg-subtle);
+  padding: 10px;
+}
+
+.admin-list-item strong {
+  display: block;
+  color: var(--admin-text-primary);
+  font-size: 13px;
+}
+
+.admin-list-item p {
+  margin: 4px 0 0;
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+}
+
+.admin-list-item--link {
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.admin-list-item--link:hover {
+  border-color: var(--admin-border-strong);
+  background: #f0f3f7;
+}
+
+.admin-summary {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-summary li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-bg-subtle);
+  padding: 9px 10px;
+}
+
+.admin-summary span {
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+}
+
+.admin-summary strong {
+  color: var(--admin-text-primary);
+  font-size: 13px;
+}
+
+.record-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.record-group h3 {
+  margin: 0 0 8px;
+  color: var(--admin-text-primary);
+  font-size: 13px;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.checklist-main {
+  min-width: 0;
+}
+
+.check-badge {
+  border-radius: var(--admin-radius-control);
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.check-badge--good {
+  background: #eaf6ef;
+  color: #1f7a4d;
+}
+
+.check-badge--warn {
+  background: #fcf3e5;
+  color: #9b6811;
+}
+
+.check-badge--info {
+  background: #eaf0f8;
+  color: #2d5887;
+}
+
+.admin-empty {
+  border: 1px dashed var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  padding: 10px;
+  color: var(--admin-text-muted);
+  font-size: 12px;
+  text-align: center;
+}
 </style>

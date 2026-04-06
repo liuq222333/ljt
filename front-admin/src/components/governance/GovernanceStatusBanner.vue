@@ -1,14 +1,16 @@
 <template>
-  <div class="banner" :class="bannerClass">
-    <div class="content">
+  <div class="governance-status-banner" :class="bannerClass">
+    <div class="governance-status-banner__content">
       <strong>治理联调状态</strong>
       <span>{{ description }}</span>
-      <span v-if="probe.checkedAt" class="muted">最近检测：{{ checkedAtLabel }}</span>
+      <span v-if="probe.checkedAt" class="governance-status-banner__muted">最近检测：{{ checkedAtLabel }}</span>
     </div>
-    <div class="actions">
-      <code class="meta">{{ probe.mode }}</code>
-      <code v-if="probe.latencyMs !== undefined" class="meta">{{ probe.latencyMs }} ms</code>
-      <button class="ghost" :disabled="loading" @click="runProbe">{{ loading ? '检测中...' : '重新检测' }}</button>
+    <div class="governance-status-banner__actions">
+      <code class="governance-status-banner__meta">{{ probe.mode }}</code>
+      <code v-if="probe.latencyMs !== undefined" class="governance-status-banner__meta">{{ probe.latencyMs }} ms</code>
+      <button class="governance-status-banner__button" :disabled="loading" type="button" @click="runProbe">
+        {{ loading ? '检测中...' : '重新检测' }}
+      </button>
     </div>
   </div>
 </template>
@@ -29,8 +31,8 @@ const probe = ref<GovernanceBackendProbeResult>({
 })
 
 const bannerClass = computed(() => {
-  if (loading.value) return 'checking'
-  return probe.value.ok ? 'healthy' : 'warn'
+  if (loading.value) return 'is-checking'
+  return probe.value.ok ? 'is-healthy' : 'is-warn'
 })
 
 const description = computed(() => {
@@ -69,86 +71,81 @@ onMounted(runProbe)
 </script>
 
 <style scoped>
-.banner {
+.governance-status-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 18px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
-  color: #0f172a;
+  padding: 10px 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-panel);
+  background: var(--admin-bg-surface);
 }
 
-.banner.healthy {
-  background: linear-gradient(90deg, rgba(20, 184, 166, 0.14), rgba(45, 212, 191, 0.08));
-  border-bottom-color: rgba(20, 184, 166, 0.2);
+.governance-status-banner.is-healthy {
+  border-color: #b8dfcb;
+  background: #ebf8f1;
 }
 
-.banner.warn {
-  background: linear-gradient(90deg, rgba(245, 158, 11, 0.14), rgba(251, 191, 36, 0.08));
-  border-bottom-color: rgba(245, 158, 11, 0.2);
+.governance-status-banner.is-warn {
+  border-color: #edd8a5;
+  background: #fcf8ec;
 }
 
-.banner.checking {
-  background: linear-gradient(90deg, rgba(59, 130, 246, 0.14), rgba(125, 211, 252, 0.08));
-  border-bottom-color: rgba(59, 130, 246, 0.2);
+.governance-status-banner.is-checking {
+  border-color: #bdd2ea;
+  background: #edf4fc;
 }
 
-.content {
+.governance-status-banner__content {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-
-.content strong {
-  font-size: 13px;
-}
-
-.content span {
-  color: #475569;
-  font-size: 13px;
-}
-
-.muted {
-  color: #64748b;
-}
-
-.actions {
-  display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
-.meta {
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-  color: #0f172a;
+.governance-status-banner__content strong {
+  color: var(--admin-text-primary);
   font-size: 12px;
 }
 
-.ghost {
-  border: 0;
-  border-radius: 999px;
-  padding: 7px 12px;
-  background: rgba(255, 255, 255, 0.8);
-  color: #334155;
+.governance-status-banner__content span {
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+}
+
+.governance-status-banner__muted {
+  color: var(--admin-text-muted);
+}
+
+.governance-status-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.governance-status-banner__meta {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-bg-surface);
+  padding: 2px 8px;
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+}
+
+.governance-status-banner__button {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-bg-surface);
+  color: var(--admin-text-secondary);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
 }
 
-.ghost:disabled {
+.governance-status-banner__button:disabled {
   cursor: not-allowed;
   opacity: 0.72;
-}
-
-@media (max-width: 900px) {
-  .banner {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }
 </style>
