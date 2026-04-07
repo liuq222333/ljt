@@ -1,70 +1,98 @@
 <template>
-  <div class="page">
-    <div class="toolbar">
-      <div class="filters">
-        <label>
-          关键字
-          <input v-model="keyword" type="text" placeholder="标题/描述" />
-        </label>
-        <button class="primary" :disabled="loading" @click="fetchList">刷新</button>
-      </div>
-    </div>
+  <section class="admin-page market-products-page">
+    <AdminPageHeader eyebrow="运营管理" title="二手市场管理" description="查看商品信息、快速过滤并执行删除处理。">
+      <template #actions>
+        <button class="admin-button admin-button--secondary" type="button" :disabled="loading" @click="fetchList">
+          {{ loading ? '刷新中...' : '刷新列表' }}
+        </button>
+      </template>
+    </AdminPageHeader>
 
-    <div class="card">
-      <table class="table">
-        <thead>
-          <tr>
-            <th style="width: 60px;">ID</th>
-            <th style="width: 80px;">图片</th>
-            <th style="min-width: 200px;">标题</th>
-            <th style="width: 100px;">价格</th>
-            <th style="width: 100px;">分类ID</th>
-            <th style="width: 100px;">状态</th>
-            <th style="width: 100px;">卖家ID</th>
-            <th style="width: 160px;">发布时间</th>
-            <th style="width: 100px;" class="sticky-col">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in filteredItems" :key="item.id">
-            <td>{{ item.id }}</td>
-            <td>
-              <img v-if="getFirstImage(item.imageUrls)" :src="getFirstImage(item.imageUrls)" class="thumb" />
-              <span v-else class="no-img">无图</span>
-            </td>
-            <td>
-              <div class="title" :title="item.title">{{ item.title }}</div>
-              <div class="desc" :title="item.description">{{ item.description }}</div>
-            </td>
-            <td class="price">¥{{ item.price }}</td>
-            <td>{{ item.categoryId }}</td>
-            <td>
-              <span class="badge" :class="getStatusClass(item.status)">{{ item.status }}</span>
-            </td>
-            <td>{{ item.sellerId }}</td>
-            <td>{{ formatDate(item.createdAt) }}</td>
-            <td class="sticky-col">
-              <div class="row-actions">
-                <button class="danger" @click="deleteItem(item)">删除</button>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="!loading && filteredItems.length===0">
-            <td colspan="9" class="empty">暂无数据</td>
-          </tr>
-          <tr v-if="loading">
-            <td colspan="9" class="empty">加载中...</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
+    <AdminToolbar>
+      <template #filters>
+        <label class="filter-field filter-field--search">
+          <span>搜索</span>
+          <input v-model="keyword" type="text" placeholder="按标题或描述过滤" />
+        </label>
+        <button class="admin-button admin-button--secondary" type="button" :disabled="loading" @click="clearSearch">
+          清空搜索
+        </button>
+      </template>
+      <template #actions>
+        <div class="toolbar-meta">
+          <span class="meta-chip">总数 {{ filteredItems.length }}</span>
+          <span class="meta-chip">在售 {{ activeCount }}</span>
+          <span class="meta-chip">已售 {{ soldCount }}</span>
+          <span class="meta-chip">下架 {{ inactiveCount }}</span>
+        </div>
+      </template>
+    </AdminToolbar>
+
+    <AdminPanel title="商品列表" description="当前为全量拉取后在前端过滤，适合日常内容巡检。">
+      <div class="table-shell">
+        <table class="admin-data-table market-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>商品</th>
+              <th>价格</th>
+              <th>分类</th>
+              <th>状态</th>
+              <th>卖家 ID</th>
+              <th>发布时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in filteredItems" :key="item.id">
+              <td>{{ item.id }}</td>
+              <td>
+                <div class="product-cell">
+                  <img v-if="getFirstImage(item.imageUrls)" :src="getFirstImage(item.imageUrls)" class="thumb" alt="商品图片" />
+                  <div v-else class="thumb thumb--placeholder">无图</div>
+                  <div class="product-copy">
+                    <strong>{{ item.title }}</strong>
+                    <p>{{ item.description || '暂无描述' }}</p>
+                  </div>
+                </div>
+              </td>
+              <td class="price-cell">¥ {{ formatPrice(item.price) }}</td>
+              <td>{{ item.categoryId }}</td>
+              <td>
+                <span class="state-pill" :class="statusClass(item.status)">
+                  {{ item.status || '未知' }}
+                </span>
+              </td>
+              <td>{{ item.sellerId }}</td>
+              <td>{{ formatDate(item.createdAt) }}</td>
+              <td>
+                <div class="row-actions">
+                  <button class="admin-button admin-button--danger admin-button--small" type="button" @click="deleteItem(item)">
+                    删除
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!loading && filteredItems.length === 0">
+              <td colspan="8" class="empty-state">暂无商品数据</td>
+            </tr>
+            <tr v-if="loading">
+              <td colspan="8" class="empty-state">正在加载商品列表...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </AdminPanel>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import AdminPageHeader from './admin/AdminPageHeader.vue'
+import AdminPanel from './admin/AdminPanel.vue'
+import AdminToolbar from './admin/AdminToolbar.vue'
 
-interface Product {
+type Product = {
   id: number
   sellerId: number
   categoryId: number
@@ -86,229 +114,308 @@ const items = ref<Product[]>([])
 const loading = ref(false)
 const keyword = ref('')
 
-// Client-side filtering since getAllProducts returns everything
 const filteredItems = computed(() => {
-  if (!keyword.value) return items.value
-  const k = keyword.value.toLowerCase()
-  return items.value.filter(i => 
-    (i.title && i.title.toLowerCase().includes(k)) || 
-    (i.description && i.description.toLowerCase().includes(k))
-  )
+  if (!keyword.value.trim()) return items.value
+  const normalizedKeyword = keyword.value.trim().toLowerCase()
+  return items.value.filter((item) => {
+    return (
+      item.title?.toLowerCase().includes(normalizedKeyword) ||
+      item.description?.toLowerCase().includes(normalizedKeyword)
+    )
+  })
 })
+
+const activeCount = computed(() => filteredItems.value.filter((item) => statusKey(item.status) === 'active').length)
+const soldCount = computed(() => filteredItems.value.filter((item) => statusKey(item.status) === 'sold').length)
+const inactiveCount = computed(() => filteredItems.value.filter((item) => statusKey(item.status) === 'inactive').length)
 
 async function fetchList() {
   loading.value = true
   try {
-    const resp = await fetch(`${API_BASE}/api/products/getAllProducts`)
-    if (resp.ok) {
-      const data = await resp.json()
-      items.value = Array.isArray(data) ? data : []
-    } else {
-      console.error('Failed to fetch products')
+    const response = await fetch(`${API_BASE}/api/products/getAllProducts`)
+    if (!response.ok) {
+      throw new Error('获取商品失败')
     }
-  } catch (e) {
-    console.error(e)
+    const data = await response.json()
+    items.value = Array.isArray(data) ? data : []
+  } catch (error) {
+    console.error(error)
+    window.alert('获取商品失败')
   } finally {
     loading.value = false
   }
 }
 
-function getFirstImage(jsonStr: string): string | undefined {
+function clearSearch() {
+  keyword.value = ''
+}
+
+function getFirstImage(jsonValue: string): string | undefined {
   try {
-    const arr = JSON.parse(jsonStr)
-    if (Array.isArray(arr) && arr.length > 0) return arr[0]
-  } catch (e) {}
+    const images = JSON.parse(jsonValue)
+    if (Array.isArray(images) && images.length > 0) {
+      return images[0]
+    }
+  } catch (error) {
+    console.error(error)
+  }
   return undefined
 }
 
-function getStatusClass(status: string) {
-  if (status === '在售') return 's-active'
-  if (status === '已售出') return 's-sold'
-  if (status === '已下架') return 's-inactive'
-  return 's-default'
+function statusKey(status: string) {
+  const raw = (status || '').trim()
+  const upper = raw.toUpperCase()
+
+  if (raw === '在售' || upper === 'ACTIVE' || upper === 'ON_SALE') return 'active'
+  if (raw === '已售出' || upper === 'SOLD') return 'sold'
+  if (raw === '已下架' || upper === 'INACTIVE' || upper === 'OFFLINE') return 'inactive'
+  return 'default'
 }
 
-function formatDate(dateStr: string) {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleString()
-}
-
-async function deleteItem(item: Product) {
-  if (!confirm(`确定要删除商品 "${item.title}" (ID: ${item.id}) 吗？`)) return
-
-  try {
-    const resp = await fetch(`${API_BASE}/admin/market/products/${item.id}`, {
-      method: 'DELETE'
-    })
-    const res = await resp.json()
-    if (res.code === 200) {
-      alert('删除成功')
-      fetchList()
-    } else {
-      alert(res.message || '删除失败')
-    }
-  } catch (e) {
-    console.error(e)
-    alert('请求失败')
+function statusClass(status: string) {
+  switch (statusKey(status)) {
+    case 'active':
+      return 'state-pill--info'
+    case 'sold':
+      return 'state-pill--neutral'
+    case 'inactive':
+      return 'state-pill--danger'
+    default:
+      return 'state-pill--warning'
   }
 }
 
-onMounted(() => {
-  fetchList()
-})
+function formatPrice(value: number) {
+  const price = Number(value)
+  if (Number.isNaN(price)) return '-'
+  return price.toFixed(2)
+}
+
+function formatDate(value: string) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString()
+}
+
+async function deleteItem(item: Product) {
+  if (!window.confirm(`确认删除商品“${item.title}”（ID: ${item.id}）吗？`)) return
+
+  try {
+    const response = await fetch(`${API_BASE}/admin/market/products/${item.id}`, {
+      method: 'DELETE',
+    })
+    const data = await response.json()
+    if (!response.ok || data?.code !== 200) {
+      throw new Error(data?.message || '删除失败')
+    }
+    window.alert('商品已删除')
+    fetchList()
+  } catch (error: any) {
+    console.error(error)
+    window.alert(error?.message || '删除失败')
+  }
+}
+
+onMounted(fetchList)
 </script>
 
 <style scoped>
-.page {
-  padding: 20px;
-  max-width: 100%;
-  box-sizing: border-box;
+.market-products-page {
+  gap: 12px;
 }
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-.filters {
-  display: flex;
-  gap: 15px;
-  align-items: center;
-}
-.filters label {
+
+.filter-field {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
-  color: #666;
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
 }
-.filters input {
-  padding: 6px 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  width: 200px;
-}
-.card {
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  overflow: hidden; /* Contains the table */
-  overflow-x: auto;
-}
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 1000px;
-  table-layout: fixed;
-}
-.table th, .table td {
-  padding: 12px 15px;
-  text-align: left;
-  border-bottom: 1px solid #eee;
-  font-size: 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+
+.filter-field span {
   white-space: nowrap;
 }
-.table th {
-  background-color: #f8f9fa;
+
+.filter-field input {
+  min-width: 0;
+  height: 32px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-bg-surface);
+  color: var(--admin-text-primary);
+  padding: 0 10px;
+  font-size: 13px;
+  outline: none;
+}
+
+.filter-field--search {
+  min-width: 280px;
+}
+
+.filter-field input:focus {
+  border-color: var(--admin-border-strong);
+  box-shadow: 0 0 0 3px rgba(37, 50, 68, 0.08);
+}
+
+.toolbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-bg-subtle);
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.admin-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-bg-surface);
+  color: var(--admin-text-primary);
+  font-size: 12px;
   font-weight: 600;
-  color: #333;
+  cursor: pointer;
 }
-.table .sticky-col {
-  position: sticky;
-  right: 0;
-  background-color: #fff; /* Match row bg */
-  z-index: 1;
-  border-left: 1px solid #f0f0f0;
-  box-shadow: -2px 0 6px rgba(0,0,0,0.04);
+
+.admin-button:hover {
+  border-color: var(--admin-border-strong);
 }
-.table th.sticky-col {
-  background-color: #f8f9fa; /* Match header bg */
-  z-index: 2; /* Header sticky must be above row sticky */
+
+.admin-button:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.admin-button--secondary {
+  background: var(--admin-bg-subtle);
+}
+
+.admin-button--danger {
+  border-color: #e5b3ab;
+  background: #fbeeed;
+  color: var(--admin-danger);
+}
+
+.admin-button--small {
+  height: 30px;
+  padding: 0 10px;
+}
+
+.table-shell {
+  overflow: auto;
+}
+
+.market-table {
+  min-width: 1180px;
+}
+
+.product-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 280px;
 }
 
 .thumb {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--admin-border);
+  border-radius: 6px;
   object-fit: cover;
-  border-radius: 4px;
-  background: #f0f0f0;
-}
-.no-img {
-  display: inline-block;
-  width: 40px;
-  height: 40px;
-  line-height: 40px;
-  text-align: center;
-  background: #f0f0f0;
-  color: #999;
-  font-size: 12px;
-  border-radius: 4px;
+  background: var(--admin-bg-subtle);
+  flex-shrink: 0;
 }
 
-.title {
-  font-weight: 500;
-  color: #333;
-  margin-bottom: 2px;
-}
-.desc {
+.thumb--placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--admin-text-muted);
   font-size: 12px;
-  color: #888;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.price {
-  color: #f5222d;
-  font-weight: 600;
 }
 
-/* Badges */
-.badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
+.product-copy strong {
+  display: block;
+  color: var(--admin-text-primary);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.product-copy p {
+  margin: 4px 0 0;
+  color: var(--admin-text-muted);
   font-size: 12px;
   line-height: 1.5;
 }
-.s-active { background: #e6f7ff; color: #1890ff; }
-.s-sold { background: #f5f5f5; color: #8c8c8c; }
-.s-inactive { background: #fff1f0; color: #f5222d; }
-.s-default { background: #f5f5f5; color: #666; }
 
-/* Buttons */
-.primary {
-  background: #1890ff;
-  color: #fff;
-  border: none;
-  padding: 6px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: opacity 0.2s;
+.price-cell {
+  color: #8c2f12;
+  font-weight: 700;
+  white-space: nowrap;
 }
-.primary:hover { opacity: 0.9; }
-.primary:disabled { background: #ccc; cursor: not-allowed; }
 
-.danger {
-  background: #ff4d4f;
-  color: #fff;
-  border: none;
+.state-pill {
+  display: inline-flex;
+  align-items: center;
   padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
+  border-radius: 999px;
+  border: 1px solid transparent;
   font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
 }
-.danger:hover { opacity: 0.9; }
+
+.state-pill--neutral {
+  background: var(--admin-accent-soft);
+  border-color: #d9e1ec;
+  color: var(--admin-accent);
+}
+
+.state-pill--info {
+  background: #eef4fb;
+  border-color: #c8d7eb;
+  color: #315d87;
+}
+
+.state-pill--warning {
+  background: #fcf8ec;
+  border-color: #edd8a5;
+  color: var(--admin-warning);
+}
+
+.state-pill--danger {
+  background: #fbeeed;
+  border-color: #efc3bc;
+  color: var(--admin-danger);
+}
 
 .row-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
-.empty {
+.empty-state {
+  padding: 28px 12px;
   text-align: center;
-  color: #999;
-  padding: 40px 0;
+  color: var(--admin-text-muted);
 }
 </style>
