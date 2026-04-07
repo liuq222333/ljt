@@ -1,30 +1,33 @@
 <template>
-  <article class="json-card">
-    <div class="head">
-      <strong>{{ title }}</strong>
-      <div class="actions">
-        <button class="ghost" type="button" @click="toggleExpanded">
+  <article class="governance-json-block">
+    <header class="governance-json-block__header">
+      <strong class="governance-json-block__title">{{ title }}</strong>
+      <div class="governance-json-block__actions">
+        <button class="governance-json-block__button" type="button" @click="toggleExpanded">
           {{ expanded ? '收起' : '展开' }}
         </button>
-        <button class="ghost" type="button" @click="copyText">
+        <button class="governance-json-block__button" type="button" @click="copyText">
           {{ copied ? '已复制' : '复制' }}
         </button>
       </div>
-    </div>
-    <pre :class="{ collapsed: !expanded }">{{ formatted }}</pre>
+    </header>
+    <pre class="governance-json-block__content" :class="{ 'is-collapsed': !expanded }">{{ formatted }}</pre>
   </article>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
-const props = withDefaults(defineProps<{
-  title: string
-  value?: unknown
-  defaultExpanded?: boolean
-}>(), {
-  defaultExpanded: false,
-})
+const props = withDefaults(
+  defineProps<{
+    title: string
+    value?: unknown
+    defaultExpanded?: boolean
+  }>(),
+  {
+    defaultExpanded: false,
+  },
+)
 
 const expanded = ref(props.defaultExpanded)
 const copied = ref(false)
@@ -44,6 +47,10 @@ function toggleExpanded() {
 
 async function copyText() {
   try {
+    if (!navigator.clipboard?.writeText) {
+      copied.value = false
+      return
+    }
     await navigator.clipboard.writeText(formatted.value)
     copied.value = true
     window.setTimeout(() => {
@@ -56,51 +63,55 @@ async function copyText() {
 </script>
 
 <style scoped>
-.json-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+.governance-json-block {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-bg-subtle);
+  padding: 10px;
 }
 
-.head {
+.governance-json-block__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-}
-
-.actions {
-  display: flex;
   gap: 8px;
 }
 
-.ghost {
-  border: 0;
-  border-radius: 999px;
-  padding: 6px 10px;
-  cursor: pointer;
+.governance-json-block__title {
+  color: var(--admin-text-primary);
   font-size: 12px;
   font-weight: 700;
-  background: #dbeafe;
-  color: #1d4ed8;
 }
 
-pre {
-  margin: 0;
-  padding: 12px;
-  border-radius: 14px;
-  background: #0f172a;
-  color: #e2e8f0;
+.governance-json-block__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.governance-json-block__button {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-bg-surface);
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.governance-json-block__content {
+  margin: 8px 0 0;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  background: #f3f5f8;
+  color: var(--admin-text-primary);
   overflow: auto;
   font-size: 12px;
   line-height: 1.5;
+  padding: 10px;
 }
 
-pre.collapsed {
+.governance-json-block__content.is-collapsed {
   max-height: 180px;
 }
 </style>

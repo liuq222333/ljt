@@ -1,8 +1,8 @@
 ﻿<template>
-  <section class="page">
+  <section class="admin-page page governance-replay-center">
     <header class="head">
       <div>
-        <p class="kicker">Replay</p>
+        <p class="kicker">治理</p>
         <h1>回放中心</h1>
         <p class="desc">查看请求回放、checkpoint、tool I/O，并把异常样本批量沉淀为评估样本。</p>
       </div>
@@ -15,7 +15,7 @@
     <div v-if="error" class="error">{{ error }}</div>
     <div v-if="successMessage" class="success">{{ successMessage }}</div>
 
-    <div class="toolbar">
+    <div class="toolbar admin-toolbar admin-panel">
       <label>查询方式<select v-model="lookupMode"><option value="request">requestId</option><option value="trace">traceId</option><option value="session">sessionId</option></select></label>
       <label class="keyword">关键字<input v-model="lookupKeyword" :placeholder="lookupPlaceholder" type="text" @keyup.enter="openByLookupKeyword" /></label>
       <label>候选天数<input v-model.number="days" type="number" min="1" max="30" /></label>
@@ -27,7 +27,7 @@
     </div>
 
     <section class="grid">
-      <article class="panel">
+      <article class="panel admin-panel">
         <div class="panel-head"><h2>Replay 列表</h2><span>{{ replays.length }} 条</span></div>
         <div class="list">
           <button v-for="item in replays" :key="item.requestId" class="item" :class="{ active: item.requestId === activeLookupValue && activeLookupMode === 'request' }" type="button" @click="openReplay(item.requestId, 'request')">
@@ -45,7 +45,7 @@
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel admin-panel">
         <div class="panel-head">
           <h2>候选池</h2>
           <div class="actions">
@@ -72,7 +72,7 @@
       </article>
     </section>
 
-    <section class="panel">
+    <section class="panel admin-panel">
       <div class="panel-head">
         <h2>Replay 详情</h2>
         <div class="actions">
@@ -83,7 +83,7 @@
       </div>
       <div v-if="detailLoading" class="empty">详情加载中...</div>
       <div v-else-if="activeDetail" class="detail-grid">
-        <article class="detail-card">
+        <article class="detail-card admin-panel">
           <h3>请求摘要</h3>
           <dl>
             <div>
@@ -115,7 +115,7 @@
           </dl>
         </article>
 
-        <article class="detail-card">
+        <article class="detail-card admin-panel">
           <h3>Checkpoint</h3>
           <div class="compact">
             <article v-for="item in activeDetail.checkpoints" :key="`${item.checkpointOrder}-${item.nodeName}`" class="subitem">
@@ -126,7 +126,7 @@
           </div>
         </article>
 
-        <article class="detail-card">
+        <article class="detail-card admin-panel">
           <h3>Tool I/O</h3>
           <div class="compact">
             <article v-for="item in activeDetail.toolIos" :key="`${item.stepOrder}-${item.stepId}`" class="subitem">
@@ -138,13 +138,13 @@
           </div>
         </article>
 
-        <article class="detail-card">
+        <article class="detail-card admin-panel">
           <h3>请求与状态快照</h3>
           <GovernanceJsonBlock title="Request Snapshot" :value="activeDetail.requestSnapshot" />
           <GovernanceJsonBlock title="State Snapshot" :value="activeDetail.stateSnapshot" />
         </article>
 
-        <article class="detail-card">
+        <article class="detail-card admin-panel">
           <h3>Session 历史</h3>
           <div class="compact">
             <button
@@ -211,6 +211,7 @@ const selectedCandidateIds = ref<string[]>([])
 const activeDetail = ref<ReplayDetail | null>(null)
 const activeLookupMode = ref<ReplayLookupMode>('request')
 const activeLookupValue = ref('')
+const applyingRouteState = ref(false)
 
 const lookupPlaceholder = computed(() => {
   if (lookupMode.value === 'trace') return '输入 traceId'
@@ -338,6 +339,9 @@ function exportActiveDetail() {
 }
 
 function syncRouteQuery() {
+  if (applyingRouteState.value) {
+    return
+  }
   const query = cleanQueryRecord({
     mode: lookupMode.value,
     q: lookupKeyword.value.trim() || undefined,
@@ -348,6 +352,55 @@ function syncRouteQuery() {
     session: activeLookupMode.value === 'session' ? activeLookupValue.value : undefined,
   })
   router.replace({ query }).catch(() => undefined)
+}
+
+async function applyRouteStateFromQuery() {
+  const nextMode = readQueryEnum(route.query.mode, ['request', 'trace', 'session'] as const, lookupMode.value)
+  const nextKeyword = readQueryString(route.query.q, '')
+  const nextDays = readQueryNumber(route.query.days, 7)
+  const nextCandidateLimit = readQueryNumber(route.query.limit, 20)
+  const requestId = readQueryString(route.query.request)
+  const traceId = readQueryString(route.query.trace)
+  const sessionId = readQueryString(route.query.session)
+
+  const filtersChanged =
+    lookupMode.value !== nextMode ||
+    lookupKeyword.value !== nextKeyword ||
+    days.value !== nextDays ||
+    candidateLimit.value !== nextCandidateLimit
+
+  applyingRouteState.value = true
+  lookupMode.value = nextMode
+  lookupKeyword.value = nextKeyword
+  days.value = nextDays
+  candidateLimit.value = nextCandidateLimit
+  applyingRouteState.value = false
+
+  if (filtersChanged) {
+    await loadReplayData()
+  }
+
+  if (requestId) {
+    if (activeLookupMode.value !== 'request' || activeLookupValue.value !== requestId) {
+      await openReplay(requestId, 'request')
+    }
+    return
+  }
+  if (traceId) {
+    if (activeLookupMode.value !== 'trace' || activeLookupValue.value !== traceId) {
+      await openReplay(traceId, 'trace')
+    }
+    return
+  }
+  if (sessionId) {
+    if (activeLookupMode.value !== 'session' || activeLookupValue.value !== sessionId) {
+      await openReplay(sessionId, 'session')
+    }
+    return
+  }
+  if (activeDetail.value || activeLookupValue.value) {
+    clearActiveDetail()
+  }
 }
 
 watch([lookupMode, lookupKeyword, days, candidateLimit], () => {
@@ -362,25 +415,285 @@ watch([lookupMode, lookupKeyword, days, candidateLimit], () => {
 
 watch([activeLookupMode, activeLookupValue], syncRouteQuery)
 
+watch(
+  () => route.query,
+  async () => {
+    await applyRouteStateFromQuery()
+  },
+  { deep: true },
+)
+
 onMounted(async () => {
   await loadReplayData()
-  const requestId = readQueryString(route.query.request)
-  const traceId = readQueryString(route.query.trace)
-  const sessionId = readQueryString(route.query.session)
-  if (requestId) {
-    await openReplay(requestId, 'request')
-    return
-  }
-  if (traceId) {
-    await openReplay(traceId, 'trace')
-    return
-  }
-  if (sessionId) {
-    await openReplay(sessionId, 'session')
-  }
+  await applyRouteStateFromQuery()
 })
 </script>
 
 <style scoped>
-.page,.list,.compact{display:flex;flex-direction:column;gap:20px}.head,.toolbar,.panel-head,.actions,.item-side{display:flex;gap:12px;flex-wrap:wrap;align-items:end}.head{justify-content:space-between;align-items:flex-start}.kicker{margin:0 0 6px;color:#0ea5e9;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase}.head h1{margin:0;font-size:30px}.desc{margin:8px 0 0;color:#52606d}.toolbar label{display:flex;flex-direction:column;gap:6px;color:#475569;font-size:13px}.toolbar .keyword{min-width:260px;flex:1}.grid,.detail-grid{display:grid;gap:16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}input,select{border:1px solid #cbd5e1;border-radius:12px;padding:10px 12px;font:inherit}.panel,.detail-card{border-radius:20px;background:#fff;padding:18px;border:1px solid rgba(148,163,184,.12);box-shadow:0 18px 40px rgba(15,23,42,.08)}.panel-head{justify-content:space-between}.panel-head h2,.detail-card h3{margin:0}.item,.candidate,.subitem{display:flex;justify-content:space-between;gap:12px;padding:14px;border-radius:16px;background:#f8fafc;border:1px solid #e2e8f0}.candidate input{width:auto;margin-top:4px}.candidate-actions{align-items:center}.item{border:0;cursor:pointer;text-align:left}.item.active{outline:2px solid #38bdf8}.jump-item{cursor:pointer;text-align:left}.jump-item:hover{border-color:#7dd3fc;background:#f0f9ff}.item-main{flex:1}.item-main strong{display:block;margin-bottom:4px}.item-main p,dt,dd{margin:0;color:#64748b;font-size:13px}dt{font-weight:700;color:#0f172a}dd{display:flex;gap:8px;flex-wrap:wrap;align-items:center}dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.badge{padding:6px 10px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:12px;font-weight:700}.badge.warn{background:#ffedd5;color:#9a3412}.primary,.secondary,.ghost{border:0;border-radius:14px;padding:11px 16px;cursor:pointer;font-weight:600}.ghost.small{padding:8px 12px;font-size:12px}.ghost.tiny{padding:6px 10px;font-size:11px}.primary{background:linear-gradient(135deg,#0f172a,#0f766e);color:#fff}.secondary{background:#ccfbf1;color:#0f172a}.ghost{background:#e2e8f0;color:#334155}.error,.success,.empty{padding:12px 16px;border-radius:14px}.error{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}.success{background:#ecfeff;color:#155e75;border:1px solid #a5f3fc}.empty{color:#94a3b8;text-align:center;background:#f8fafc}@media (max-width:1100px){.grid,.detail-grid{grid-template-columns:1fr}.head{flex-direction:column}}
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.head,
+.toolbar,
+.panel-head,
+.actions,
+.item-side {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.kicker {
+  margin: 0;
+  color: var(--admin-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.head h1 {
+  margin: 4px 0 0;
+  color: var(--admin-text-primary);
+  font-size: 22px;
+  line-height: 1.3;
+}
+
+.desc {
+  margin: 6px 0 0;
+  color: var(--admin-text-secondary);
+  font-size: 13px;
+}
+
+.toolbar {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-panel);
+  background: var(--admin-bg-surface);
+  box-shadow: var(--admin-shadow-panel);
+  padding: 12px;
+}
+
+.toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+}
+
+.toolbar .keyword {
+  min-width: 280px;
+  flex: 1;
+}
+
+.grid,
+.detail-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.grid {
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.95fr);
+}
+
+.detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+input,
+select {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  padding: 8px 10px;
+  font: inherit;
+  background: var(--admin-bg-surface);
+}
+
+.panel,
+.detail-card {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-panel);
+  background: var(--admin-bg-surface);
+  box-shadow: var(--admin-shadow-panel);
+  padding: 12px;
+}
+
+.panel-head {
+  justify-content: space-between;
+}
+
+.panel-head h2,
+.detail-card h3 {
+  margin: 0;
+  color: var(--admin-text-primary);
+  font-size: 15px;
+}
+
+.list,
+.compact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item,
+.candidate,
+.subitem {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-bg-subtle);
+  border: 1px solid var(--admin-border);
+}
+
+.candidate input {
+  width: auto;
+  margin-top: 4px;
+}
+
+.candidate-actions {
+  align-items: center;
+}
+
+.item {
+  cursor: pointer;
+  text-align: left;
+}
+
+.item.active {
+  border-color: var(--admin-border-strong);
+  background: #eef3f8;
+}
+
+.jump-item {
+  cursor: pointer;
+  text-align: left;
+}
+
+.jump-item:hover,
+.item:hover,
+.candidate:hover {
+  border-color: var(--admin-border-strong);
+  background: #f0f3f7;
+}
+
+.item-main {
+  flex: 1;
+}
+
+.item-main strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--admin-text-primary);
+  font-size: 13px;
+}
+
+.item-main p,
+dt,
+dd {
+  margin: 0;
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+}
+
+dt {
+  font-weight: 700;
+  color: var(--admin-text-primary);
+}
+
+dd {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.badge {
+  padding: 3px 8px;
+  border-radius: var(--admin-radius-control);
+  background: #eaf0f8;
+  color: #2d5887;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.badge.warn {
+  background: #fcf3e5;
+  color: #9b6811;
+}
+
+.primary,
+.secondary,
+.ghost {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  background: var(--admin-bg-surface);
+  color: var(--admin-text-secondary);
+}
+
+.ghost.small {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.ghost.tiny {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.primary {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent);
+  color: #ffffff;
+}
+
+.secondary {
+  background: var(--admin-accent-soft);
+  color: var(--admin-text-primary);
+}
+
+.error,
+.success,
+.empty {
+  padding: 10px 12px;
+  border-radius: var(--admin-radius-control);
+  font-size: 12px;
+}
+
+.error {
+  background: #fbeeed;
+  border: 1px solid #efc3bc;
+  color: #9f2f24;
+}
+
+.success {
+  background: #ebf8f1;
+  border: 1px solid #b8dfcb;
+  color: #1f7a4d;
+}
+
+.empty {
+  border: 1px dashed var(--admin-border);
+  color: var(--admin-text-muted);
+  text-align: center;
+}
 </style>

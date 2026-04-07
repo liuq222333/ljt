@@ -31,13 +31,15 @@ const probe = ref<GovernanceBackendProbeResult>({
 })
 
 const bannerClass = computed(() => {
-  if (loading.value) return 'is-checking'
+  if (loading.value) {
+    return 'is-checking'
+  }
   return probe.value.ok ? 'is-healthy' : 'is-warn'
 })
 
 const description = computed(() => {
   if (loading.value) {
-    return '正在探测治理后端连接状态...'
+    return '正在检测治理后端连接状态...'
   }
   if (probe.value.ok) {
     return probe.value.apiBase
@@ -76,9 +78,9 @@ onMounted(runProbe)
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 10px 12px;
   border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-panel);
+  border-radius: var(--admin-radius-control);
   background: var(--admin-bg-surface);
 }
 
@@ -128,9 +130,9 @@ onMounted(runProbe)
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius-control);
   background: var(--admin-bg-surface);
-  padding: 2px 8px;
   color: var(--admin-text-secondary);
   font-size: 12px;
+  padding: 2px 8px;
 }
 
 .governance-status-banner__button {
@@ -138,10 +140,10 @@ onMounted(runProbe)
   border-radius: var(--admin-radius-control);
   background: var(--admin-bg-surface);
   color: var(--admin-text-secondary);
-  padding: 5px 10px;
+  cursor: pointer;
   font-size: 12px;
   font-weight: 600;
-  cursor: pointer;
+  padding: 5px 10px;
 }
 
 .governance-status-banner__button:disabled {

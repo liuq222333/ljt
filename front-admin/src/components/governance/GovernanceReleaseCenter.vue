@@ -1,10 +1,10 @@
 ﻿<template>
-  <section class="page">
+  <section class="admin-page page governance-release-center">
     <header class="head">
       <div>
-        <p class="kicker">Release</p>
-        <h1>发布与灰度治理</h1>
-        <p class="desc">围绕 release record 做回归、预检、灰度配置和状态流转。</p>
+        <p class="kicker">治理</p>
+        <h1>发布管理</h1>
+        <p class="desc">围绕发布记录执行回归、预检、灰度配置和状态流转。</p>
       </div>
       <div class="actions">
         <button class="ghost" @click="copyCurrentLink">复制当前链接</button>
@@ -16,16 +16,17 @@
     <div v-if="error" class="error">{{ error }}</div>
     <div v-if="successMessage" class="success">{{ successMessage }}</div>
 
-    <div class="toolbar">
+    <div class="toolbar admin-toolbar admin-panel">
       <label>状态过滤<select v-model="statusFilter" @change="loadData"><option value="">全部</option><option value="draft">draft</option><option value="ready">ready</option><option value="gray">gray</option><option value="released">released</option><option value="rolled_back">rolled_back</option></select></label>
       <label>最低通过率<input v-model.number="minEvalPassRate" type="number" min="0" max="1" step="0.05" /></label>
       <label>预检详情数<input v-model.number="preflightDetailLimit" type="number" min="1" max="50" /></label>
       <label>任务数<input v-model.number="preflightTaskLimit" type="number" min="1" max="50" /></label>
       <label>最大降级率<input v-model.number="maxDegradedRate" type="number" min="0" max="1" step="0.05" /></label>
+      <label>Run 新鲜度(小时)<input v-model.number="maxRunAgeHours" type="number" min="1" max="720" /></label>
     </div>
 
     <section class="grid">
-      <article class="panel">
+      <article class="panel admin-panel">
         <h2>{{ releaseForm.id ? '编辑 Release Record' : '新建 Release Record' }}</h2>
         <div class="row">
           <label>名称<input v-model="releaseForm.releaseName" type="text" placeholder="spring-gray-release" /></label>
@@ -54,7 +55,7 @@
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel admin-panel">
         <h2>{{ grayForm.id ? '编辑 Gray Config' : '新建 Gray Config' }}</h2>
         <div class="row">
           <label>配置名称<input v-model="grayForm.configName" type="text" placeholder="gray-10-percent" /></label>
@@ -88,10 +89,10 @@
       </article>
     </section>
 
-    <section class="panel">
+    <section class="panel admin-panel">
       <div class="panel-head"><h2>发布详情</h2><span>{{ activeRelease?.releaseName || '未选择' }}</span></div>
       <div v-if="activeRelease" class="detail-grid">
-        <article class="detail-card">
+        <article class="detail-card admin-panel">
           <h3>记录摘要</h3>
           <div class="actions">
             <button class="ghost small" type="button" @click="exportActiveReleaseDetail">导出详情</button>
@@ -147,7 +148,7 @@
           <GovernanceJsonBlock title="Gray Strategy" :value="safeParse(activeRelease.grayStrategyJson)" />
         </article>
 
-        <article class="detail-card">
+        <article class="detail-card admin-panel">
           <h3>校验与预检</h3>
           <div class="actions">
             <button class="ghost" @click="loadVerification">刷新 verification</button>
@@ -163,16 +164,16 @@
           </div>
         </article>
 
-        <article class="detail-card">
+        <article class="detail-card admin-panel">
           <h3>运行与流转</h3>
           <div class="actions">
             <button class="ghost" @click="runEval(false)">执行回归</button>
             <button class="ghost" @click="runEval(true)">执行并设为 baseline</button>
             <button class="ghost" :disabled="!selectedGrayConfigId" @click="applySelectedGray">应用灰度</button>
-            <button class="ghost" @click="transition('ready')">转 ready</button>
-            <button class="ghost" @click="transition('gray')">转 gray</button>
-            <button class="ghost" @click="transition('released')">转 released</button>
-            <button class="ghost danger" @click="transition('rolled_back')">转 rolled_back</button>
+            <button class="ghost" :disabled="!canTransitionTo('ready')" @click="transition('ready')">转 ready</button>
+            <button class="ghost" :disabled="!canTransitionTo('gray')" @click="transition('gray')">转 gray</button>
+            <button class="ghost" :disabled="!canTransitionTo('released')" @click="transition('released')">转 released</button>
+            <button class="ghost danger" :disabled="!canTransitionTo('rolled_back')" @click="transition('rolled_back')">转 rolled_back</button>
           </div>
           <label>选择灰度配置<select v-model.number="selectedGrayConfigId"><option :value="0">不选择</option><option v-for="item in grayConfigs" :key="item.id" :value="item.id">{{ item.configName }}</option></select></label>
           <GovernanceJsonBlock
@@ -182,7 +183,7 @@
           />
         </article>
 
-        <article class="detail-card">
+        <article class="detail-card admin-panel">
           <h3>事件历史</h3>
           <div class="list">
             <article v-for="event in releaseEvents" :key="event.id" class="subitem">
@@ -237,6 +238,7 @@ const releaseFilters = readGovernanceStorage('governance-release-filters', {
   preflightDetailLimit: 10,
   preflightTaskLimit: 10,
   maxDegradedRate: 0.2,
+  maxRunAgeHours: 24,
 })
 
 const loading = ref(false)
@@ -249,6 +251,7 @@ const minEvalPassRate = ref(readQueryNumber(route.query.minEvalPassRate, release
 const preflightDetailLimit = ref(readQueryNumber(route.query.preflightDetailLimit, releaseFilters.preflightDetailLimit))
 const preflightTaskLimit = ref(readQueryNumber(route.query.preflightTaskLimit, releaseFilters.preflightTaskLimit))
 const maxDegradedRate = ref(readQueryNumber(route.query.maxDegradedRate, releaseFilters.maxDegradedRate))
+const maxRunAgeHours = ref(readQueryNumber(route.query.maxRunAgeHours, releaseFilters.maxRunAgeHours))
 const releaseRecords = ref<GovernanceReleaseRecord[]>([])
 const grayConfigs = ref<GovernanceGrayConfig[]>([])
 const activeRelease = ref<GovernanceReleaseRecord | null>(null)
@@ -256,6 +259,7 @@ const verification = ref<Record<string, unknown> | null>(null)
 const preflight = ref<Record<string, unknown> | null>(null)
 const releaseEvents = ref<GovernanceReleaseEvent[]>([])
 const selectedGrayConfigId = ref(readQueryNumber(route.query.grayConfigId, 0))
+const applyingRouteState = ref(false)
 const releaseForm = reactive({
   id: 0,
   releaseName: '',
@@ -328,6 +332,7 @@ function resetReleaseFilters() {
   preflightDetailLimit.value = 10
   preflightTaskLimit.value = 10
   maxDegradedRate.value = 0.2
+  maxRunAgeHours.value = 24
   selectedGrayConfigId.value = 0
   clearActiveRelease()
   writeGovernanceStorage('governance-release-filters', {
@@ -336,6 +341,7 @@ function resetReleaseFilters() {
     preflightDetailLimit: 10,
     preflightTaskLimit: 10,
     maxDegradedRate: 0.2,
+    maxRunAgeHours: 24,
   })
   syncRouteQuery()
 }
@@ -354,17 +360,89 @@ const recommendedActions = computed(() => {
   return Array.from(new Set([...fromVerification, ...fromPreflight])).filter(Boolean)
 })
 
+const activeReleaseStatus = computed(() => activeRelease.value?.releaseStatus || 'draft')
+
+function canTransitionTo(targetStatus: string) {
+  const currentStatus = activeReleaseStatus.value
+  if (!activeRelease.value || currentStatus === targetStatus) {
+    return false
+  }
+  if (currentStatus === 'draft') {
+    return targetStatus === 'ready'
+  }
+  if (currentStatus === 'ready') {
+    return targetStatus === 'gray'
+  }
+  if (currentStatus === 'gray') {
+    return targetStatus === 'released' || targetStatus === 'rolled_back'
+  }
+  if (currentStatus === 'released') {
+    return targetStatus === 'rolled_back'
+  }
+  return false
+}
+
 function syncRouteQuery() {
+  if (applyingRouteState.value) {
+    return
+  }
   const query = cleanQueryRecord({
     status: statusFilter.value || undefined,
     minEvalPassRate: minEvalPassRate.value !== 1 ? minEvalPassRate.value : undefined,
     preflightDetailLimit: preflightDetailLimit.value !== 10 ? preflightDetailLimit.value : undefined,
     preflightTaskLimit: preflightTaskLimit.value !== 10 ? preflightTaskLimit.value : undefined,
     maxDegradedRate: maxDegradedRate.value !== 0.2 ? maxDegradedRate.value : undefined,
+    maxRunAgeHours: maxRunAgeHours.value !== 24 ? maxRunAgeHours.value : undefined,
     releaseId: activeRelease.value?.id,
     grayConfigId: selectedGrayConfigId.value || undefined,
   })
   router.replace({ query }).catch(() => undefined)
+}
+
+async function applyRouteStateFromQuery() {
+  const nextStatusFilter = readQueryString(route.query.status, '')
+  const nextMinEvalPassRate = readQueryNumber(route.query.minEvalPassRate, 1)
+  const nextPreflightDetailLimit = readQueryNumber(route.query.preflightDetailLimit, 10)
+  const nextPreflightTaskLimit = readQueryNumber(route.query.preflightTaskLimit, 10)
+  const nextMaxDegradedRate = readQueryNumber(route.query.maxDegradedRate, 0.2)
+  const nextMaxRunAgeHours = readQueryNumber(route.query.maxRunAgeHours, 24)
+  const nextGrayConfigId = readQueryNumber(route.query.grayConfigId, 0)
+  const releaseId = readQueryNumber(route.query.releaseId, 0)
+
+  const filtersChanged =
+    statusFilter.value !== nextStatusFilter ||
+    minEvalPassRate.value !== nextMinEvalPassRate ||
+    preflightDetailLimit.value !== nextPreflightDetailLimit ||
+    preflightTaskLimit.value !== nextPreflightTaskLimit ||
+    maxDegradedRate.value !== nextMaxDegradedRate ||
+    maxRunAgeHours.value !== nextMaxRunAgeHours
+  const grayConfigChanged = selectedGrayConfigId.value !== nextGrayConfigId
+  const activeReleaseChanged = (activeRelease.value?.id || 0) !== releaseId
+
+  applyingRouteState.value = true
+  statusFilter.value = nextStatusFilter
+  minEvalPassRate.value = nextMinEvalPassRate
+  preflightDetailLimit.value = nextPreflightDetailLimit
+  preflightTaskLimit.value = nextPreflightTaskLimit
+  maxDegradedRate.value = nextMaxDegradedRate
+  maxRunAgeHours.value = nextMaxRunAgeHours
+  selectedGrayConfigId.value = nextGrayConfigId
+  applyingRouteState.value = false
+
+  if (filtersChanged || grayConfigChanged) {
+    await loadData()
+  }
+  if (grayConfigChanged || nextGrayConfigId) {
+    await ensureSelectedGrayConfigLoaded()
+  }
+
+  if (releaseId) {
+    if (activeReleaseChanged) {
+      await selectRelease(releaseId)
+    }
+  } else if (activeRelease.value) {
+    clearActiveRelease()
+  }
 }
 
 async function copyCurrentLink() {
@@ -540,7 +618,7 @@ async function loadVerification() {
   if (!activeRelease.value) {
     return
   }
-  verification.value = await fetchReleaseVerification(activeRelease.value.id, minEvalPassRate.value)
+  verification.value = await fetchReleaseVerification(activeRelease.value.id, minEvalPassRate.value, maxRunAgeHours.value)
 }
 
 async function loadPreflight() {
@@ -554,6 +632,7 @@ async function loadPreflight() {
     activeRelease.value.evalCaseVersionId || null,
     activeRelease.value.regressionSetId || null,
     minEvalPassRate.value,
+    maxRunAgeHours.value,
   )
 }
 
@@ -603,6 +682,7 @@ async function transition(targetStatus: string) {
       targetStatus,
       selectedGrayConfigId.value || null,
       minEvalPassRate.value,
+      maxRunAgeHours.value,
     )
     successMessage.value = `已流转到 ${targetStatus}`
     await selectRelease(activeRelease.value.id)
@@ -612,32 +692,248 @@ async function transition(targetStatus: string) {
   }
 }
 
-watch([statusFilter, minEvalPassRate, preflightDetailLimit, preflightTaskLimit, maxDegradedRate], () => {
+watch([statusFilter, minEvalPassRate, preflightDetailLimit, preflightTaskLimit, maxDegradedRate, maxRunAgeHours], () => {
+  if (applyingRouteState.value) {
+    return
+  }
   writeGovernanceStorage('governance-release-filters', {
     statusFilter: statusFilter.value,
     minEvalPassRate: minEvalPassRate.value,
     preflightDetailLimit: preflightDetailLimit.value,
     preflightTaskLimit: preflightTaskLimit.value,
     maxDegradedRate: maxDegradedRate.value,
+    maxRunAgeHours: maxRunAgeHours.value,
   })
   syncRouteQuery()
 })
 
 watch([() => activeRelease.value?.id, selectedGrayConfigId], async () => {
+  if (applyingRouteState.value) {
+    return
+  }
   await ensureSelectedGrayConfigLoaded()
   syncRouteQuery()
 })
 
+watch(
+  () => route.query,
+  async () => {
+    await applyRouteStateFromQuery()
+  },
+  { deep: true },
+)
+
 onMounted(async () => {
   await loadData()
-  await ensureSelectedGrayConfigLoaded()
-  const releaseId = readQueryNumber(route.query.releaseId, 0)
-  if (releaseId) {
-    await selectRelease(releaseId)
-  }
+  await applyRouteStateFromQuery()
 })
 </script>
 
 <style scoped>
-.page,.list{display:flex;flex-direction:column;gap:20px}.head,.toolbar,.row,.actions,.panel-head{display:flex;gap:12px;flex-wrap:wrap;align-items:end}.head,.panel-head{justify-content:space-between;align-items:flex-start}.kicker{margin:0 0 6px;color:#0ea5e9;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase}.head h1{margin:0;font-size:30px}.desc{margin:8px 0 0;color:#52606d}.toolbar label,.row label,.stack{display:flex;flex-direction:column;gap:6px;color:#475569;font-size:13px}.grid,.detail-grid{display:grid;gap:16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}input,select,textarea{border:1px solid #cbd5e1;border-radius:12px;padding:10px 12px;font:inherit;width:100%;box-sizing:border-box}.panel,.detail-card{border-radius:20px;background:#fff;padding:18px;border:1px solid rgba(148,163,184,.12);box-shadow:0 18px 40px rgba(15,23,42,.08)}.panel h2,.detail-card h3{margin:0}.item,.subitem{display:flex;justify-content:space-between;gap:12px;padding:14px;border-radius:16px;background:#f8fafc;border:1px solid #e2e8f0}.item.plain,.subitem{align-items:flex-start}.item.active{border-color:#7dd3fc;background:#f0f9ff}.item-main{flex:1}.item-main strong{display:block;margin-bottom:4px}.item-main p{margin:0;color:#64748b;font-size:13px}.inline-link{color:#0f766e;font-weight:700;text-decoration:none}.inline-link:hover{text-decoration:underline}.primary,.secondary,.ghost{border:0;border-radius:14px;padding:11px 16px;cursor:pointer;font-weight:600}.primary{background:linear-gradient(135deg,#0f172a,#0f766e);color:#fff}.secondary{background:#ccfbf1;color:#0f172a}.ghost{background:#e2e8f0;color:#334155}.ghost.danger{background:#fee2e2;color:#991b1b}.error,.success,.empty{padding:12px 16px;border-radius:14px}.error{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}.success{background:#ecfeff;color:#155e75;border:1px solid #a5f3fc}.empty{color:#94a3b8;text-align:center;background:#f8fafc}.tips{margin-top:12px;padding:12px 14px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0}.tips ul{margin:8px 0 0;padding-left:18px;color:#475569}@media (max-width:1100px){.grid,.detail-grid{grid-template-columns:1fr}.head{flex-direction:column}}
+.page,
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.head,
+.toolbar,
+.row,
+.actions,
+.panel-head {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.head,
+.panel-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.kicker {
+  margin: 0;
+  color: var(--admin-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.head h1 {
+  margin: 4px 0 0;
+  font-size: 22px;
+  color: var(--admin-text-primary);
+}
+
+.desc {
+  margin: 6px 0 0;
+  color: var(--admin-text-secondary);
+  font-size: 13px;
+}
+
+.toolbar {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-panel);
+  background: var(--admin-bg-surface);
+  box-shadow: var(--admin-shadow-panel);
+  padding: 12px;
+}
+
+.toolbar label,
+.row label,
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+}
+
+.stack {
+  margin-top: 8px;
+}
+
+.grid,
+.detail-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.grid,
+.detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+input,
+select,
+textarea {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  padding: 8px 10px;
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--admin-bg-surface);
+}
+
+.panel,
+.detail-card {
+  border-radius: var(--admin-radius-panel);
+  background: var(--admin-bg-surface);
+  padding: 12px;
+  border: 1px solid var(--admin-border);
+  box-shadow: var(--admin-shadow-panel);
+}
+
+.panel h2,
+.detail-card h3 {
+  margin: 0;
+  color: var(--admin-text-primary);
+  font-size: 15px;
+}
+
+.item,
+.subitem {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-bg-subtle);
+  border: 1px solid var(--admin-border);
+}
+
+.item.plain,
+.subitem {
+  align-items: flex-start;
+}
+
+.item.active {
+  border-color: var(--admin-border-strong);
+  background: #f0f3f7;
+}
+
+.item-main {
+  flex: 1;
+}
+
+.item-main strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--admin-text-primary);
+  font-size: 13px;
+}
+
+.item-main p {
+  margin: 0;
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+}
+
+.inline-link {
+  color: var(--admin-accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.inline-link:hover {
+  text-decoration: underline;
+}
+
+.primary,
+.secondary,
+.ghost {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  background: var(--admin-bg-surface);
+  color: var(--admin-text-secondary);
+}
+
+.primary {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent);
+  color: #ffffff;
+}
+
+.secondary {
+  background: var(--admin-accent-soft);
+  color: var(--admin-text-primary);
+}
+
+.ghost.danger {
+  background: #fbeeed;
+  color: #9f2f24;
+}
+
+.error,
+.success,
+.empty {
+  padding: 10px 12px;
+  border-radius: var(--admin-radius-control);
+  font-size: 12px;
+}
+
+.error {
+  background: #fbeeed;
+  color: #9f2f24;
+  border: 1px solid #efc3bc;
+}
+
+.success {
+  background: #ebf8f1;
+  color: #1f7a4d;
+  border: 1px solid #b8dfcb;
+}
+
+.empty {
+  color: var(--admin-text-muted);
+  border: 1px dashed var(--admin-border);
+  text-align: center;
+}
 </style>

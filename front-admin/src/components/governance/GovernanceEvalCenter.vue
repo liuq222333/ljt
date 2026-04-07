@@ -1,10 +1,10 @@
 ﻿<template>
-  <section class="page">
+  <section class="admin-page page governance-eval-center">
     <header class="head">
       <div>
-        <p class="kicker">Evaluation</p>
-        <h1>评估与回归</h1>
-        <p class="desc">管理样本、版本快照、回归集和评估运行，支撑发布前检查。</p>
+        <p class="kicker">治理</p>
+        <h1>评测中心</h1>
+        <p class="desc">管理样本、版本快照、回归集和评测运行，支撑发布前检查。</p>
       </div>
       <div class="actions">
         <button class="ghost" @click="copyCurrentLink">复制当前链接</button>
@@ -16,15 +16,15 @@
     <div v-if="error" class="error">{{ error }}</div>
     <div v-if="successMessage" class="success">{{ successMessage }}</div>
 
-    <section class="cards">
-      <article class="card"><span>样本总量</span><strong>{{ stats.total ?? 0 }}</strong></article>
-      <article class="card"><span>启用样本</span><strong>{{ stats.enabled_total ?? 0 }}</strong></article>
-      <article class="card"><span>版本快照</span><strong>{{ versions.length }}</strong></article>
-      <article class="card"><span>回归集</span><strong>{{ regressionSets.length }}</strong></article>
+    <section class="cards admin-toolbar">
+      <article class="card admin-panel"><span>样本总量</span><strong>{{ stats.total ?? 0 }}</strong></article>
+      <article class="card admin-panel"><span>启用样本</span><strong>{{ stats.enabled_total ?? 0 }}</strong></article>
+      <article class="card admin-panel"><span>版本快照</span><strong>{{ versions.length }}</strong></article>
+      <article class="card admin-panel"><span>回归集</span><strong>{{ regressionSets.length }}</strong></article>
     </section>
 
     <section class="grid">
-      <article class="panel">
+      <article class="panel admin-panel">
         <h2>版本快照</h2>
         <div class="row">
           <label>名称<input v-model="versionForm.versionName" type="text" placeholder="refund-v1" /></label>
@@ -117,7 +117,7 @@
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel admin-panel">
         <h2>运行与回归集</h2>
         <div class="row">
           <label>sourceType<input v-model="runFilter.sourceType" type="text" placeholder="version_snapshot" /></label>
@@ -212,7 +212,7 @@
     </section>
 
     <section class="grid">
-      <article class="panel">
+      <article class="panel admin-panel">
         <h2>样本导入导出</h2>
         <div class="actions">
           <button class="ghost" :disabled="exportingCases" @click="handleExportCases">{{ exportingCases ? '导出中...' : '按当前过滤导出 JSON' }}</button>
@@ -229,7 +229,7 @@
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel admin-panel">
         <h2>样本列表与编辑</h2>
         <div class="row">
           <label>关键字<input v-model="caseFilter.keyword" type="text" placeholder="caseName / queryText" /></label>
@@ -363,6 +363,7 @@ const selectedCaseIds = ref<number[]>([])
 const batchRunLimit = ref(readQueryNumber(route.query.batchLimit, evalFilters.batchRunLimit))
 const importExportJson = ref('')
 const importFileInput = ref<HTMLInputElement | null>(null)
+const applyingRouteState = ref(false)
 
 const versionForm = reactive({
   versionName: '',
@@ -504,6 +505,9 @@ function clearSelectedCases() {
 }
 
 function syncRouteQuery() {
+  if (applyingRouteState.value) {
+    return
+  }
   const query = cleanQueryRecord({
     batchLimit: batchRunLimit.value !== 20 ? batchRunLimit.value : undefined,
     runSource: runFilter.sourceType || undefined,
@@ -522,6 +526,100 @@ function syncRouteQuery() {
     runCompareTarget: runCompare.target || undefined,
   })
   router.replace({ query }).catch(() => undefined)
+}
+
+async function applyRouteStateFromQuery() {
+  const nextBatchLimit = readQueryNumber(route.query.batchLimit, 20)
+  const nextRunSource = readQueryString(route.query.runSource, '')
+  const nextRunVersionId = readQueryNumber(route.query.runVersionId, 0)
+  const nextRunRegressionId = readQueryNumber(route.query.runRegressionId, 0)
+  const nextCaseKeyword = readQueryString(route.query.caseKeyword, '')
+  const nextCaseBucket = readQueryString(route.query.caseBucket, '')
+  const nextCaseRisk = readQueryString(route.query.caseRisk, '')
+  const nextCaseEnabled = readQueryNumber(route.query.caseEnabled, -1)
+  const nextVersionCompareBase = readQueryNumber(route.query.versionCompareBase, 0)
+  const nextVersionCompareTarget = readQueryNumber(route.query.versionCompareTarget, 0)
+  const nextRunCompareBase = readQueryNumber(route.query.runCompareBase, 0)
+  const nextRunCompareTarget = readQueryNumber(route.query.runCompareTarget, 0)
+  const versionId = readQueryNumber(route.query.versionId, 0)
+  const regressionId = readQueryNumber(route.query.regressionId, 0)
+  const runId = readQueryNumber(route.query.runId, 0)
+
+  const filtersChanged =
+    batchRunLimit.value !== nextBatchLimit ||
+    runFilter.sourceType !== nextRunSource ||
+    runFilter.versionId !== nextRunVersionId ||
+    runFilter.regressionSetId !== nextRunRegressionId ||
+    caseFilter.keyword !== nextCaseKeyword ||
+    caseFilter.bucket !== nextCaseBucket ||
+    caseFilter.riskLevel !== nextCaseRisk ||
+    caseFilter.enabled !== nextCaseEnabled
+
+  const versionCompareChanged =
+    versionCompare.base !== nextVersionCompareBase || versionCompare.target !== nextVersionCompareTarget
+  const runCompareChanged = runCompare.base !== nextRunCompareBase || runCompare.target !== nextRunCompareTarget
+  const activeVersionChanged = (activeVersionDetail.value?.version.id || 0) !== versionId
+  const activeRegressionChanged = (regressionSetDetail.value?.regressionSet.id || 0) !== regressionId
+  const activeRunChanged = (evalRunDetail.value?.run.id || 0) !== runId
+
+  applyingRouteState.value = true
+  batchRunLimit.value = nextBatchLimit
+  runFilter.sourceType = nextRunSource
+  runFilter.versionId = nextRunVersionId
+  runFilter.regressionSetId = nextRunRegressionId
+  caseFilter.keyword = nextCaseKeyword
+  caseFilter.bucket = nextCaseBucket
+  caseFilter.riskLevel = nextCaseRisk
+  caseFilter.enabled = nextCaseEnabled
+  versionCompare.base = nextVersionCompareBase
+  versionCompare.target = nextVersionCompareTarget
+  runCompare.base = nextRunCompareBase
+  runCompare.target = nextRunCompareTarget
+  applyingRouteState.value = false
+
+  if (filtersChanged) {
+    await loadData()
+  }
+
+  if (versionId) {
+    if (activeVersionChanged) {
+      await inspectVersion(versionId)
+    }
+  } else if (activeVersionDetail.value) {
+    activeVersionDetail.value = null
+  }
+
+  if (regressionId) {
+    if (activeRegressionChanged) {
+      await inspectRegressionSet(regressionId)
+    }
+  } else if (regressionSetDetail.value) {
+    regressionSetDetail.value = null
+  }
+
+  if (runId) {
+    if (activeRunChanged) {
+      await inspectRun(runId)
+    }
+  } else if (evalRunDetail.value) {
+    evalRunDetail.value = null
+  }
+
+  if (versionCompare.base && versionCompare.target) {
+    if (versionCompareChanged || !versionComparison.value) {
+      await runVersionCompare()
+    }
+  } else if (versionComparison.value) {
+    versionComparison.value = null
+  }
+
+  if (runCompare.base && runCompare.target) {
+    if (runCompareChanged || !runComparison.value) {
+      await runEvalRunCompare()
+    }
+  } else if (runComparison.value) {
+    runComparison.value = null
+  }
 }
 
 async function copyCurrentLink() {
@@ -949,6 +1047,9 @@ watch(
     () => caseFilter.enabled,
   ],
   () => {
+    if (applyingRouteState.value) {
+      return
+    }
     writeGovernanceStorage('governance-eval-filters', {
       batchRunLimit: batchRunLimit.value,
       runFilter: { ...runFilter },
@@ -968,32 +1069,257 @@ watch(
     () => runCompare.base,
     () => runCompare.target,
   ],
-  syncRouteQuery,
+  () => {
+    if (applyingRouteState.value) {
+      return
+    }
+    syncRouteQuery()
+  },
+)
+
+watch(
+  () => route.query,
+  async () => {
+    await applyRouteStateFromQuery()
+  },
+  { deep: true },
 )
 
 onMounted(async () => {
   await loadData()
-  const versionId = readQueryNumber(route.query.versionId, 0)
-  const regressionId = readQueryNumber(route.query.regressionId, 0)
-  const runId = readQueryNumber(route.query.runId, 0)
-  if (versionId) {
-    await inspectVersion(versionId)
-  }
-  if (regressionId) {
-    await inspectRegressionSet(regressionId)
-  }
-  if (runId) {
-    await inspectRun(runId)
-  }
-  if (versionCompare.base && versionCompare.target) {
-    await runVersionCompare()
-  }
-  if (runCompare.base && runCompare.target) {
-    await runEvalRunCompare()
-  }
+  await applyRouteStateFromQuery()
 })
 </script>
 
 <style scoped>
-.page{display:flex;flex-direction:column;gap:20px}.head,.row,.actions,.info{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.head,.detail-head{justify-content:space-between;align-items:flex-start}.detail-head{display:flex;gap:12px;flex-wrap:wrap}.kicker{margin:0 0 6px;color:#0f766e;font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase}.head h1{margin:0;font-size:30px}.desc{margin:8px 0 0;color:#64748b}.error,.success,.empty{padding:12px 16px;border-radius:14px}.error{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}.success{background:#ecfeff;color:#155e75;border:1px solid #a5f3fc}.cards,.grid{display:grid;gap:16px}.cards{grid-template-columns:repeat(4,minmax(0,1fr))}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.card,.panel{border-radius:20px;background:#fff;padding:18px;border:1px solid rgba(148,163,184,.16);box-shadow:0 16px 40px rgba(15,23,42,.08)}.card span{color:#64748b;font-size:13px}.card strong{display:block;margin-top:10px;font-size:28px}label,.stack{display:flex;flex-direction:column;gap:6px;color:#475569;font-size:13px}.stack{margin-top:12px}.hidden-input{display:none}input,select,textarea{border:1px solid #cbd5e1;border-radius:12px;padding:10px 12px;font:inherit;width:100%;box-sizing:border-box}.list,.compact{display:flex;flex-direction:column;gap:10px;margin-top:12px}.item,.detail,.subitem{border-radius:16px;background:#f8fafc;border:1px solid #e2e8f0}.item,.subitem{display:flex;justify-content:space-between;gap:12px;padding:14px}.item input{width:auto;margin-top:4px}.item.plain{align-items:flex-start}.item-main{flex:1}.item-main strong{display:block;margin-bottom:4px}.item-main p,.detail p,.subitem p{margin:0;color:#64748b;font-size:13px}.detail{margin-top:14px;padding:16px}.info span,.badge{padding:6px 10px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:12px;font-weight:700}.primary,.secondary,.ghost{border:0;border-radius:14px;padding:11px 16px;cursor:pointer;font-weight:700}.primary{background:linear-gradient(135deg,#0f172a,#0f766e);color:#fff}.secondary{background:#ccfbf1;color:#0f172a}.ghost{background:#e2e8f0;color:#334155}.ghost.danger{background:#fee2e2;color:#991b1b}.ghost.small{padding:8px 12px;font-size:12px}h2,h3{margin:0}.empty{background:#f8fafc;color:#94a3b8;text-align:center}@media (max-width:1100px){.cards,.grid{grid-template-columns:1fr}.head{flex-direction:column}}
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.head,
+.row,
+.actions,
+.info {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.head,
+.detail-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.detail-head {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.kicker {
+  margin: 0;
+  color: var(--admin-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.head h1 {
+  margin: 4px 0 0;
+  color: var(--admin-text-primary);
+  font-size: 22px;
+}
+
+.desc {
+  margin: 6px 0 0;
+  color: var(--admin-text-secondary);
+  font-size: 13px;
+}
+
+.error,
+.success,
+.empty {
+  padding: 10px 12px;
+  border-radius: var(--admin-radius-control);
+  font-size: 12px;
+}
+
+.error {
+  background: #fbeeed;
+  color: #9f2f24;
+  border: 1px solid #efc3bc;
+}
+
+.success {
+  background: #ebf8f1;
+  color: #1f7a4d;
+  border: 1px solid #b8dfcb;
+}
+
+.empty {
+  border: 1px dashed var(--admin-border);
+  color: var(--admin-text-muted);
+  text-align: center;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.card,
+.panel {
+  border-radius: var(--admin-radius-panel);
+  background: var(--admin-bg-surface);
+  padding: 12px;
+  border: 1px solid var(--admin-border);
+  box-shadow: var(--admin-shadow-panel);
+}
+
+.card span {
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+}
+
+.card strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--admin-text-primary);
+  font-size: 24px;
+}
+
+label,
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+}
+
+.stack {
+  margin-top: 10px;
+}
+
+.hidden-input {
+  display: none;
+}
+
+input,
+select,
+textarea {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  padding: 8px 10px;
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--admin-bg-surface);
+}
+
+.list,
+.compact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.item,
+.detail,
+.subitem {
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-bg-subtle);
+  border: 1px solid var(--admin-border);
+}
+
+.item,
+.subitem {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+}
+
+.item input {
+  width: auto;
+  margin-top: 4px;
+}
+
+.item.plain {
+  align-items: flex-start;
+}
+
+.item-main {
+  flex: 1;
+}
+
+.item-main strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--admin-text-primary);
+  font-size: 13px;
+}
+
+.item-main p,
+.detail p,
+.subitem p {
+  margin: 0;
+  color: var(--admin-text-secondary);
+  font-size: 12px;
+}
+
+.detail {
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.info span,
+.badge {
+  padding: 3px 8px;
+  border-radius: var(--admin-radius-control);
+  background: #eaf0f8;
+  color: #2d5887;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.primary,
+.secondary,
+.ghost {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-control);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  background: var(--admin-bg-surface);
+  color: var(--admin-text-secondary);
+}
+
+.secondary {
+  background: var(--admin-accent-soft);
+  color: var(--admin-text-primary);
+}
+
+.primary {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent);
+  color: #ffffff;
+}
+
+.ghost.small {
+  padding: 6px 10px;
+  font-size: 12px;
+}
 </style>
