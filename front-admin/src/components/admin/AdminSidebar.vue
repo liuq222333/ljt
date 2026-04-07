@@ -37,9 +37,10 @@ defineEmits<{
 .admin-sidebar {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100%;
   padding: 12px 0;
   background: var(--admin-bg-surface);
+  overflow: hidden;
 }
 
 .admin-sidebar__header {
@@ -64,9 +65,12 @@ defineEmits<{
 }
 
 .admin-sidebar__nav {
+  flex: 1;
   display: flex;
   flex-direction: column;
   padding-top: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .admin-sidebar__group {

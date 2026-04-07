@@ -89,24 +89,28 @@ watch(
 .admin-shell {
   display: grid;
   grid-template-columns: 224px minmax(0, 1fr);
-  min-height: 100vh;
+  height: 100vh;
   background: var(--admin-bg-canvas);
+  overflow: hidden;
 }
 
 .admin-shell__sidebar {
-  min-height: 100vh;
+  height: 100vh;
   border-right: 1px solid var(--admin-border);
   background: var(--admin-bg-surface);
-  overflow: auto;
+  overflow: hidden;
 }
 
 .admin-shell__main {
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .admin-shell__topbar {
+  flex: 0 0 auto;
   border-bottom: 1px solid var(--admin-border);
   background: var(--admin-bg-surface);
 }
@@ -114,7 +118,10 @@ watch(
 .admin-shell__workspace {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   padding: 12px 16px 16px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 </style>
