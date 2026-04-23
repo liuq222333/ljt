@@ -1,0 +1,41 @@
+=D:\code\aaaaljt\.superpowers\brainstorm\session-1775482468 : 无法将“=D:\code\aaaaljt\.superpowers\brainstorm\session-
+1775482468”项识别为 cmdlet、函数、脚本文件或可运行程序的名称。请检查名称的拼写，如果包括路径，请确保路径正确，然后再试
+一次。
+所在位置 行:1 字符: 1
++ ='D:\code\aaaaljt\.superpowers\brainstorm\session-1775482468'; ='127. ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=D:\code\aaaalj...sion-1775482468:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+=127.0.0.1 : 无法将“=127.0.0.1”项识别为 cmdlet、函数、脚本文件或可运行程序的名称。请检查名称的拼写，如果包括路径，请
+确保路径正确，然后再试一次。
+所在位置 行:1 字符: 64
++ ... ljt\.superpowers\brainstorm\session-1775482468'; ='127.0.0.1'; ='loca ...
++                                                      ~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=127.0.0.1:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+=localhost : 无法将“=localhost”项识别为 cmdlet、函数、脚本文件或可运行程序的名称。请检查名称的拼写，如果包括路径，请
+确保路径正确，然后再试一次。
+所在位置 行:1 字符: 78
++ ... rs\brainstorm\session-1775482468'; ='127.0.0.1'; ='localhost'; node ' ...
++                                                      ~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (=localhost:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+node:fs:1942
+  binding.unlink(getValidatedPath(path));
+          ^
+
+Error: ENOENT: no such file or directory, unlink 'D:\tmp\brainstorm\state\events'
+    at Object.unlinkSync (node:fs:1942:11)
+    at Timeout._onTimeout (C:\Users\36018\.codex\skills\brainstorming\scripts\server.cjs:290:43)
+    at listOnTimeout (node:internal/timers:608:17)
+    at process.processTimers (node:internal/timers:543:7) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'unlink',
+  path: 'D:\\tmp\\brainstorm\\state\\events'
+}
+
+Node.js v24.10.0

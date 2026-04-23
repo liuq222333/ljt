@@ -1,0 +1,119 @@
+﻿<h2>稳重运营台 · 结构设计</h2>
+<p class="subtitle">这是按你选的 A 方向收敛后的管理端骨架：左侧主导航 + 顶部工具栏，概览与列表均衡，圆角收紧，桌面优先。</p>
+
+<div class="split">
+  <div class="mockup" data-choice="home-layout" onclick="toggleSelect(this)">
+    <div class="mockup-header">首页 / 总览页</div>
+    <div class="mockup-body" style="background:#f3f4f6;padding:14px;min-height:460px;">
+      <div style="display:grid;grid-template-columns:208px 1fr;gap:12px;height:100%;">
+        <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;">
+          <div style="font-size:12px;color:#6b7280;letter-spacing:.08em;text-transform:uppercase;">AAALJT Admin</div>
+          <div style="height:12px;background:#e9edf2;border-radius:4px;"></div>
+          <div style="height:12px;background:#d8dde5;border-radius:4px;"></div>
+          <div style="height:12px;background:#e9edf2;border-radius:4px;"></div>
+          <div style="height:12px;background:#e9edf2;border-radius:4px;"></div>
+          <div style="height:12px;background:#e9edf2;border-radius:4px;"></div>
+          <div style="margin-top:8px;height:1px;background:#eceff3;"></div>
+          <div style="height:12px;background:#e9edf2;border-radius:4px;"></div>
+          <div style="height:12px;background:#e9edf2;border-radius:4px;"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="height:14px;width:132px;background:#2b3440;border-radius:4px;margin-bottom:8px;"></div>
+              <div style="height:10px;width:260px;background:#e6eaf0;border-radius:4px;"></div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <div style="height:30px;width:78px;background:#eef1f4;border:1px solid #d7dbe2;border-radius:6px;"></div>
+              <div style="height:30px;width:96px;background:#253244;border-radius:6px;"></div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+            <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px;height:84px;"></div>
+            <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px;height:84px;"></div>
+            <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px;height:84px;"></div>
+            <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px;height:84px;"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1.35fr .9fr;gap:12px;flex:1;">
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px;flex:1;">
+                <div style="height:12px;width:118px;background:#3b4757;border-radius:4px;margin-bottom:12px;"></div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+                  <div style="height:32px;background:#f3f4f6;border:1px solid #e4e7eb;border-radius:6px;"></div>
+                  <div style="height:32px;background:#f3f4f6;border:1px solid #e4e7eb;border-radius:6px;"></div>
+                  <div style="height:32px;background:#f3f4f6;border:1px solid #e4e7eb;border-radius:6px;"></div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                  <div style="height:38px;background:#f7f8fa;border:1px solid #eceff3;border-radius:6px;"></div>
+                  <div style="height:38px;background:#f7f8fa;border:1px solid #eceff3;border-radius:6px;"></div>
+                  <div style="height:38px;background:#f7f8fa;border:1px solid #eceff3;border-radius:6px;"></div>
+                  <div style="height:38px;background:#f7f8fa;border:1px solid #eceff3;border-radius:6px;"></div>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px;height:148px;"></div>
+              <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px;flex:1;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup" data-choice="inner-layout" onclick="toggleSelect(this)">
+    <div class="mockup-header">业务内页 / 管理页</div>
+    <div class="mockup-body" style="background:#f3f4f6;padding:14px;min-height:460px;">
+      <div style="display:grid;grid-template-columns:208px 1fr;gap:12px;height:100%;">
+        <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;">
+          <div style="font-size:12px;color:#6b7280;letter-spacing:.08em;text-transform:uppercase;">Navigation</div>
+          <div style="height:12px;background:#e9edf2;border-radius:4px;"></div>
+          <div style="height:12px;background:#d8dde5;border-radius:4px;"></div>
+          <div style="height:12px;background:#e9edf2;border-radius:4px;"></div>
+          <div style="height:12px;background:#e9edf2;border-radius:4px;"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="height:14px;width:132px;background:#2b3440;border-radius:4px;margin-bottom:8px;"></div>
+              <div style="height:10px;width:220px;background:#e6eaf0;border-radius:4px;"></div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <div style="height:30px;width:72px;background:#eef1f4;border:1px solid #d7dbe2;border-radius:6px;"></div>
+              <div style="height:30px;width:72px;background:#eef1f4;border:1px solid #d7dbe2;border-radius:6px;"></div>
+              <div style="height:30px;width:88px;background:#253244;border-radius:6px;"></div>
+            </div>
+          </div>
+          <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px;">
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">
+              <div style="height:34px;background:#f4f6f8;border:1px solid #e4e7eb;border-radius:6px;"></div>
+              <div style="height:34px;background:#f4f6f8;border:1px solid #e4e7eb;border-radius:6px;"></div>
+              <div style="height:34px;background:#f4f6f8;border:1px solid #e4e7eb;border-radius:6px;"></div>
+              <div style="height:34px;background:#f4f6f8;border:1px solid #e4e7eb;border-radius:6px;"></div>
+              <div style="height:34px;background:#253244;border-radius:6px;"></div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr .88fr;gap:12px;flex:1;">
+            <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+              <div style="height:12px;width:140px;background:#3b4757;border-radius:4px;margin-bottom:6px;"></div>
+              <div style="height:40px;background:#f7f8fa;border:1px solid #eceff3;border-radius:6px;"></div>
+              <div style="height:40px;background:#f7f8fa;border:1px solid #eceff3;border-radius:6px;"></div>
+              <div style="height:40px;background:#f7f8fa;border:1px solid #eceff3;border-radius:6px;"></div>
+              <div style="height:40px;background:#f7f8fa;border:1px solid #eceff3;border-radius:6px;"></div>
+              <div style="height:40px;background:#f7f8fa;border:1px solid #eceff3;border-radius:6px;"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px;height:168px;"></div>
+              <div style="background:#ffffff;border:1px solid #d7dbe2;border-radius:8px;padding:12px;flex:1;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">说明</p>
+  <p>首页会保留概览卡片，但下方主体改成“最近记录 + 关键待办 + 状态面板”；业务内页统一成“标题区 / 筛选操作区 / 主体列表或表单 / 辅助侧栏”的后台模式。</p>
+</div>

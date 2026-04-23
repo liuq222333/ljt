@@ -1,0 +1,74 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -------------------------< org.example:demo1 >--------------------------
+[INFO] Building demo1 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:2.6.13:run (default-cli) > test-compile @ demo1 >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ demo1 ---
+[INFO] Copying 24 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.8.1:compile (default-compile) @ demo1 ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ demo1 ---
+[INFO] skip non existing resourceDirectory D:\code\aaaaljt\backend\demo1\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.8.1:testCompile (default-testCompile) @ demo1 ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] <<< spring-boot:2.6.13:run (default-cli) < test-compile @ demo1 <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:2.6.13:run (default-cli) @ demo1 ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::               (v2.6.13)
+
+2026-04-12 13:38:16.706  INFO 1800 --- [           main] com.example.demo.Demo1Application        : Starting Demo1Application using Java 1.8.0_461 on L with PID 1800 (D:\code\aaaaljt\backend\demo1\target\classes started by 36018 in D:\code\aaaaljt\backend\demo1)
+2026-04-12 13:38:16.714  INFO 1800 --- [           main] com.example.demo.Demo1Application        : The following 1 profile is active: "realtime-local"
+2026-04-12 13:38:17.585  INFO 1800 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-04-12 13:38:17.587  INFO 1800 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-04-12 13:38:17.632  INFO 1800 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 37 ms. Found 0 Redis repository interfaces.
+2026-04-12 13:38:18.739  INFO 1800 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port(s): 8080 (http)
+2026-04-12 13:38:18.751  INFO 1800 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-04-12 13:38:18.751  INFO 1800 --- [           main] org.apache.catalina.core.StandardEngine  : Starting Servlet engine: [Apache Tomcat/9.0.68]
+2026-04-12 13:38:18.889  INFO 1800 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-04-12 13:38:18.889  INFO 1800 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 2147 ms
+ _ _   |_  _ _|_. ___ _ |    _ 
+| | |\/|_)(_| | |_\  |_)||_|_\ 
+     /               |         
+                        3.5.3.2 
+2026-04-12 13:38:22.966  INFO 1800 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-04-12 13:38:23.071  INFO 1800 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-04-12 13:38:23.581  WARN 1800 --- [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 718ccf5d-4436-4b1f-b0a2-13df5531b7b4
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-04-12 13:38:23.657  INFO 1800 --- [           main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with [org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@42474b18, org.springframework.security.web.context.SecurityContextPersistenceFilter@64887fbc, org.springframework.security.web.header.HeaderWriterFilter@153409b8, org.springframework.web.filter.CorsFilter@31b91435, org.springframework.security.web.authentication.logout.LogoutFilter@1870b9b8, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@1f6d7e7c, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@20f99c18, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@5d75f90e, org.springframework.security.web.session.SessionManagementFilter@470b5213, org.springframework.security.web.access.ExceptionTranslationFilter@180d918a, org.springframework.security.web.access.intercept.FilterSecurityInterceptor@3731e8b6]
+2026-04-12 13:38:23.829  INFO 1800 --- [           main] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page: class path resource [static/index.html]
+2026-04-12 13:38:24.173  INFO 1800 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port(s): 8080 (http) with context path ''
+2026-04-12 13:38:24.175  INFO 1800 --- [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Starting...
+2026-04-12 13:38:24.176  INFO 1800 --- [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : BrokerAvailabilityEvent[available=true, SimpleBrokerMessageHandler [org.springframework.messaging.simp.broker.DefaultSubscriptionRegistry@3adeca1f]]
+2026-04-12 13:38:24.176  INFO 1800 --- [           main] o.s.m.s.b.SimpleBrokerMessageHandler     : Started.
+2026-04-12 13:38:24.178  INFO 1800 --- [           main] o.s.a.r.c.CachingConnectionFactory       : Attempting to connect to: [localhost:5672]
+2026-04-12 13:38:24.216  INFO 1800 --- [           main] o.s.a.r.c.CachingConnectionFactory       : Created new connection: rabbitConnectionFactory#1152900:0/SimpleConnection@37196d53 [delegate=amqp://guest@127.0.0.1:5672/, localPort= 58481]
+2026-04-12 13:38:24.310  INFO 1800 --- [           main] com.example.demo.Demo1Application        : Started Demo1Application in 7.899 seconds (JVM running for 8.252)
+2026-04-12 13:39:23.477  INFO 1800 --- [MessageBroker-1] o.s.w.s.c.WebSocketMessageBrokerStats    : WebSocketSession[0 current WS(0)-HttpStream(0)-HttpPoll(0), 0 total, 0 closed abnormally (0 connect failure, 0 send limit, 0 transport error)], stompSubProtocol[processed CONNECT(0)-CONNECTED(0)-DISCONNECT(0)], stompBrokerRelay[null], inboundChannel[pool size = 0, active threads = 0, queued tasks = 0, completed tasks = 0], outboundChannel[pool size = 0, active threads = 0, queued tasks = 0, completed tasks = 0], sockJsScheduler[pool size = 1, active threads = 1, queued tasks = 0, completed tasks = 0]
+2026-04-12 13:39:29.034  INFO 1800 --- [nio-8080-exec-2] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-04-12 13:39:29.034  INFO 1800 --- [nio-8080-exec-2] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-04-12 13:39:29.036  INFO 1800 --- [nio-8080-exec-2] o.s.web.servlet.DispatcherServlet        : Completed initialization in 2 ms
+2026-04-12 14:04:33.550  WARN 1800 --- [ 127.0.0.1:5672] c.r.c.impl.ForgivingExceptionHandler     : An unexpected connection driver error occurred (Exception message: Connection reset)
+2026-04-12 14:04:33.786  INFO 1800 --- [ntContainer#0-1] o.s.a.r.l.SimpleMessageListenerContainer : Restarting Consumer@36f497b1: tags=[[amq.ctag-T9Uzht5SYwhy9B4ATjAD5A, amq.ctag-YDmay3x-oWirSU6RBqWK1g, amq.ctag-0dRsnTIy1wfK4vkhCQFAYw]], channel=Cached Rabbit Channel: PublisherCallbackChannelImpl: AMQChannel(amqp://guest@127.0.0.1:5672/,1), conn: Proxy@2b3d03b2 Shared Rabbit Connection: SimpleConnection@37196d53 [delegate=amqp://guest@127.0.0.1:5672/, localPort= 58481], acknowledgeMode=AUTO local queue size=0
+2026-04-12 14:04:33.786  INFO 1800 --- [ntContainer#0-2] o.s.a.r.c.CachingConnectionFactory       : Attempting to connect to: [localhost:5672]
+2026-04-12 14:04:35.920  INFO 1800 --- [ntContainer#0-2] o.s.a.r.c.CachingConnectionFactory       : Created new connection: rabbitConnectionFactory#1152900:1/SimpleConnection@7deb9330 [delegate=amqp://guest@0:0:0:0:0:0:0:1:5672/, localPort= 65009]

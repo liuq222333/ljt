@@ -1,0 +1,215 @@
+<style>
+  .cards {
+    grid-template-columns: repeat(3, minmax(260px, 1fr));
+  }
+  .card-image {
+    padding: 16px;
+    background: #f5f7fa;
+  }
+  .wireframe {
+    border: 1px solid #d9dee7;
+    border-radius: 12px;
+    background: #fff;
+    min-height: 280px;
+    overflow: hidden;
+  }
+  .wf-topbar {
+    height: 38px;
+    border-bottom: 1px solid #e5e9f0;
+    background: #fbfcfd;
+  }
+  .wf-layout {
+    display: flex;
+    min-height: 242px;
+  }
+  .wf-main {
+    flex: 1;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: #fff;
+  }
+  .wf-sidebar {
+    width: 78px;
+    border-right: 1px solid #edf0f4;
+    background: #fafbfc;
+    padding: 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .wf-sidebar.wide {
+    width: 112px;
+  }
+  .wf-block,
+  .wf-chip,
+  .wf-line,
+  .wf-card,
+  .wf-mini-card {
+    border-radius: 8px;
+    background: #eef2f6;
+  }
+  .wf-line {
+    height: 10px;
+  }
+  .wf-line.short {
+    width: 40%;
+  }
+  .wf-chip {
+    height: 26px;
+  }
+  .wf-chip.active {
+    background: #d7dee8;
+  }
+  .wf-block {
+    height: 92px;
+  }
+  .wf-row {
+    display: grid;
+    gap: 10px;
+  }
+  .wf-row.two {
+    grid-template-columns: 1.2fr 0.8fr;
+  }
+  .wf-row.three {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .wf-card {
+    min-height: 92px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #f7f9fb;
+    border: 1px solid #ebeff4;
+  }
+  .wf-card.dark {
+    background: #edf2f7;
+  }
+  .wf-mini-card {
+    height: 68px;
+    border: 1px solid #ebeff4;
+    background: #f7f9fb;
+  }
+  .wf-action {
+    height: 36px;
+    border-radius: 8px;
+    background: #d6dde7;
+  }
+  .wf-footer-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .hint {
+    margin-top: 18px;
+    font-size: 13px;
+    color: #667085;
+  }
+</style>
+
+<h2>哪种页面骨架更接近你要的方向？</h2>
+<p class="subtitle">前提已经按你的要求收敛：AI 为主、先选模板、桌面端优先，市场和推荐退到辅助区</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="wireframe">
+        <div class="wf-topbar"></div>
+        <div class="wf-layout">
+          <div class="wf-main">
+            <div class="wf-line short"></div>
+            <div class="wf-row three">
+              <div class="wf-card dark"></div>
+              <div class="wf-card"></div>
+              <div class="wf-card"></div>
+            </div>
+            <div class="wf-row two">
+              <div class="wf-block"></div>
+              <div class="wf-block"></div>
+            </div>
+            <div class="wf-footer-grid">
+              <div class="wf-mini-card"></div>
+              <div class="wf-mini-card"></div>
+              <div class="wf-mini-card"></div>
+              <div class="wf-mini-card"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 中轴工作台</h3>
+      <p>上半区整块做 AI 工作台：模板、输入、执行都在中心；下半区再接推荐和市场货架，结构最直观。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="wireframe">
+        <div class="wf-topbar"></div>
+        <div class="wf-layout">
+          <div class="wf-sidebar wide">
+            <div class="wf-chip active"></div>
+            <div class="wf-chip"></div>
+            <div class="wf-chip"></div>
+            <div class="wf-chip"></div>
+            <div class="wf-chip"></div>
+          </div>
+          <div class="wf-main">
+            <div class="wf-line short"></div>
+            <div class="wf-row two">
+              <div class="wf-card dark" style="min-height: 130px;"></div>
+              <div class="wf-card" style="min-height: 130px;"></div>
+            </div>
+            <div class="wf-action"></div>
+            <div class="wf-footer-grid">
+              <div class="wf-mini-card"></div>
+              <div class="wf-mini-card"></div>
+              <div class="wf-mini-card"></div>
+              <div class="wf-mini-card"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 左模板右执行</h3>
+      <p>上半区拆成“左侧模板分类 + 右侧 AI 执行区”；下半区再放精选资源。效率感更强，也更像工作台。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="wireframe">
+        <div class="wf-topbar"></div>
+        <div class="wf-layout">
+          <div class="wf-main">
+            <div class="wf-row three">
+              <div class="wf-card dark" style="min-height: 120px;"></div>
+              <div class="wf-card" style="min-height: 120px;"></div>
+              <div class="wf-card" style="min-height: 120px;"></div>
+            </div>
+            <div class="wf-row two">
+              <div class="wf-card" style="min-height: 120px;"></div>
+              <div class="wf-card dark" style="min-height: 120px;"></div>
+            </div>
+            <div class="wf-footer-grid">
+              <div class="wf-mini-card"></div>
+              <div class="wf-mini-card"></div>
+              <div class="wf-mini-card"></div>
+              <div class="wf-mini-card"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 模块拼装台</h3>
+      <p>没有明显主次栏位，模板、输入、结果、推荐都拆成多个并列模块，更灵活，但也更依赖排版控制。</p>
+    </div>
+  </div>
+</div>
+
+<p class="hint">看完后直接在浏览器里点选，或者在终端回复字母也可以。若你想混合，也可以说“以 B 为主，吸收 A 的下半区”。</p>

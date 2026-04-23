@@ -1,0 +1,235 @@
+<style>
+  .cards {
+    grid-template-columns: repeat(3, minmax(260px, 1fr));
+  }
+  .card-image {
+    padding: 16px;
+    background: #f4f6f8;
+  }
+  .mock {
+    border-radius: 10px;
+    border: 1px solid #d9dfe6;
+    overflow: hidden;
+    background: #fff;
+    min-height: 330px;
+  }
+  .mock.top-a .bar,
+  .mock.top-b .bar,
+  .mock.top-c .bar {
+    height: 36px;
+    border-bottom: 1px solid #e8ecf1;
+  }
+  .mock.top-a .bar { background: #fafbfc; }
+  .mock.top-b .bar { background: #f8fafc; }
+  .mock.top-c .bar { background: #fcfcfd; }
+  .canvas {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .row {
+    display: grid;
+    gap: 10px;
+  }
+  .row.three {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .row.two {
+    grid-template-columns: 1.15fr 0.85fr;
+  }
+  .box,
+  .chip,
+  .line,
+  .cell {
+    border-radius: 8px;
+  }
+  .line {
+    height: 10px;
+    width: 36%;
+  }
+  .chip-row {
+    display: flex;
+    gap: 8px;
+  }
+  .chip {
+    height: 28px;
+    flex: 1;
+  }
+  .box {
+    min-height: 88px;
+    border: 1px solid transparent;
+  }
+  .cell {
+    min-height: 70px;
+    border: 1px solid transparent;
+  }
+  .footer-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .scheme-a .line,
+  .scheme-a .chip,
+  .scheme-a .box,
+  .scheme-a .cell {
+    background: #eef1f4;
+    border-color: #e3e8ee;
+  }
+  .scheme-a .box.key {
+    background: #e5eaf0;
+  }
+
+  .scheme-b .line {
+    background: #dde4ec;
+  }
+  .scheme-b .chip,
+  .scheme-b .box,
+  .scheme-b .cell {
+    background: #f6f8fa;
+    border-color: #e3e8ef;
+  }
+  .scheme-b .chip.active,
+  .scheme-b .box.key {
+    background: #e9eef4;
+    border-color: #d6dee8;
+  }
+  .scheme-b .cell.mark {
+    background: #eef3f8;
+  }
+
+  .scheme-c .line {
+    background: #e6ebf1;
+  }
+  .scheme-c .chip,
+  .scheme-c .box,
+  .scheme-c .cell {
+    background: #fafbfc;
+    border-color: #e8edf3;
+  }
+  .scheme-c .box.key {
+    background: #f0f3f7;
+  }
+  .scheme-c .cell.mark {
+    background: #f4f7fa;
+  }
+
+  .caption {
+    margin-top: 18px;
+    font-size: 13px;
+    color: #667085;
+  }
+</style>
+
+<h2>模块化工作台里，你更想要哪种视觉气质？</h2>
+<p class="subtitle">这一步只定气质，不定细节交互。三种都默认不使用渐变，且 AI 是主区、推荐是辅区。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock top-a scheme-a">
+        <div class="bar"></div>
+        <div class="canvas">
+          <div class="line"></div>
+          <div class="chip-row">
+            <div class="chip"></div>
+            <div class="chip"></div>
+            <div class="chip"></div>
+          </div>
+          <div class="row three">
+            <div class="box key"></div>
+            <div class="box"></div>
+            <div class="box"></div>
+          </div>
+          <div class="row two">
+            <div class="box" style="min-height: 106px;"></div>
+            <div class="box" style="min-height: 106px;"></div>
+          </div>
+          <div class="footer-grid">
+            <div class="cell"></div>
+            <div class="cell"></div>
+            <div class="cell"></div>
+            <div class="cell"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 偏专业工具台</h3>
+      <p>更克制、更紧凑，像成熟产品工作台。适合强调效率、专业感和长期使用。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock top-b scheme-b">
+        <div class="bar"></div>
+        <div class="canvas">
+          <div class="line"></div>
+          <div class="chip-row">
+            <div class="chip active"></div>
+            <div class="chip"></div>
+            <div class="chip"></div>
+          </div>
+          <div class="row three">
+            <div class="box key"></div>
+            <div class="box"></div>
+            <div class="box"></div>
+          </div>
+          <div class="row two">
+            <div class="box" style="min-height: 106px;"></div>
+            <div class="box key" style="min-height: 106px;"></div>
+          </div>
+          <div class="footer-grid">
+            <div class="cell mark"></div>
+            <div class="cell"></div>
+            <div class="cell"></div>
+            <div class="cell"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 偏 AI 工作室</h3>
+      <p>还是简洁，但会稍微突出“模板入口 + 结果反馈 + 推荐能力”，更像 AI 产品首页。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock top-c scheme-c">
+        <div class="bar"></div>
+        <div class="canvas">
+          <div class="line"></div>
+          <div class="chip-row">
+            <div class="chip"></div>
+            <div class="chip active"></div>
+            <div class="chip"></div>
+          </div>
+          <div class="row three">
+            <div class="box"></div>
+            <div class="box key"></div>
+            <div class="box"></div>
+          </div>
+          <div class="row two">
+            <div class="box key" style="min-height: 106px;"></div>
+            <div class="box" style="min-height: 106px;"></div>
+          </div>
+          <div class="footer-grid">
+            <div class="cell mark"></div>
+            <div class="cell mark"></div>
+            <div class="cell"></div>
+            <div class="cell"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 偏内容展示台</h3>
+      <p>信息更松、更像首页内容编排，推荐和市场感会更强一些，但 AI 主轴会被稀释。</p>
+    </div>
+  </div>
+</div>
+
+<p class="caption">如果你已经很确定，也可以直接在终端回我字母；如果想混合，可以说“以 A 为主，保留 B 的结果反馈感”。</p>
