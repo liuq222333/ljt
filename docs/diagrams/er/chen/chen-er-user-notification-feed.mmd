@@ -1,0 +1,54 @@
+flowchart LR
+    subgraph G1["用户、通知与社区互动 ER 图（Chen）"]
+        U[用户]
+        N[通知]
+        F[社区动态]
+        C[动态评论]
+        R1{"接收"}
+        R2{"发布"}
+        R3{"发表评论"}
+        R4{"属于"}
+        R5{"点赞"}
+        U_ID((主键 用户编号))
+        U_NAME((用户名))
+        U_PHONE((手机号))
+        U_AVATAR((头像键))
+        N_ID((主键 编号))
+        N_TITLE((标题))
+        N_TYPE((类型))
+        N_READ((已读状态))
+        F_ID((主键 编号))
+        F_CONTENT((内容))
+        F_VIS((可见范围))
+        F_TIME((创建时间))
+        C_ID((主键 编号))
+        C_CONTENT((内容))
+        C_TIME((创建时间))
+        RL_TIME((创建时间))
+        U ---|1| R1
+        R1 ---|N| N
+        U ---|1| R2
+        R2 ---|N| F
+        U ---|1| R3
+        R3 ---|N| C
+        F ---|1| R4
+        R4 ---|N| C
+        U ---|N| R5
+        R5 ---|N| F
+        R5 --- RL_TIME
+        U --- U_ID
+        U --- U_NAME
+        U --- U_PHONE
+        U --- U_AVATAR
+        N --- N_ID
+        N --- N_TITLE
+        N --- N_TYPE
+        N --- N_READ
+        F --- F_ID
+        F --- F_CONTENT
+        F --- F_VIS
+        F --- F_TIME
+        C --- C_ID
+        C --- C_CONTENT
+        C --- C_TIME
+    end

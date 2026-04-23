@@ -16,6 +16,8 @@ public class DeepSeekProperties {
     private Double temperature = 1d;
     private Integer maxTokens = 4096;
     private Boolean stream = Boolean.FALSE;
+    private Long connectTimeoutMs = 3000L;
+    private Long readTimeoutMs = 10000L;
     private String internalApiBaseUrl = "http://localhost:8080";
 
     public String getKey() {
@@ -64,6 +66,22 @@ public class DeepSeekProperties {
 
     public void setStream(Boolean stream) {
         this.stream = stream;
+    }
+
+    public Long getConnectTimeoutMs() {
+        return connectTimeoutMs;
+    }
+
+    public void setConnectTimeoutMs(Long connectTimeoutMs) {
+        this.connectTimeoutMs = connectTimeoutMs;
+    }
+
+    public Long getReadTimeoutMs() {
+        return readTimeoutMs;
+    }
+
+    public void setReadTimeoutMs(Long readTimeoutMs) {
+        this.readTimeoutMs = readTimeoutMs;
     }
 
     public String getInternalApiBaseUrl() {

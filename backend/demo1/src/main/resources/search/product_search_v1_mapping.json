@@ -1,0 +1,71 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "analysis": {
+      "analyzer": {
+        "default": {
+          "type": "standard"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": false,
+    "properties": {
+      "product_id": { "type": "long" },
+      "seller_id": { "type": "long" },
+      "store_id": { "type": "long" },
+      "store_name": {
+        "type": "text",
+        "fields": {
+          "keyword": { "type": "keyword", "ignore_above": 256 }
+        }
+      },
+      "product_type": { "type": "keyword" },
+      "title": {
+        "type": "text",
+        "fields": {
+          "keyword": { "type": "keyword", "ignore_above": 256 }
+        }
+      },
+      "subtitle": { "type": "text" },
+      "summary_text": { "type": "text" },
+      "category_id": { "type": "long" },
+      "category_name": { "type": "keyword" },
+      "category_path": { "type": "keyword" },
+      "tag_ids": { "type": "keyword" },
+      "tag_names": { "type": "keyword" },
+      "city_id": { "type": "long" },
+      "city_name": { "type": "keyword" },
+      "district_id": { "type": "long" },
+      "district_name": { "type": "keyword" },
+      "business_area_id": { "type": "long" },
+      "business_area_name": { "type": "keyword" },
+      "lat": { "type": "double" },
+      "lng": { "type": "double" },
+      "base_price": { "type": "scaled_float", "scaling_factor": 100 },
+      "display_price": { "type": "scaled_float", "scaling_factor": 100 },
+      "currency": { "type": "keyword" },
+      "cover_image": { "type": "keyword", "ignore_above": 1024 },
+      "sales_count": { "type": "long" },
+      "rating": { "type": "scaled_float", "scaling_factor": 100 },
+      "review_count": { "type": "long" },
+      "hot_score": { "type": "scaled_float", "scaling_factor": 10000 },
+      "recommend_score": { "type": "scaled_float", "scaling_factor": 10000 },
+      "searchable_status": { "type": "keyword" },
+      "publish_status": { "type": "keyword" },
+      "audit_status": { "type": "keyword" },
+      "visible_status": { "type": "keyword" },
+      "source_status": { "type": "keyword" },
+      "updated_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "searchable_updated_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      }
+    }
+  }
+}

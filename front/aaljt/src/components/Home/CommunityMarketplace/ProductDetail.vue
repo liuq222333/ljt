@@ -110,7 +110,8 @@ import dhstyle from '../../dhstyle/dhstyle.vue';
 import CebianTool from './cebianTool.vue';
 
 // --- Interfaces and Constants ---
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE = (import.meta as any)?.env?.VITE_API_BASE ?? (window as any)?.VITE_API_BASE ?? 'http://localhost:8080';
+const API_BASE_URL = `${API_BASE}/api`;
 const FALLBACK_AVATAR = 'https://cube.elemecdn.com/e/fd/0fc7d20532fdaf769a25683617711png.png';
 const FALLBACK_IMAGE = 'https://via.placeholder.com/600x600.png?text=Image+Not+Available';
 const AMAP_KEY = ((import.meta as any)?.env?.VITE_AMAP_KEY ?? (window as any)?.VITE_AMAP_KEY ?? '');

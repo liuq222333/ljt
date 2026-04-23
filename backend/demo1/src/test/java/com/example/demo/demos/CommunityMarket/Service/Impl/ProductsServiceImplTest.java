@@ -4,6 +4,7 @@ import com.example.demo.demos.CommunityMarket.Dao.ProductsMapper;
 import com.example.demo.demos.CommunityMarket.DTO.ProductQueryDTO;
 import com.example.demo.demos.CommunityMarket.Pojo.Product;
 import com.example.demo.demos.PageResponse.PageResponse;
+import com.example.demo.demos.generic.Resp;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -76,6 +77,46 @@ public class ProductsServiceImplTest {
         // Assert: response contains our stub item
         assertNotNull(resp);
         assertEquals(1, resp.getItems().size());
-        assertEquals("1", resp.getItems().get(0).getId());
+        assertEquals(1L, resp.getItems().get(0).getId());
+    }
+
+    @Test
+    void addProductShouldRejectMissingCategoryBeforeMapperInsert() {
+        Product product = new Product();
+        product.setSellerId(1);
+        product.setTitle("苹果手机");
+        product.setPrice(new java.math.BigDecimal("4000"));
+        product.setStockQuantity(1);
+        product.setLocation("山东省临沂市");
+        product.setImageUrls("[\"https://img.example.com/a.jpg\"]");
+
+        Resp<Void> response = productsService.addProduct(product);
+
+        assertNotNull(response);
+        assertEquals(400, response.getCode());
+        assertEquals("商品分类不能为空", response.getMessage());
+        verify(productsMapper, never()).addProduct(any(Product.class));
+    }
+
+    @Test
+    void addProductShouldDefaultConditionToBrandNew() {
+        Product product = new Product();
+        product.setSellerId(1);
+        product.setCategoryId(15);
+        product.setTitle("苹果手机");
+        product.setPrice(new java.math.BigDecimal("4000"));
+        product.setStockQuantity(1);
+        product.setLocation("山东省临沂市");
+        product.setImageUrls("[\"https://img.example.com/a.jpg\"]");
+
+        when(productsMapper.addProduct(any(Product.class))).thenReturn(0);
+
+        Resp<Void> response = productsService.addProduct(product);
+
+        ArgumentCaptor<Product> captor = ArgumentCaptor.forClass(Product.class);
+        verify(productsMapper).addProduct(captor.capture());
+        assertEquals("全新", captor.getValue().getCondition());
+        assertEquals(500, response.getCode());
+        assertEquals("添加商品失败", response.getMessage());
     }
 }

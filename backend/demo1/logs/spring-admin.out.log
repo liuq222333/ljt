@@ -1,0 +1,207 @@
+[ERROR] COMPILATION ERROR : 
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeEnhancer.java:[4,41] 找不到符号
+  符号:   类 KnowledgeRetrievalRequest
+  位置: 程序包 com.example.demo.demos.Agent.Pojo
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeEnhancer.java:[5,41] 找不到符号
+  符号:   类 KnowledgeRetrievalResponse
+  位置: 程序包 com.example.demo.demos.Agent.Pojo
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[8,41] 找不到符号
+  符号:   类 KnowledgeRetrievalRequest
+  位置: 程序包 com.example.demo.demos.Agent.Pojo
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[9,41] 找不到符号
+  符号:   类 KnowledgeRetrievalResponse
+  位置: 程序包 com.example.demo.demos.Agent.Pojo
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[61,48] 找不到符号
+  符号:   类 KnowledgeRetrievalRequest
+  位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[61,12] 找不到符号
+  符号:   类 KnowledgeRetrievalResponse
+  位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[143,57] 找不到符号
+  符号:   类 KnowledgeRetrievalRequest
+  位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[171,45] 找不到符号
+  符号:   类 KnowledgeRetrievalRequest
+  位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[246,38] 找不到符号
+  符号:   类 KnowledgeRetrievalRequest
+  位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[285,42] 找不到符号
+  符号:   类 KnowledgeRetrievalRequest
+  位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[308,40] 找不到符号
+  符号:   类 KnowledgeRetrievalRequest
+  位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Controller/KnowledgeController.java:[6,41] 找不到符号
+  符号:   类 KnowledgeRetrievalRequest
+  位置: 程序包 com.example.demo.demos.Agent.Pojo
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Controller/KnowledgeController.java:[7,41] 找不到符号
+  符号:   类 KnowledgeRetrievalResponse
+  位置: 程序包 com.example.demo.demos.Agent.Pojo
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Controller/KnowledgeController.java:[90,44] 找不到符号
+  符号:   类 KnowledgeRetrievalRequest
+  位置: 类 com.example.demo.demos.Agent.Controller.KnowledgeController
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[5,44] 程序包com.example.demo.demos.Agent.Runtime不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[6,44] 程序包com.example.demo.demos.Agent.Runtime不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[7,44] 程序包com.example.demo.demos.Agent.Runtime不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[9,48] 程序包com.example.demo.demos.governance.replay不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[20,19] 找不到符号
+  符号:   类 AgentRuntime
+  位置: 类 com.example.demo.demos.Agent.Service.Impl.AgentChatServiceImpl
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[21,19] 找不到符号
+  符号:   类 AgentCheckpointStore
+  位置: 类 com.example.demo.demos.Agent.Service.Impl.AgentChatServiceImpl
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[22,19] 找不到符号
+  符号:   类 GovernanceReplayStore
+  位置: 类 com.example.demo.demos.Agent.Service.Impl.AgentChatServiceImpl
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[24,33] 找不到符号
+  符号:   类 AgentRuntime
+  位置: 类 com.example.demo.demos.Agent.Service.Impl.AgentChatServiceImpl
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[25,33] 找不到符号
+  符号:   类 AgentCheckpointStore
+  位置: 类 com.example.demo.demos.Agent.Service.Impl.AgentChatServiceImpl
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[26,33] 找不到符号
+  符号:   类 GovernanceReplayStore
+  位置: 类 com.example.demo.demos.Agent.Service.Impl.AgentChatServiceImpl
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/snapshot/ProductSnapshotBuilder.java:[7,40] 程序包com.example.demo.demos.search.es不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/mapper/ProductSearchSnapshotMapper.java:[4,43] 程序包com.example.demo.demos.search.model不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/snapshot/ProductSnapshotBuilder.java:[39,28] 找不到符号
+  符号:   类 ProductSearchEsSyncService
+  位置: 类 com.example.demo.demos.search.snapshot.ProductSnapshotBuilder
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/mapper/ProductSearchSnapshotMapper.java:[85,67] 找不到符号
+  符号:   类 ProductSearchQuery
+  位置: 接口 com.example.demo.demos.search.mapper.ProductSearchSnapshotMapper
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/mapper/ProductSearchSnapshotMapper.java:[88,41] 找不到符号
+  符号:   类 ProductSearchQuery
+  位置: 接口 com.example.demo.demos.search.mapper.ProductSearchSnapshotMapper
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[7,44] 程序包com.example.demo.demos.Agent.Runtime不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[92,57] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[269,52] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[286,62] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[300,55] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[310,59] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[338,69] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[352,60] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[361,57] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/helper/AgentToolHandler.java:[7,44] 找不到符号
+  符号:   类 BackendApiProxyService
+  位置: 程序包 com.example.demo.demos.Agent.Service
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/helper/AgentToolHandler.java:[53,19] 找不到符号
+  符号:   类 BackendApiProxyService
+  位置: 类 com.example.demo.demos.Agent.Service.helper.AgentToolHandler
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/helper/AgentToolHandler.java:[58,29] 找不到符号
+  符号:   类 BackendApiProxyService
+  位置: 类 com.example.demo.demos.Agent.Service.helper.AgentToolHandler
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/mapper/ProductSearchSnapshotMapper.java:[84,28] 找不到符号
+  符号:   类 ProductSearchSnapshotSqlProvider
+  位置: 接口 com.example.demo.demos.search.mapper.ProductSearchSnapshotMapper
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/mapper/ProductSearchSnapshotMapper.java:[87,28] 找不到符号
+  符号:   类 ProductSearchSnapshotSqlProvider
+  位置: 接口 com.example.demo.demos.search.mapper.ProductSearchSnapshotMapper
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.8.1:compile (default-compile) on project demo1: Compilation failure: Compilation failure: 
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeEnhancer.java:[4,41] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalRequest
+[ERROR]   位置: 程序包 com.example.demo.demos.Agent.Pojo
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeEnhancer.java:[5,41] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalResponse
+[ERROR]   位置: 程序包 com.example.demo.demos.Agent.Pojo
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[8,41] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalRequest
+[ERROR]   位置: 程序包 com.example.demo.demos.Agent.Pojo
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[9,41] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalResponse
+[ERROR]   位置: 程序包 com.example.demo.demos.Agent.Pojo
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[61,48] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalRequest
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[61,12] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalResponse
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[143,57] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalRequest
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[171,45] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalRequest
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[246,38] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalRequest
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[285,42] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalRequest
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/KnowledgeSearchService.java:[308,40] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalRequest
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.KnowledgeSearchService
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Controller/KnowledgeController.java:[6,41] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalRequest
+[ERROR]   位置: 程序包 com.example.demo.demos.Agent.Pojo
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Controller/KnowledgeController.java:[7,41] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalResponse
+[ERROR]   位置: 程序包 com.example.demo.demos.Agent.Pojo
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Controller/KnowledgeController.java:[90,44] 找不到符号
+[ERROR]   符号:   类 KnowledgeRetrievalRequest
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Controller.KnowledgeController
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[5,44] 程序包com.example.demo.demos.Agent.Runtime不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[6,44] 程序包com.example.demo.demos.Agent.Runtime不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[7,44] 程序包com.example.demo.demos.Agent.Runtime不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[9,48] 程序包com.example.demo.demos.governance.replay不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[20,19] 找不到符号
+[ERROR]   符号:   类 AgentRuntime
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.Impl.AgentChatServiceImpl
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[21,19] 找不到符号
+[ERROR]   符号:   类 AgentCheckpointStore
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.Impl.AgentChatServiceImpl
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[22,19] 找不到符号
+[ERROR]   符号:   类 GovernanceReplayStore
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.Impl.AgentChatServiceImpl
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[24,33] 找不到符号
+[ERROR]   符号:   类 AgentRuntime
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.Impl.AgentChatServiceImpl
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[25,33] 找不到符号
+[ERROR]   符号:   类 AgentCheckpointStore
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.Impl.AgentChatServiceImpl
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/Impl/AgentChatServiceImpl.java:[26,33] 找不到符号
+[ERROR]   符号:   类 GovernanceReplayStore
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.Impl.AgentChatServiceImpl
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/snapshot/ProductSnapshotBuilder.java:[7,40] 程序包com.example.demo.demos.search.es不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/mapper/ProductSearchSnapshotMapper.java:[4,43] 程序包com.example.demo.demos.search.model不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/snapshot/ProductSnapshotBuilder.java:[39,28] 找不到符号
+[ERROR]   符号:   类 ProductSearchEsSyncService
+[ERROR]   位置: 类 com.example.demo.demos.search.snapshot.ProductSnapshotBuilder
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/mapper/ProductSearchSnapshotMapper.java:[85,67] 找不到符号
+[ERROR]   符号:   类 ProductSearchQuery
+[ERROR]   位置: 接口 com.example.demo.demos.search.mapper.ProductSearchSnapshotMapper
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/mapper/ProductSearchSnapshotMapper.java:[88,41] 找不到符号
+[ERROR]   符号:   类 ProductSearchQuery
+[ERROR]   位置: 接口 com.example.demo.demos.search.mapper.ProductSearchSnapshotMapper
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[7,44] 程序包com.example.demo.demos.Agent.Runtime不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[92,57] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[269,52] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[286,62] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[300,55] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[310,59] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[338,69] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[352,60] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/RuleFallbackParser.java:[361,57] 程序包SessionState不存在
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/helper/AgentToolHandler.java:[7,44] 找不到符号
+[ERROR]   符号:   类 BackendApiProxyService
+[ERROR]   位置: 程序包 com.example.demo.demos.Agent.Service
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/helper/AgentToolHandler.java:[53,19] 找不到符号
+[ERROR]   符号:   类 BackendApiProxyService
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.helper.AgentToolHandler
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/Agent/Service/helper/AgentToolHandler.java:[58,29] 找不到符号
+[ERROR]   符号:   类 BackendApiProxyService
+[ERROR]   位置: 类 com.example.demo.demos.Agent.Service.helper.AgentToolHandler
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/mapper/ProductSearchSnapshotMapper.java:[84,28] 找不到符号
+[ERROR]   符号:   类 ProductSearchSnapshotSqlProvider
+[ERROR]   位置: 接口 com.example.demo.demos.search.mapper.ProductSearchSnapshotMapper
+[ERROR] /D:/code/aaaaljt/backend/demo1/src/main/java/com/example/demo/demos/search/mapper/ProductSearchSnapshotMapper.java:[87,28] 找不到符号
+[ERROR]   符号:   类 ProductSearchSnapshotSqlProvider
+[ERROR]   位置: 接口 com.example.demo.demos.search.mapper.ProductSearchSnapshotMapper
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException

@@ -1,0 +1,77 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'fontFamily': 'Microsoft YaHei',
+    'fontSize': '18px',
+    'primaryColor': '#ffffff',
+    'primaryTextColor': '#111827',
+    'primaryBorderColor': '#1f2937',
+    'lineColor': '#334155',
+    'secondaryColor': '#f8fafc',
+    'tertiaryColor': '#eef2ff',
+    'actorBkg': '#f8fafc',
+    'actorBorder': '#1f2937',
+    'actorTextColor': '#111827',
+    'signalColor': '#334155',
+    'signalTextColor': '#111827',
+    'labelBoxBkgColor': '#ffffff',
+    'labelBoxBorderColor': '#1f2937',
+    'labelTextColor': '#111827',
+    'noteBkgColor': '#fff7ed',
+    'noteBorderColor': '#c2410c',
+    'noteTextColor': '#7c2d12',
+    'sequenceNumberColor': '#111827'
+  },
+  'sequence': {
+    'useMaxWidth': true,
+    'mirrorActors': false,
+    'diagramMarginX': 40,
+    'diagramMarginY': 30,
+    'actorMargin': 60,
+    'messageMargin': 36,
+    'noteMargin': 24,
+    'boxMargin': 12,
+    'width': 230,
+    'height': 64
+  }
+}}%%
+sequenceDiagram
+    title 智能检索 Agent Tool Calling 时序图
+    autonumber
+    actor 用户
+    participant 前端
+    participant AgentChatController
+    participant AgentRuntime as Agent Runtime
+    participant IntentParser as Intent Parser
+    participant ToolRouter as Tool Router
+    participant SearchTool as Structured Search Tool
+    participant KnowledgeTool as Knowledge Tool
+    participant RealtimeTool as Realtime Tool
+    participant Composer as Response Composer
+
+    note over 用户,Composer: 智能检索 Agent Tool Calling 简化流程
+
+    用户->>前端: 输入智能检索问题
+    前端->>AgentChatController: POST /api/agent/chat
+    AgentChatController->>AgentRuntime: chat(request, authorization)
+    AgentRuntime->>IntentParser: parseIntent(messages, sessionContext)
+    IntentParser-->>AgentRuntime: parsedIntent
+    AgentRuntime->>ToolRouter: routeTools(parsedIntent, normalizedParams)
+    ToolRouter-->>AgentRuntime: search -> parallel(knowledge, realtime)
+
+    AgentRuntime->>SearchTool: search_events(params)
+    SearchTool-->>AgentRuntime: topN 候选结果
+
+    par 知识补充
+        AgentRuntime->>KnowledgeTool: retrieve_knowledge(topEntities, question)
+        KnowledgeTool-->>AgentRuntime: 规则与注意事项摘要
+    and 实时确认
+        AgentRuntime->>RealtimeTool: check_event_availability(topIds, date)
+        RealtimeTool-->>AgentRuntime: 当前可预约状态
+    end
+
+    AgentRuntime->>Composer: merge(searchResults, knowledge, realtime)
+    Composer-->>AgentRuntime: answerText + cards + disclaimers
+    AgentRuntime-->>AgentChatController: AgentChatResponse
+    AgentChatController-->>前端: Resp.success(data)
+    前端-->>用户: 展示推荐结果、实时状态与注意事项

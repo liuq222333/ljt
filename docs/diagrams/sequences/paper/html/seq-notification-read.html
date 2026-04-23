@@ -1,0 +1,108 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seq-notification-read</title>
+<style>
+  body { margin: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+  .page { width: 2200px; margin: 0 auto; padding: 28px 36px; box-sizing: border-box; background: #ffffff; }
+  .mermaid { max-width: 100%; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, securityLevel: 'loose' });
+</script>
+</head>
+<body>
+  <div class="page">
+    <div class="mermaid">
+%%{init: {
+  &#39;theme&#39;: &#39;base&#39;,
+  &#39;themeVariables&#39;: {
+    &#39;fontFamily&#39;: &#39;Microsoft YaHei&#39;,
+    &#39;fontSize&#39;: &#39;18px&#39;,
+    &#39;primaryColor&#39;: &#39;#ffffff&#39;,
+    &#39;primaryTextColor&#39;: &#39;#111827&#39;,
+    &#39;primaryBorderColor&#39;: &#39;#1f2937&#39;,
+    &#39;lineColor&#39;: &#39;#334155&#39;,
+    &#39;secondaryColor&#39;: &#39;#f8fafc&#39;,
+    &#39;tertiaryColor&#39;: &#39;#eef2ff&#39;,
+    &#39;actorBkg&#39;: &#39;#f8fafc&#39;,
+    &#39;actorBorder&#39;: &#39;#1f2937&#39;,
+    &#39;actorTextColor&#39;: &#39;#111827&#39;,
+    &#39;signalColor&#39;: &#39;#334155&#39;,
+    &#39;signalTextColor&#39;: &#39;#111827&#39;,
+    &#39;labelBoxBkgColor&#39;: &#39;#ffffff&#39;,
+    &#39;labelBoxBorderColor&#39;: &#39;#1f2937&#39;,
+    &#39;labelTextColor&#39;: &#39;#111827&#39;,
+    &#39;noteBkgColor&#39;: &#39;#fff7ed&#39;,
+    &#39;noteBorderColor&#39;: &#39;#c2410c&#39;,
+    &#39;noteTextColor&#39;: &#39;#7c2d12&#39;,
+    &#39;sequenceNumberColor&#39;: &#39;#111827&#39;
+  },
+  &#39;sequence&#39;: {
+    &#39;useMaxWidth&#39;: true,
+    &#39;mirrorActors&#39;: false,
+    &#39;diagramMarginX&#39;: 40,
+    &#39;diagramMarginY&#39;: 30,
+    &#39;actorMargin&#39;: 60,
+    &#39;messageMargin&#39;: 36,
+    &#39;noteMargin&#39;: 24,
+    &#39;boxMargin&#39;: 12,
+    &#39;width&#39;: 220,
+    &#39;height&#39;: 64
+  }
+}}%%
+sequenceDiagram
+    title 通知发布与已读处理时序图
+    autonumber
+    actor 管理员
+    actor 社区居民
+    participant 管理后台
+    participant 用户前端
+    participant AdminNotificationController
+    participant NotificationController
+    participant NotificationService
+
+    rect rgb(245, 247, 250)
+        note over 管理员,NotificationService: 管理员发布通知公告
+        管理员-&gt;&gt;管理后台: 编辑通知并发布
+        管理后台-&gt;&gt;AdminNotificationController: POST /api/admin/notifications/add
+        AdminNotificationController-&gt;&gt;NotificationService: addNotification(message)
+        NotificationService--&gt;&gt;AdminNotificationController: success
+        AdminNotificationController--&gt;&gt;管理后台: 发布成功
+    end
+
+    rect rgb(250, 250, 245)
+        note over 社区居民,NotificationService: 用户查看与已读处理
+        社区居民-&gt;&gt;用户前端: 进入通知中心
+        用户前端-&gt;&gt;NotificationController: GET /api/notifications?userId=...
+        NotificationController-&gt;&gt;NotificationService: list(userId, readStatus)
+        NotificationService--&gt;&gt;NotificationController: Notification[]
+        NotificationController--&gt;&gt;用户前端: 通知列表
+
+        用户前端-&gt;&gt;NotificationController: GET /api/notifications/unreadCount?userId=...
+        NotificationController-&gt;&gt;NotificationService: countUnread(userId)
+        NotificationService--&gt;&gt;NotificationController: unreadCount
+        NotificationController--&gt;&gt;用户前端: 未读数量
+
+        alt 单条已读
+            社区居民-&gt;&gt;用户前端: 点击单条通知
+            用户前端-&gt;&gt;NotificationController: PATCH /api/notifications/{id}/read
+            NotificationController-&gt;&gt;NotificationService: markRead(id, userId)
+            NotificationService--&gt;&gt;NotificationController: success
+            NotificationController--&gt;&gt;用户前端: 标记成功
+        else 全部已读
+            社区居民-&gt;&gt;用户前端: 点击全部已读
+            用户前端-&gt;&gt;NotificationController: POST /api/notifications/markAllRead
+            NotificationController-&gt;&gt;NotificationService: markAllRead(userId)
+            NotificationService--&gt;&gt;NotificationController: success
+            NotificationController--&gt;&gt;用户前端: 标记成功
+        end
+    end
+
+    </div>
+  </div>
+</body>
+</html>

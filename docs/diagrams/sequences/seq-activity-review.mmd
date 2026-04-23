@@ -1,0 +1,78 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'fontFamily': 'Microsoft YaHei',
+    'fontSize': '18px',
+    'primaryColor': '#ffffff',
+    'primaryTextColor': '#111827',
+    'primaryBorderColor': '#1f2937',
+    'lineColor': '#334155',
+    'secondaryColor': '#f8fafc',
+    'tertiaryColor': '#eef2ff',
+    'actorBkg': '#f8fafc',
+    'actorBorder': '#1f2937',
+    'actorTextColor': '#111827',
+    'signalColor': '#334155',
+    'signalTextColor': '#111827',
+    'labelBoxBkgColor': '#ffffff',
+    'labelBoxBorderColor': '#1f2937',
+    'labelTextColor': '#111827',
+    'noteBkgColor': '#fff7ed',
+    'noteBorderColor': '#c2410c',
+    'noteTextColor': '#7c2d12',
+    'sequenceNumberColor': '#111827'
+  },
+  'sequence': {
+    'useMaxWidth': true,
+    'mirrorActors': false,
+    'diagramMarginX': 40,
+    'diagramMarginY': 30,
+    'actorMargin': 60,
+    'messageMargin': 36,
+    'noteMargin': 24,
+    'boxMargin': 12,
+    'width': 220,
+    'height': 64
+  }
+}}%%
+sequenceDiagram
+    title 本地活动发布与管理员审核时序图
+    autonumber
+    actor 活动发起人
+    actor 管理员
+    participant 前端
+    participant LocalActEnrollmentController
+    participant LocalActivityService
+    participant AdminActivityController
+    participant AdminActivityService
+
+    note over 活动发起人,AdminActivityService: 本地活动发布到管理员审核
+
+    活动发起人->>前端: 填写活动信息并提交
+    前端->>LocalActEnrollmentController: POST /api/local-act/activities
+    LocalActEnrollmentController->>LocalActivityService: createActivity(request)
+    LocalActivityService-->>LocalActEnrollmentController: LocalActCreateResponse
+    LocalActEnrollmentController-->>前端: 待审核活动已创建
+    前端-->>活动发起人: 提示提交成功，状态待审核
+
+    管理员->>前端: 打开活动审核列表
+    前端->>AdminActivityController: GET /api/admin/local-act/reviews
+    AdminActivityController->>AdminActivityService: listReviews(status, keyword, page, size)
+    AdminActivityService-->>AdminActivityController: 待审核活动列表
+    AdminActivityController-->>前端: reviews
+
+    alt 审核通过
+        管理员->>前端: 点击通过并填写备注
+        前端->>AdminActivityController: POST /reviews/{id}/approve
+        AdminActivityController->>AdminActivityService: approve(id, note)
+        AdminActivityService-->>AdminActivityController: activityId
+        AdminActivityController-->>前端: 审核通过
+        前端-->>活动发起人: 可在活动列表中查看
+    else 审核驳回
+        管理员->>前端: 点击驳回并填写备注
+        前端->>AdminActivityController: POST /reviews/{id}/reject
+        AdminActivityController->>AdminActivityService: reject(id, note)
+        AdminActivityService-->>AdminActivityController: success
+        AdminActivityController-->>前端: 审核驳回
+        前端-->>活动发起人: 提示修改后重新提交
+    end

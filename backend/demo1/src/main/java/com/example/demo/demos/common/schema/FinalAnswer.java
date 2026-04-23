@@ -16,10 +16,12 @@ public class FinalAnswer {
 
     private AnswerType answerType;
     private String answerText;
+    private String summary;
     private List<EntityCard> cards = new ArrayList<EntityCard>();
     private List<String> disclaimers = new ArrayList<String>();
     private List<Citation> citations = new ArrayList<Citation>();
     private List<String> nextActions = new ArrayList<String>();
+    private ComposerMeta composerMeta = new ComposerMeta();
     private DebugTrace debugTrace;
 
     @Data
@@ -31,17 +33,31 @@ public class FinalAnswer {
         private String imageUrl;
         private String priceText;
         private List<String> tags = new ArrayList<String>();
+        private List<String> highlights = new ArrayList<String>();
         private String locationText;
         private String realtimeStatusText;
         private String recommendReason;
+        private String sourceLabel;
     }
 
     @Data
     public static class Citation {
+        private String sourceType;
+        private String sourceId;
+        private String title;
         private String docId;
         private String docTitle;
         private String snippet;
         private double confidence;
+    }
+
+    @Data
+    public static class ComposerMeta {
+        private List<String> usedSources = new ArrayList<String>();
+        private boolean conflictDetected;
+        private boolean degraded;
+        private String degradeReason;
+        private Map<String, Object> metadata = new LinkedHashMap<String, Object>();
     }
 
     @Data

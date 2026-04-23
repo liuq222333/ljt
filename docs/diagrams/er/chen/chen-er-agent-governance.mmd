@@ -1,0 +1,14 @@
+flowchart LR
+    subgraph G4["智能检索与治理辅助 ER 图（Chen）"]
+        KB[知识库]
+        KV[向量数据]
+        CF[对话反馈]
+        AR[接口路由]
+        GS[治理状态]
+        R1{"向量化"}
+        R2{"反馈引用"}
+        KB ---|1| R1
+        R1 ---|N| KV
+        KB ---|N| R2
+        R2 ---|N| CF
+    end

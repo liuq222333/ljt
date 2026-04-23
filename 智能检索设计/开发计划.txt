@@ -1,6 +1,6 @@
 ﻿# 智能检索系统 - 开发计划
 > 创建日期：2026-03-21
-> 最后更新：2026-03-30
+> 最后更新：2026-04-12
 > 对齐依据：[开发进度.txt](D:\code\aaaaljt\智能检索设计\开发进度.txt)
 
 ---
@@ -13,8 +13,9 @@
 - 知识检索
 - 实时状态确认
 - 多轮上下文承接
+- 写操作补参数与确认态拦截
 
-当前系统已完成搜索主链、知识主链、实时层骨架，以及 Python 优先的 Query Parser / Tool Router / Response Composer。计划重点已转入 W12 收尾与 W13 真实联调并行推进。
+当前系统已完成搜索主链、知识主链、实时层与内部正式 realtime gateway，并已完成 Python 优先的 Query Parser / Tool Router / Response Composer / Action Review 四段接入。W12-W14 已完成代码闭环，且 2026-04-12 已完成本地真实 smoke 与一轮本地 Launch rehearsal，后续重点转入真实上线窗口清障与环境操作。
 
 ---
 
@@ -26,16 +27,16 @@
 | W01 | 已完成 | 100% | 工程骨架与基础设施 |
 | W02 | 已完成 | 100% | 快照层 |
 | W03 | 已完成 | 100% | `product_search` ES 主链 |
-| W04 | 收口中 | 80% | Runtime、SessionState、checkpoint 主链已具备 |
-| W05 | 收口中 | 85% | Python LangChain Query Parser 已联通 |
+| W04 | 收口中 | 92% | Runtime、SessionState、checkpoint、action review 编排与本地 smoke 已具备 |
+| W05 | 收口中 | 95% | Python LangChain Query Parser 已联通并完成真实 smoke |
 | W06 | 收口中 | 65% | 参数标准化主链已具备 |
-| W07 | 收口中 | 93% | Python LangGraph Tool Router 已稳定 |
-| W08 | 收口中 | 70% | Response Composer 主链已具备 |
-| W09 | 收口中 | 80% | 知识模型与检索主链已具备 |
-| W10 | 收口中 | 88% | 实时层 orchestrator、fallback、gateway client 已具备 |
+| W07 | 收口中 | 97% | Python LangGraph Tool Router 已稳定并完成真实 smoke |
+| W08 | 已完成 | 100% | Python composer 已接入 Java 主链并保留 Java `RuntimeAnswerComposer` 兜底 |
+| W09 | 已完成 | 100% | 已补齐 chunk 模型、知识生命周期治理与索引重建链路 |
+| W10 | 已完成 | 100% | 实时层 orchestrator、fallback、gateway client、熔断统计与管理接口已具备，已接入 `AgentRuntime` realtime 路径，并补齐本地 mock gateway、internal gateway、local profile 与契约测试 |
 | W11 | 已完成 | 100% | 多轮会话主干已落地，`W11RegressionBatchTest` 已冻结 |
-| W12 | 进行中 | 92% | 同步、补偿、重建已进入生产化收口，已补全 mismatch detail、按全局 reconcile 批量修复与 baseline report |
-| W13-W14 | 生产阶段 | 97% / 0% | W13 已完成 replay checkpoint/tool I/O 细粒度落库、replay 候选池与批量 bootstrap、golden case bootstrap、compare、批量导入/导出与批量启停、metrics daily 持久化、错误归因 summary/trend、eval case stats、版本快照、版本快照 compare、基于版本快照直接运行 eval regression、按版本过滤历史 run、发布前固定版本回归检查、release record 绑定版本与基线校验、gray config 应用、release 状态流转、release 事件历史、从 release record 直接触发回归、批量版本回归和版本运行概览，并已补齐治理后端真实写接口与 focused tests；当前剩余项为治理台五页真实联调验收，W14 尚未开始 |
+| W12 | 已完成 | 100% | 同步、补偿、重建已完成，已补全真实 sync admin、增量入口、任务重试、alias 切换/自动回滚、repair strategy 与 baseline -> W13 bridge |
+| W13-W14 | 生产阶段 | 100% / 90% | W13 已完成；W14 已补齐 Launch readiness、checklist、统一 smoke、realtime chaos、可执行压测/演练、最终上线摘要、handoff summary、timeline、launch package、上线签署记录、依赖检查、上线窗口、gateway 配置视图、管理端 Launch Center 与运维手册/回滚预案/上线清单模板可视化，并已完成本地 rehearsal；剩余为清理 ES alias / rollback / governance freshness / load test blocker 后的正式上线执行 |
 
 ---
 
@@ -43,18 +44,18 @@
 
 ### M1：搜索 MVP
 - 范围：W00-W08
-- 当前状态：进行中
-- 目标：
+- 当前状态：已完成
+- 已达成：
   - 跑通 Agent 搜索主链
-  - 保证 Query Parser / Router / Composer 可稳定联动
-  - 打通结构化搜索与基础回答生成
+  - Query Parser / Router / Composer 已稳定联动
+  - 结构化搜索与基础回答生成已打通
 
 ### M2：知识 + 实时
 - 范围：W09-W10
-- 当前状态：进行中
-- 目标：
-  - 完成正式知识模型、metadata filter、hybrid retrieval
-  - 完成实时层协议、orchestrator、fallback、gateway client
+- 当前状态：已完成
+- 已达成：
+  - 正式知识模型、metadata filter、hybrid retrieval
+  - 实时层协议、orchestrator、fallback、gateway client
   - 为多工具链路提供稳定输入
 
 ### M3：多轮会话
@@ -68,127 +69,96 @@
 
 ### M4：生产就绪
 - 范围：W12-W14
-- 当前状态：进行中
-- 目标：
+- 当前状态：收口中
+- 已达成：
   - 同步、补偿、重建
   - 监控、评估、回放、灰度
-  - 压测、联调、上线收尾
+  - Launch 代码、管理端、本地 smoke 与本地 rehearsal 收口
+- 当前阻塞：
+  - ES alias `product_search_read` 读取失败
+  - governance preflight freshness 未过
+  - rollback candidate 缺失
+  - 本地 load test 因限流 / fallback 未转绿
 
 ---
 
-## 四、当前重点
+## 四、当前计划重点
 
-### 阶段 A：W12 收尾
-W12 是当前最优先阶段。
+### 阶段 A：核心主链已闭环
+截至 2026-04-12，以下核心能力已经不是计划项，而是已完成项：
+- Python `parse_intent`
+- Python `route_tools`
+- Python `compose_response`
+- Python `review_action`
+- Java execute / realtime / backend authority
+- `/api/agent/chat` 本地真实联调
 
-已完成：
-- 统一 sync admin 入口
-- 产品链路与知识链路的 `status / reconcile / rebuild / repair`
-- `SyncTaskRecord / SyncTaskTracker`
-- 失败重试与死信查询
-- 产品、知识正式增量入口
-- 产品、知识按 ID / 时间范围 / 状态批量补偿
-- 产品按 `categoryId` 批量补偿
-- 知识按 `entityType/entityId` 批量补偿
-- 产品、知识 detail reconcile 明细接口
-- 产品、知识按 detail reconcile 结果批量修复
-- 产品、知识全局 mismatch detail
-- 产品、知识按全局 reconcile 结果批量修复
-- `baselineReport` 对账基线产物
-- `products/index/validate` alias 校验能力
-- `products/index/rollback/candidates` 与 `products/index/rollback/auto`
-- 版本索引重建、alias 切换、回滚、定向索引补偿入口
-
-剩余：
-- alias 重建与回滚自动化校验最后收口
-- 更完整的修复策略治理
-- 基于 baseline report 衔接 W13 replay / golden cases
-
-### 阶段 B：W08/W09/W10 收尾
-这是与 W12 并行推进的工作，也是转入 W13 之前必须压实的一步。
-
-W08：
-- citation 规则细化
-- entity merge / 冲突归因增强
-
-W09：
-- chunk 模型
-- 知识同步链路
-- 上下线治理
-
-W10：
-- 真实 realtime gateway 联调
-- 限流、监控、熔断校验
-
-### 阶段 C：W13/W14 预备与生产阶段
-已开始 W13 首批后端能力，后续仍依赖 W12 继续收口。
-截至 2026-03-30，治理后端缺失源码已最小恢复并重新编译通过，当前进入前后端真实联调阶段。
-
-重点：
-- W13：replay、评估集、灰度与版本治理
-  当前已完成 replay 持久化、checkpoint/tool I/O 细粒度回放、replay 候选池与批量 bootstrap、eval run 落库、release/gray 管理接口、gray config 应用、release 状态流转、release 事件历史、preflight、metrics trend、错误归因 summary/trend、eval case stats、golden case bootstrap、eval run compare、golden case 批量导入/导出与批量启停、metrics daily 持久化、golden case 版本快照、版本快照 compare、基于版本快照直接运行 eval regression、按版本过滤历史 run、发布前固定版本回归检查、release record 绑定版本与基线校验、从 release record 直接触发回归、批量版本回归和版本运行概览，以及真实写接口与 focused tests；当前主要剩余项为治理台逐页联调验收
-- W14：压测和上线收尾
+### 阶段 B：当前剩余工作转向环境与执行
+从现在开始，计划重点不再是“继续补主链代码”，而是：
+- 清理 ES alias / rollback candidate / governance freshness 这几项 readiness blocker
+- 在真实环境复跑压测、故障演练、签署、closeout
+- 按真实环境决定是否接入外部 realtime gateway
+- 更大样本评估与持久化深化
 
 ---
 
 ## 五、模块视角计划
 
 ### 1. Runtime
-- 当前：已具备节点化主链与 checkpoint 恢复
+- 当前：已具备节点化主链、checkpoint 恢复、action review 编排与本地真实 smoke
 - 剩余：
   - session/checkpoint 持久化深化
   - 更多端到端接口回归
   - 为 W13 replay 提供稳定状态快照
 
 ### 2. Query Parser
-- 当前：Python LangChain 主链已接入 Java
+- 当前：Python LangChain 主链已接入 Java，并已完成真实 smoke
 - 剩余：
   - 样本集
   - 精度评估
   - prompt / JSON 容错增强
 
 ### 3. Router
-- 当前：Python LangGraph 优先、Java 兜底已稳定
+- 当前：Python LangGraph 优先、Java 兜底已稳定，并已完成真实 smoke
 - 剩余：
   - 事件/门店场景扩展
   - 更细粒度混合调度
 
 ### 4. Composer
-- 当前：Python Composer 优先、Java 兜底已具备
+- 当前：Python `/compose_response` 已接入 Java 主链，并保留 Java `RuntimeAnswerComposer` 兜底；真实 smoke 已验证 Python composer 命中
 - 剩余：
-  - citation 规则
-  - 冲突归因
-  - 表达治理
+  - 无，后续仅在 W14 联调中按真实数据做细节校正
+
+### 4.1 Action Review
+- 当前：Python `/review_action` 已接入 Java `ActionIntentReviewService` 主链，并保留 Java 本地识别与后端执行兜底；真实 smoke 已验证 Python action review 命中
+- 剩余：
+  - 无，后续仅在真实上线环境中校验授权、路由与外部依赖
 
 ### 5. Knowledge
 - 当前：v2 模型、metadata filter、hybrid retrieval 已完成
 - 剩余：
-  - chunk
-  - 同步链路
-  - 上下线治理
+  - 无，后续仅在 W14 联调中按真实知识数据做细节校正
 
 ### 6. Realtime
-- 当前：orchestrator、gateway client、snapshot fallback 已完成
+- 当前：orchestrator、gateway client、snapshot fallback、内部正式 realtime gateway 已完成
 - 剩余：
-  - 真实接口联调
-  - 生产级限流与监控
+  - 接入真实外部 realtime gateway 并补做环境联调
+  - 生产级限流、监控、熔断验证
 
 ### 7. Sync / Compensation / Rebuild
-- 当前：W12 正在进行
-- 剩余：
-  - alias 自动校验最后收口
-  - 回滚验证收口
-  - 修复策略治理与 W13 产物衔接
+- 当前：W12 已完成
+- 后续：
+  - 仅保留与 W13/W14 的使用与联调，不再作为主开发阶段
 
 ---
 
 ## 六、建议执行顺序
 
-1. 继续收尾 W12
-2. 并行收尾 W08/W09/W10
-3. 推进 W13 五页真实联调与验收
-4. 最后做 W14
+1. 先修复 ES alias / rollback candidate / governance freshness 这三类 readiness blocker
+2. 在真实环境复跑 W14 Launch Center / Launch APIs，把 load test、checklist、signoff、closeout 记录转绿
+3. 视真实环境需要接入外部 realtime gateway，并补做环境联调
+4. 将现场结果持续回填到治理台、Launch 文档与进度文档
 
 一句话概括：
 
-当前已经过了“从 0 到 1 搭底座”的阶段，计划重点已转向“W12 同步补偿正式化 + W13 真实联调收口”。 
+当前已经过了“从 0 到 1 搭底座”的阶段，主链代码、本地真实 smoke 与本地 Launch rehearsal 都已闭环，计划重点已转向“清 blocker、把 W14 正式记录转绿，并完成上线归档”。

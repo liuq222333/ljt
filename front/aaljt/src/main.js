@@ -1,4 +1,5 @@
 import './assets/main.css'
+import './assets/localact-skill-theme.css'
 
 import { createApp } from 'vue'
 import ElementPlus from 'element-plus'

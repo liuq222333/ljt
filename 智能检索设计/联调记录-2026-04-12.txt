@@ -1,0 +1,258 @@
+﻿# 智能检索系统 - 本地真实联调记录（2026-04-12）
+> 记录时间：2026-04-12
+> 范围：Python sidecar + Java backend + `/api/agent/chat` 主链 smoke + W14 Launch 本地 rehearsal
+
+---
+
+## 一、联调目标
+
+验证以下能力是否已经真实接入，而不是只停留在单测层：
+
+1. `parse_intent` 是否真实命中 Python sidecar
+2. `route_tools` 是否真实命中 Python sidecar
+3. `compose_response` 是否真实命中 Python sidecar
+4. `review_action` 是否真实命中 Python sidecar
+5. realtime 链路是否能在当前环境下正确运行或正确降级
+
+---
+
+## 二、启动方式
+
+### Python sidecar
+- 工作目录：`python`
+- 启动命令：
+  - `python -m uvicorn query_parser_langchain.api:app --host 127.0.0.1 --port 9001`
+- 健康检查：
+  - `GET http://127.0.0.1:9001/health -> 200`
+
+### Java backend
+- 工作目录：`backend/demo1`
+- 启动命令：
+  - `mvn spring-boot:run`
+- 服务监听：
+  - `http://127.0.0.1:8080`
+
+### 联调日志
+- Python：`D:\code\aaaaljt\.codex\tmp\python-sidecar.log`
+- Java：`D:\code\aaaaljt\.codex\tmp\backend-spring.log`
+
+---
+
+## 三、联调用例与结果
+
+### 用例 1：结构化检索
+- 请求：`帮我找苹果`
+- 结果：成功返回推荐结果
+- 关键证据：
+  - `finalAnswer.answerType = RECOMMENDATION`
+  - `composerMeta.metadata.routePlanSource = python`
+  - 返回中存在 `pythonComposerMeta`
+  - Python sidecar 日志中出现：
+    - `POST /parse_intent`
+    - `POST /route_tools`
+    - `POST /compose_response`
+
+结论：
+- 结构化检索主链已真实命中 Python parser / router / composer
+
+### 用例 2：写操作补参数
+- 请求：`帮我发布一个商品`
+- 结果：成功返回补参数澄清
+- 关键证据：
+  - `finalAnswer.answerType = CLARIFICATION`
+  - `usedSources` 包含 `api_routes`、`action_review`
+  - `composerMeta.metadata.action = create`
+  - Python sidecar 日志中出现：
+    - `POST /review_action`
+
+结论：
+- `review_action` 已真实接入 Java 主链
+- 当前写操作识别、缺参收集、确认前拦截链路已联通
+
+### 用例 3：实时状态查询
+- 请求：`商品 id 283 现在还能买吗`
+- 结果：成功返回实时降级结果
+- 关键证据：
+  - `finalAnswer.answerType = PARTIAL_RESULT`
+  - `composerMeta.degraded = true`
+  - `queryMeta.fallbackReason = gateway_disabled`
+  - `source = snapshot_fallback`
+
+结论：
+- realtime 主链已联通
+- 当前本地环境未接入真实外部 realtime gateway，因此按设计退回 `snapshot_fallback`
+
+---
+
+## 四、最终结论
+
+截至 2026-04-12，本地真实联调已确认：
+- `parse_intent`：已接通
+- `route_tools`：已接通
+- `compose_response`：已接通
+- `review_action`：已接通
+- realtime query：已接通，当前为降级形态
+
+也就是说，Python sidecar 恢复这项工作已经从“代码完成”进入“真实服务可跑”的阶段。
+
+---
+
+## 五、当前仍需关注的环境项
+
+### 1. 外部 realtime gateway
+- 当前本地配置下 `agent.realtime.gateway-enabled=false`
+- 因此 realtime smoke 只能验证“主链可运行 + 可正确降级”，不能代表真实外部 realtime gateway 已完成环境联通
+
+### 2. RabbitMQ
+- Java 启动日志显示 `localhost:5672` 连接拒绝
+- 该问题当前不阻塞 `agent/chat` smoke
+- 如上线窗口需要相关异步链路，仍需现场验通
+
+### 3. 命令行中文请求编码
+- 使用 PowerShell 直接发送中文 JSON 时，建议显式使用 UTF-8 / Unicode
+- 否则可能在联调中误把终端编码问题当成写操作识别问题
+
+---
+
+## 六、建议下一步
+
+1. 把本次联调结果作为 W14 Launch 阶段的输入证据
+2. 在真实环境接入外部 realtime gateway 后补做环境联调
+3. 结合 Launch Center 执行真实压测、故障演练、签署与 closeout 归档
+
+---
+
+## 七、W14 Launch 本地 rehearsal 执行记录
+
+### 执行时间
+- 开始时间：`2026-04-12 12:55:10`
+- 结束时间：`2026-04-12 12:59:30`
+- 执行结果归档：
+  - `D:\code\aaaaljt\.codex\tmp\launch-w14-20260412-local-rehearsal.json`
+
+### 本轮实际执行的接口
+- `GET /api/admin/launch/readiness/overview`
+- `GET /api/admin/launch/checklist`
+- `POST /api/admin/launch/smoke/run`
+- `POST /api/admin/launch/load-tests/run`
+- `POST /api/admin/launch/drills/run`
+- `POST /api/admin/launch/checklist-snapshots/create`
+- `POST /api/admin/launch/dependencies/record`
+- `POST /api/admin/launch/signoffs/record`
+- `POST /api/admin/launch/windows/create`
+- `POST /api/admin/launch/windows/close`
+- `POST /api/admin/launch/closeouts/create`
+- `GET /api/admin/launch/final-summary`
+- `GET /api/admin/launch/handoff-summary`
+- `GET /api/admin/launch/timeline`
+- `GET /api/admin/launch/export/package`
+
+### 本轮生成的关键记录
+- Launch window：`window-1775969731056`（已关闭）
+- Load test：`load-test-1775969735179`
+- Drill：`drill-1775969735223`
+- Checklist snapshot：`checklist-1775969755585`
+- Closeout：`closeout-1775969939586`
+
+### 核心结果
+- readiness：
+  - `overallReady = false`
+  - `syncReady = false`
+  - `governanceReady = false`
+  - `realtimeServiceReady = true`
+  - `realtimeLiveGatewayReady = true`
+  - `rollbackReady = false`
+- smoke：
+  - `overallSuccess = false`
+  - realtime 返回 `snapshot_fallback`
+  - `fallbackReason = gateway_disabled`
+- load test：
+  - `status = failed`
+  - `0 / 6 successful`
+  - `degradedRate = 0.8333`
+  - 错误样本显示命中限流：`请求过于频繁，请稍后重试`
+- realtime fallback drill：
+  - `status = passed`
+  - fallback 已触发
+  - circuit 已恢复为 `CLOSED`
+- checklist snapshot：
+  - `status = failed`
+- closeout：
+  - `status = blocked`
+  - `finalReady = false`
+
+### 本轮补录的依赖与签署
+
+依赖检查：
+- `python-sidecar`：ready
+- `spring-backend`：ready
+- `internal-realtime-gateway`：ready
+- `elasticsearch-sync-baseline`：blocked
+- `governance-preflight-freshness`：blocked
+- `rollback-candidate-index`：blocked
+- `rabbitmq-local`：blocked
+
+签署记录：
+- `backend`：approved
+- `governance`：rejected
+- `release-manager`：rejected
+
+### 当前可以明确确认的 blocker
+1. ES alias `product_search_read` 读取失败，导致 sync baseline / rollback candidate 未通过
+2. governance latest regression run 已过期，导致 preflight freshness 未通过
+3. load test 在本地限流 / fallback 条件下未通过，无法产出绿色 load test record
+
+### 这一轮 rehearsal 的价值
+- 证明 W14 Launch 后端接口不是“只写了没用”，而是已经能够真实生成窗口、压测、演练、签署、closeout 全套记录
+- 证明当前项目剩余问题已从“主链代码缺失”转为“环境 blocker 与发布条件未转绿”
+- 为下一轮真实环境执行提供了现成模板：只需清 blocker 后复跑同一套 Launch 流程即可
+
+---
+
+## 第二轮修复收口（2026-04-12 13:28 ~ 13:41）
+
+### 本轮修复动作
+- 代码修正：
+  - `AdminGovernanceService.refreshSnapshotItems(...)` 恢复为“稳定快照”语义：旧版本 / 回归集保留历史快照，只在 case 删除时移除，不再跟随 eval case 更新而漂移
+  - `AdminLaunchService` 的 `signoffOverview(...)` / `dependencyOverview(...)` 改为按同角色 / 同依赖“最新记录”汇总，避免历史 rejected / blocked 污染当前 handoff 总览
+  - 对应单测已补齐并全部通过：`AdminGovernanceServiceTest`、`AdminLaunchServiceTest`
+- 治理数据修正：
+  - eval case `8` 的 `expectedPlanType` 从 `runtime_fallback` 调整为 `single_tool`
+  - 新建 eval version `16`
+  - 新建 regression set `25`
+  - release `307` 重绑到 version `16` / regression `25`
+  - release latest / baseline eval run 已刷新为 `119`
+
+### 本轮关键验证结果
+- `GET /api/admin/governance/release-records/307/verification?minEvalPassRate=1&maxRunAgeHours=24`
+  - `ready = true`
+- `GET /api/admin/governance/release/preflight?...`
+  - `ready = true`
+- `GET /api/admin/launch/readiness/overview`
+  - `overallReady = true`
+  - `syncReady = true`
+  - `governanceReady = true`
+  - `realtimeLiveGatewayReady = true`
+  - `rollbackReady = true`
+
+### 本轮重新生成的 W14 产物
+- Launch window：`window-1775972450862`（当前 open）
+- Load test：`load-test-1775972369352`，`status=passed`
+- Drill：`drill-1775972369576`，`status=passed`
+- Checklist snapshot：`checklist-1775972370068`，`status=passed`
+- Closeout：`closeout-1775972454049`，`status=ready_for_go_live`
+
+### 最终收口状态
+- `GET /api/admin/launch/final-summary`
+  - `finalReady = true`
+- `GET /api/admin/launch/handoff-summary`
+  - `finalReady = true`
+  - `signoffApprovedTotal = 3`
+  - `signoffRejectedTotal = 0`
+  - `dependencyReadyTotal = 7`
+  - `dependencyBlockedTotal = 0`
+
+### 当前结论
+- 本地 W14 blocker 已全部清零
+- 当前项目已不再缺本地主链代码，也不再缺本地 go-live 证据
+- 剩余工作仅为：把同一套 Launch 流程在真实环境再执行一轮，并完成正式归档

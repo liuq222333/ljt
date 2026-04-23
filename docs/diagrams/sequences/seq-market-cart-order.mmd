@@ -1,0 +1,85 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'fontFamily': 'Microsoft YaHei',
+    'fontSize': '18px',
+    'primaryColor': '#ffffff',
+    'primaryTextColor': '#111827',
+    'primaryBorderColor': '#1f2937',
+    'lineColor': '#334155',
+    'secondaryColor': '#f8fafc',
+    'tertiaryColor': '#eef2ff',
+    'actorBkg': '#f8fafc',
+    'actorBorder': '#1f2937',
+    'actorTextColor': '#111827',
+    'signalColor': '#334155',
+    'signalTextColor': '#111827',
+    'labelBoxBkgColor': '#ffffff',
+    'labelBoxBorderColor': '#1f2937',
+    'labelTextColor': '#111827',
+    'noteBkgColor': '#fff7ed',
+    'noteBorderColor': '#c2410c',
+    'noteTextColor': '#7c2d12',
+    'sequenceNumberColor': '#111827'
+  },
+  'sequence': {
+    'useMaxWidth': true,
+    'mirrorActors': false,
+    'diagramMarginX': 40,
+    'diagramMarginY': 30,
+    'actorMargin': 60,
+    'messageMargin': 36,
+    'noteMargin': 24,
+    'boxMargin': 12,
+    'width': 220,
+    'height': 64
+  }
+}}%%
+sequenceDiagram
+    title 社区集市浏览商品到下单时序图
+    autonumber
+    actor 社区居民
+    participant 前端
+    participant ProductsController
+    participant ProductsService
+    participant CartController
+    participant CartService
+
+    note over 社区居民,ProductsService: 社区集市浏览商品到加入购物车与下单
+
+    社区居民->>前端: 输入筛选条件或关键字
+    前端->>ProductsController: GET /api/products/getProducts
+    ProductsController->>ProductsService: getProducts(query)
+    ProductsService-->>ProductsController: PageResponse<Product>
+    ProductsController-->>前端: 商品列表
+    前端-->>社区居民: 展示商品列表
+
+    社区居民->>前端: 点击商品详情
+    前端->>ProductsController: GET /api/products/getProductAndSeller/{id}
+    ProductsController->>ProductsService: getProductAndSeller(id)
+    ProductsService-->>ProductsController: ProductAndSellerQueryDTO
+    ProductsController-->>前端: 商品详情 + 卖家信息
+
+    社区居民->>前端: 加入购物车
+    前端->>CartController: POST /api/carts/add
+    CartController->>CartService: addToCart(cart)
+    alt 添加失败
+        CartService-->>CartController: false
+        CartController-->>前端: 添加到购物车失败
+    else 添加成功
+        CartService-->>CartController: true
+        CartController-->>前端: success
+    end
+
+    社区居民->>前端: 查看购物车
+    前端->>CartController: GET /api/carts/getCartItems?userName=...
+    CartController->>CartService: getCartItems(userName)
+    CartService-->>CartController: CartShowDTO[]
+    CartController-->>前端: 购物车列表
+
+    社区居民->>前端: 提交已选商品
+    前端->>CartController: POST /api/carts/buySelected
+    CartController->>CartService: buySelected(request)
+    CartService-->>CartController: 扣减库存并生成订单
+    CartController-->>前端: 下单结果
+    前端-->>社区居民: 展示订单成功 / 失败

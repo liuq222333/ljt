@@ -117,7 +117,8 @@ interface ProductDTO {
 }
 
 const router = useRouter()
-const API_BASE_URL = 'http://localhost:8080/api'
+const API_BASE = (import.meta as any)?.env?.VITE_API_BASE ?? (window as any)?.VITE_API_BASE ?? 'http://localhost:8080'
+const API_BASE_URL = `${API_BASE}/api`
 const loading = ref(false)
 const errorMsg = ref('')
 const items = ref<ProductDTO[]>([])

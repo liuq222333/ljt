@@ -1,0 +1,315 @@
+/* ui-ux-pro-max theme override for LocalAct pages (white surface, light controls) */
+:is(
+  .la-page,
+  .lad-page,
+  .lmv-page,
+  .lae-page,
+  .lns-page,
+  .lnc-page,
+  .lap-page,
+  .lst-page,
+  .lsa-page,
+  .lsd-page,
+  .lsp-page
+) {
+  background: #f3f3f3 !important;
+  color: #333333 !important;
+}
+
+:is(
+  .lad-page .hero,
+  .lmv-page .hero,
+  .lae-page .lae-hero,
+  .lns-page .hero,
+  .lnc-page .hero,
+  .lap-page .lap-hero,
+  .lst-page .hero,
+  .lsa-page .hero,
+  .lsd-page .hero,
+  .lsp-page .hero
+) {
+  background: #ffffff !important;
+  border: 1px solid #e7e7e7 !important;
+  box-shadow: none !important;
+}
+
+:is(
+  .la-page .feed-panel,
+  .la-page .side-card,
+  .la-page .community-highlights,
+  .lad-page .info-card,
+  .lad-page .agenda-card,
+  .lad-page .organizer-card,
+  .lmv-page .map-panel,
+  .lmv-page .item,
+  .lae-page .stat-card,
+  .lae-page .filters,
+  .lae-page .list,
+  .lns-page .card,
+  .lnc-page .card,
+  .lap-page .form-panel,
+  .lap-page .preview-panel,
+  .lap-page .tips-card,
+  .lap-page .steps-card,
+  .lst-page .sidebar,
+  .lst-page .card,
+  .lsa-page .card,
+  .lsd-page .content,
+  .lsp-page .card
+) {
+  background: #ffffff !important;
+  border: 1px solid #e9e9e9 !important;
+  box-shadow: none !important;
+}
+
+:is(
+  .la-page .feed-item,
+  .la-page .schedule-list li,
+  .la-page .topic-list li,
+  .la-page .story-card,
+  .la-page .hot-list li,
+  .lmv-page .item,
+  .lae-page .list li,
+  .lns-page .card,
+  .lnc-page .card,
+  .lst-page .card,
+  .lsa-page .card
+) {
+  border-color: #e6e6e6 !important;
+  background: #ffffff !important;
+}
+
+:is(
+  .la-page .feed-item:hover,
+  .la-page .schedule-list li:hover,
+  .la-page .story-card:hover,
+  .la-page .hot-list li:hover,
+  .lmv-page .item:hover,
+  .lns-page .card:hover,
+  .lnc-page .card:hover,
+  .lst-page .card:hover,
+  .lsa-page .card:hover
+) {
+  border-color: #d4d4d4 !important;
+  background: #fafafa !important;
+}
+
+:is(
+  .la-page .primary,
+  .lad-page .primary,
+  .lmv-page .primary,
+  .lae-page .primary,
+  .lns-page .primary,
+  .lnc-page .primary,
+  .lap-page .primary,
+  .lst-page .primary,
+  .lsa-page .primary,
+  .lsd-page .primary,
+  .lsp-page .primary
+) {
+  background: #9db6cf !important;
+  border: 1px solid #9db6cf !important;
+  color: #ffffff !important;
+}
+
+:is(
+  .la-page .primary:hover,
+  .lad-page .primary:hover,
+  .lmv-page .primary:hover,
+  .lae-page .primary:hover,
+  .lns-page .primary:hover,
+  .lnc-page .primary:hover,
+  .lap-page .primary:hover,
+  .lst-page .primary:hover,
+  .lsa-page .primary:hover,
+  .lsd-page .primary:hover,
+  .lsp-page .primary:hover
+) {
+  background: #8da9c4 !important;
+  border-color: #8da9c4 !important;
+}
+
+:is(
+  .la-page .pill-primary,
+  .lap-page .pill-primary
+) {
+  background: #f0c29d !important;
+  border-color: #f0c29d !important;
+  color: #ffffff !important;
+}
+
+:is(
+  .la-page .pill-primary:hover,
+  .lap-page .pill-primary:hover
+) {
+  background: #e6b489 !important;
+  border-color: #e6b489 !important;
+}
+
+:is(
+  .la-page .ghost,
+  .lad-page .ghost,
+  .lmv-page .ghost,
+  .lae-page .ghost,
+  .lns-page .ghost,
+  .lnc-page .ghost,
+  .lap-page .ghost,
+  .lst-page .ghost,
+  .lsa-page .ghost,
+  .lsd-page .ghost,
+  .lsp-page .ghost,
+  .la-page .pill,
+  .la-page .chip,
+  .la-page .ai-toggle-btn,
+  .la-page .ai-action-btn
+) {
+  background: #ffffff !important;
+  border: 1px solid #d8d8d8 !important;
+  color: #4d4d4d !important;
+}
+
+:is(
+  .la-page .ghost:hover,
+  .lad-page .ghost:hover,
+  .lmv-page .ghost:hover,
+  .lae-page .ghost:hover,
+  .lns-page .ghost:hover,
+  .lnc-page .ghost:hover,
+  .lap-page .ghost:hover,
+  .lst-page .ghost:hover,
+  .lsa-page .ghost:hover,
+  .lsd-page .ghost:hover,
+  .lsp-page .ghost:hover,
+  .la-page .pill:hover,
+  .la-page .chip:hover,
+  .la-page .ai-toggle-btn:hover,
+  .la-page .ai-action-btn:hover
+) {
+  border-color: #c8c8c8 !important;
+  background: #f8f8f8 !important;
+  color: #333333 !important;
+}
+
+:is(
+  .la-page input,
+  .la-page select,
+  .la-page textarea,
+  .lad-page input,
+  .lad-page select,
+  .lad-page textarea,
+  .lmv-page input,
+  .lmv-page select,
+  .lmv-page textarea,
+  .lae-page input,
+  .lae-page select,
+  .lae-page textarea,
+  .lns-page input,
+  .lns-page select,
+  .lns-page textarea,
+  .lnc-page input,
+  .lnc-page select,
+  .lnc-page textarea,
+  .lap-page input,
+  .lap-page select,
+  .lap-page textarea,
+  .lst-page input,
+  .lst-page select,
+  .lst-page textarea,
+  .lsa-page input,
+  .lsa-page select,
+  .lsa-page textarea,
+  .lsd-page input,
+  .lsd-page select,
+  .lsd-page textarea,
+  .lsp-page input,
+  .lsp-page select,
+  .lsp-page textarea
+) {
+  background: #ffffff !important;
+  border-color: #dcdcdc !important;
+  color: #333333 !important;
+}
+
+:is(
+  .la-page input,
+  .la-page select,
+  .la-page textarea,
+  .lad-page input,
+  .lad-page select,
+  .lad-page textarea,
+  .lmv-page input,
+  .lmv-page select,
+  .lmv-page textarea,
+  .lae-page input,
+  .lae-page select,
+  .lae-page textarea,
+  .lns-page input,
+  .lns-page select,
+  .lns-page textarea,
+  .lnc-page input,
+  .lnc-page select,
+  .lnc-page textarea,
+  .lap-page input,
+  .lap-page select,
+  .lap-page textarea,
+  .lst-page input,
+  .lst-page select,
+  .lst-page textarea,
+  .lsa-page input,
+  .lsa-page select,
+  .lsa-page textarea,
+  .lsd-page input,
+  .lsd-page select,
+  .lsd-page textarea,
+  .lsp-page input,
+  .lsp-page select,
+  .lsp-page textarea
+)::placeholder {
+  color: #a0a0a0 !important;
+}
+
+:is(
+  .la-page button,
+  .lad-page button,
+  .lmv-page button,
+  .lae-page button,
+  .lns-page button,
+  .lnc-page button,
+  .lap-page button,
+  .lst-page button,
+  .lsa-page button,
+  .lsd-page button,
+  .lsp-page button,
+  .la-page .card,
+  .la-page .feed-item,
+  .la-page .story-card,
+  .lmv-page .item,
+  .lns-page .card,
+  .lnc-page .card,
+  .lst-page .card,
+  .lsa-page .card
+) {
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+:is(
+  .la-page button,
+  .la-page a,
+  .la-page input,
+  .la-page select,
+  .la-page textarea,
+  .lad-page button,
+  .lmv-page button,
+  .lae-page button,
+  .lns-page button,
+  .lnc-page button,
+  .lap-page button,
+  .lst-page button,
+  .lsa-page button,
+  .lsd-page button,
+  .lsp-page button
+):focus-visible {
+  outline: 2px solid #9fb2c7 !important;
+  outline-offset: 2px;
+}

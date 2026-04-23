@@ -1,18 +1,22 @@
 <template>
   <section class="admin-page launch-center">
-    <AdminPageHeader eyebrow="????" title="?????" description="??????????Smoke?????????">
+    <AdminPageHeader
+      eyebrow="上线准备"
+      title="上线工作台"
+      description="查看上线准备、演练记录与执行交接，集中处理 Smoke、回退与签核动作。"
+    >
       <template #actions>
         <button class="admin-button admin-button--secondary" type="button" @click="copyCurrentLink">
-          ????
+          复制链接
         </button>
         <button class="admin-button admin-button--secondary" type="button" @click="exportHandoffSummary">
-          ????
+          导出交接
         </button>
         <button class="admin-button admin-button--secondary" type="button" @click="exportLaunchPackage">
-          ?????
+          导出包件
         </button>
         <button class="admin-button admin-button--primary" type="button" :disabled="loading" @click="refreshAll">
-          {{ loading ? '???...' : '????' }}
+          {{ loading ? '刷新中...' : '刷新数据' }}
         </button>
       </template>
     </AdminPageHeader>
@@ -24,33 +28,33 @@
         <div class="launch-summary-badges">
           <AdminStatusBadge
             :tone="readiness.overallReady ? 'success' : 'warning'"
-            :label="readiness.overallReady ? '?????' : '?????'"
+            :label="readiness.overallReady ? '门禁已通过' : '门禁待处理'"
           />
           <AdminStatusBadge
             :tone="finalSummary.finalReady ? 'success' : 'warning'"
-            :label="finalSummary.finalReady ? '?????' : '??????'"
+            :label="finalSummary.finalReady ? '最终结论通过' : '最终结论待补齐'"
           />
-          <AdminStatusBadge tone="neutral" :label="`?? ${latestLoadTestStatus}`" />
-          <AdminStatusBadge tone="neutral" :label="`?? ${latestDrillStatus}`" />
+          <AdminStatusBadge tone="neutral" :label="`负载 ${latestLoadTestStatus}`" />
+          <AdminStatusBadge tone="neutral" :label="`演练 ${latestDrillStatus}`" />
         </div>
       </template>
       <template #actions>
         <button class="admin-button admin-button--secondary" type="button" @click="loadTimeline">
-          ?????
+          刷新时间线
         </button>
       </template>
     </AdminToolbar>
 
     <section class="admin-workbench">
       <div class="admin-workbench__main">
-        <AdminPanel title="????">
+        <AdminPanel title="核心门禁">
           <ul class="admin-summary">
             <li v-for="(value, key) in readiness.gates || {}" :key="String(key)">
-              <span>{{ key }}</span>
+              <span>{{ gateLabel(String(key)) }}</span>
               <strong>{{ yesNo(value) }}</strong>
             </li>
             <li v-if="!Object.keys(readiness.gates || {}).length">
-              <span>???????</span>
+              <span>暂无门禁检查结果</span>
               <strong>-</strong>
             </li>
           </ul>
@@ -67,55 +71,60 @@
                 {{ item.ready ? 'PASS' : 'TODO' }}
               </span>
             </article>
-            <div v-if="!checklist.length" class="admin-empty">?????</div>
+            <div v-if="!checklist.length" class="admin-empty">暂无检查项</div>
           </div>
         </AdminPanel>
 
-        <AdminPanel title="Smoke" description="?????? Smoke ?????">
+        <AdminPanel title="Smoke 校验" description="输入实体 ID 与查询类型，快速验证上线主链路。">
           <template #actions>
             <button class="admin-button admin-button--primary" type="button" :disabled="smokeLoading" @click="runSmoke">
-              {{ smokeLoading ? '???...' : '?? Smoke' }}
+              {{ smokeLoading ? '执行中...' : '运行 Smoke' }}
             </button>
           </template>
           <div class="form-grid">
             <label>
-              <span>Entity ID</span>
+              <span>实体 ID</span>
               <input v-model.number="smokeEntityId" type="number" min="1" />
             </label>
             <label>
-              <span>Query Type</span>
+              <span>查询类型</span>
               <input v-model="smokeQueryType" type="text" />
             </label>
           </div>
           <pre class="json-block">{{ pretty(smokeResult) }}</pre>
         </AdminPanel>
 
-        <AdminPanel title="Realtime ??" description="????? fallback ???">
+        <AdminPanel title="实时回退演练" description="触发 realtime fallback，验证降级与恢复链路。">
           <template #actions>
-            <button class="admin-button admin-button--primary" type="button" :disabled="chaosLoading" @click="forceFallback">
-              {{ chaosLoading ? '???...' : '????' }}
+            <button
+              class="admin-button admin-button--primary"
+              type="button"
+              :disabled="chaosLoading"
+              @click="forceFallback"
+            >
+              {{ chaosLoading ? '执行中...' : '触发回退' }}
             </button>
             <button class="admin-button admin-button--secondary" type="button" @click="recoverFallback">
-              ??
+              恢复服务
             </button>
           </template>
           <div class="form-grid">
             <label>
-              <span>????</span>
+              <span>持续时长（秒）</span>
               <input v-model.number="chaosDurationSeconds" type="number" min="1" />
             </label>
             <label>
-              <span>??</span>
+              <span>演练原因</span>
               <input v-model="chaosReason" type="text" />
             </label>
           </div>
           <pre class="json-block">{{ pretty(chaosResult) }}</pre>
         </AdminPanel>
 
-        <AdminPanel title="???">
+        <AdminPanel title="最近时间线">
           <template #actions>
             <button class="admin-button admin-button--secondary" type="button" @click="loadTimeline">
-              ??
+              刷新
             </button>
           </template>
           <div class="admin-list">
@@ -125,30 +134,30 @@
                 <p>{{ item.summary || '-' }}</p>
                 <p>{{ item.timestamp || '-' }}</p>
               </div>
-              <span class="check-badge" :class="badgeClass(item.status)">{{ item.status || 'unknown' }}</span>
+              <span class="check-badge" :class="badgeClass(item.status)">{{ item.status || '未知' }}</span>
             </article>
-            <div v-if="!timeline.length" class="admin-empty">???????</div>
+            <div v-if="!timeline.length" class="admin-empty">暂无时间线记录</div>
           </div>
         </AdminPanel>
 
         <section class="launch-record-grid">
-          <AdminPanel title="????">
+          <AdminPanel title="负载测试">
             <template #actions>
               <button class="admin-button admin-button--primary" type="button" @click="submitLoadTest">
-                ??
+                提交
               </button>
             </template>
             <div class="form-grid">
               <label>
-                <span>??</span>
+                <span>名称</span>
                 <input v-model="loadTestForm.name" type="text" />
               </label>
               <label>
-                <span>??</span>
+                <span>环境</span>
                 <input v-model="loadTestForm.environment" type="text" />
               </label>
               <label>
-                <span>???</span>
+                <span>执行人</span>
                 <input v-model="loadTestForm.operator" type="text" />
               </label>
               <label>
@@ -161,123 +170,123 @@
               </label>
               <label class="checkbox-field">
                 <input v-model="loadTestForm.passed" type="checkbox" />
-                <span>??</span>
+                <span>通过</span>
               </label>
             </div>
           </AdminPanel>
 
-          <AdminPanel title="????">
+          <AdminPanel title="演练记录">
             <template #actions>
               <button class="admin-button admin-button--primary" type="button" @click="submitDrill">
-                ??
+                提交
               </button>
             </template>
             <div class="form-grid">
               <label>
-                <span>??</span>
+                <span>名称</span>
                 <input v-model="drillForm.name" type="text" />
               </label>
               <label>
-                <span>??</span>
+                <span>环境</span>
                 <input v-model="drillForm.environment" type="text" />
               </label>
               <label>
-                <span>???</span>
+                <span>执行人</span>
                 <input v-model="drillForm.operator" type="text" />
               </label>
               <label>
-                <span>????</span>
+                <span>演练类型</span>
                 <input v-model="drillForm.drillType" type="text" />
               </label>
               <label>
-                <span>??</span>
+                <span>目标</span>
                 <input v-model="drillForm.target" type="text" />
               </label>
               <label class="checkbox-field">
                 <input v-model="drillForm.passed" type="checkbox" />
-                <span>??</span>
+                <span>通过</span>
               </label>
             </div>
           </AdminPanel>
 
-          <AdminPanel title="????">
+          <AdminPanel title="签核确认">
             <template #actions>
               <button class="admin-button admin-button--primary" type="button" @click="submitSignoff">
-                ??
+                提交
               </button>
             </template>
             <div class="form-grid">
               <label>
-                <span>??</span>
+                <span>角色</span>
                 <input v-model="signoffForm.signoffRole" type="text" />
               </label>
               <label>
-                <span>???</span>
+                <span>执行人</span>
                 <input v-model="signoffForm.operator" type="text" />
               </label>
               <label class="launch-record-grid__wide">
-                <span>??</span>
+                <span>备注</span>
                 <input v-model="signoffForm.notes" type="text" />
               </label>
               <label class="checkbox-field">
                 <input v-model="signoffForm.approved" type="checkbox" />
-                <span>???</span>
+                <span>批准通过</span>
               </label>
             </div>
           </AdminPanel>
 
-          <AdminPanel title="????">
+          <AdminPanel title="依赖检查">
             <template #actions>
               <button class="admin-button admin-button--primary" type="button" @click="submitDependencyCheck">
-                ??
+                提交
               </button>
             </template>
             <div class="form-grid">
               <label>
-                <span>???</span>
+                <span>依赖名称</span>
                 <input v-model="dependencyForm.dependencyName" type="text" />
               </label>
               <label>
-                <span>???</span>
+                <span>执行人</span>
                 <input v-model="dependencyForm.operator" type="text" />
               </label>
               <label class="launch-record-grid__wide">
-                <span>??</span>
+                <span>备注</span>
                 <input v-model="dependencyForm.notes" type="text" />
               </label>
               <label class="checkbox-field">
                 <input v-model="dependencyForm.ready" type="checkbox" />
-                <span>???</span>
+                <span>已就绪</span>
               </label>
             </div>
           </AdminPanel>
 
-          <AdminPanel class="launch-record-grid__wide-panel" title="????">
+          <AdminPanel class="launch-record-grid__wide-panel" title="上线窗口">
             <template #actions>
               <div class="panel-actions-inline">
                 <button class="admin-button admin-button--primary" type="button" @click="submitLaunchWindow">
-                  ????
+                  创建窗口
                 </button>
                 <button class="admin-button admin-button--secondary" type="button" @click="closeCurrentLaunchWindow">
-                  ????
+                  关闭窗口
                 </button>
               </div>
             </template>
             <div class="form-grid">
               <label>
-                <span>????</span>
+                <span>窗口名称</span>
                 <input v-model="launchWindowForm.windowName" type="text" />
               </label>
               <label>
-                <span>???</span>
+                <span>负责人</span>
                 <input v-model="launchWindowForm.operator" type="text" />
               </label>
               <label>
-                <span>????</span>
+                <span>开始时间</span>
                 <input v-model="launchWindowForm.startAt" type="text" placeholder="yyyy-MM-dd HH:mm:ss" />
               </label>
               <label>
-                <span>??</span>
+                <span>备注</span>
                 <input v-model="launchWindowForm.notes" type="text" />
               </label>
             </div>
@@ -286,54 +295,54 @@
       </div>
 
       <aside class="admin-workbench__side">
-        <AdminPanel title="????">
+        <AdminPanel title="最终结论">
           <template #actions>
             <button class="admin-button admin-button--secondary" type="button" @click="loadFinalSummary">
-              ??
+              刷新
             </button>
           </template>
           <ul class="admin-summary">
-            <li><span>????</span><strong>{{ yesNo(finalSummary.finalReady) }}</strong></li>
-            <li><span>????</span><strong>{{ yesNo(finalSummary.gates?.readinessGate) }}</strong></li>
-            <li><span>?????</span><strong>{{ yesNo(finalSummary.gates?.loadTestReady) }}</strong></li>
-            <li><span>?????</span><strong>{{ yesNo(finalSummary.gates?.drillReady) }}</strong></li>
-            <li><span>?????</span><strong>{{ yesNo(finalSummary.gates?.checklistReady) }}</strong></li>
+            <li><span>最终就绪</span><strong>{{ yesNo(finalSummary.finalReady) }}</strong></li>
+            <li><span>门禁通过</span><strong>{{ yesNo(finalSummary.gates?.readinessGate) }}</strong></li>
+            <li><span>负载测试</span><strong>{{ yesNo(finalSummary.gates?.loadTestReady) }}</strong></li>
+            <li><span>演练结果</span><strong>{{ yesNo(finalSummary.gates?.drillReady) }}</strong></li>
+            <li><span>清单完成</span><strong>{{ yesNo(finalSummary.gates?.checklistReady) }}</strong></li>
           </ul>
         </AdminPanel>
 
-        <AdminPanel title="????">
+        <AdminPanel title="交接摘要">
           <template #actions>
             <button class="admin-button admin-button--secondary" type="button" @click="loadHandoffSummary">
-              ??
+              刷新
             </button>
           </template>
           <ul class="admin-summary">
-            <li><span>???</span><strong>{{ yesNo(handoffSummary.finalReady) }}</strong></li>
-            <li><span>????</span><strong>{{ latestArtifactId('loadTest') }}</strong></li>
-            <li><span>????</span><strong>{{ latestArtifactId('drill') }}</strong></li>
-            <li><span>????</span><strong>{{ latestArtifactId('checklistSnapshot') }}</strong></li>
+            <li><span>可交接</span><strong>{{ yesNo(handoffSummary.finalReady) }}</strong></li>
+            <li><span>最新负载</span><strong>{{ latestArtifactId('loadTest') }}</strong></li>
+            <li><span>最新演练</span><strong>{{ latestArtifactId('drill') }}</strong></li>
+            <li><span>最新清单</span><strong>{{ latestArtifactId('checklistSnapshot') }}</strong></li>
           </ul>
           <div class="admin-list">
             <article v-for="item in handoffSummary.ownerActions || []" :key="item" class="admin-list-item">
               <strong>{{ item }}</strong>
             </article>
-            <div v-if="!(handoffSummary.ownerActions || []).length" class="admin-empty">??????</div>
+            <div v-if="!(handoffSummary.ownerActions || []).length" class="admin-empty">暂无待交接动作</div>
           </div>
         </AdminPanel>
 
-        <AdminPanel title="Runbook ??">
+        <AdminPanel title="Runbook 文档">
           <template #actions>
             <button class="admin-button admin-button--secondary" type="button" @click="loadRunbookBundle">
-              ??
+              刷新
             </button>
           </template>
           <div class="doc-list">
             <article v-for="(doc, key) in runbookBundle.documents || {}" :key="key" class="doc-item">
               <strong>{{ doc.title || key }}</strong>
               <p>{{ doc.path || '-' }}</p>
-              <pre class="doc-content">{{ doc.content || '????' }}</pre>
+              <pre class="doc-content">{{ doc.content || '暂无内容' }}</pre>
             </article>
-            <div v-if="!Object.keys(runbookBundle.documents || {}).length" class="admin-empty">?? Runbook ??</div>
+            <div v-if="!Object.keys(runbookBundle.documents || {}).length" class="admin-empty">暂无 Runbook 文档</div>
           </div>
         </AdminPanel>
       </aside>
@@ -437,15 +446,35 @@ const launchWindowForm = ref({
 
 const latestLoadTest = computed(() => loadTests.value[0] || finalSummary.value.latestLoadTest)
 const latestDrill = computed(() => drills.value[0] || finalSummary.value.latestDrill)
-const latestLoadTestStatus = computed(() => (latestLoadTest.value?.passed ? '??' : latestLoadTest.value ? '???' : '??'))
-const latestDrillStatus = computed(() => (latestDrill.value?.passed ? '??' : latestDrill.value ? '???' : '??'))
+const latestLoadTestStatus = computed(() =>
+  latestLoadTest.value?.passed ? '通过' : latestLoadTest.value ? '失败' : '未跑',
+)
+const latestDrillStatus = computed(() =>
+  latestDrill.value?.passed ? '通过' : latestDrill.value ? '失败' : '未跑',
+)
 
 function yesNo(value: unknown) {
-  return value ? '?' : '?'
+  return value ? '是' : '否'
+}
+
+function gateLabel(key: string) {
+  const map: Record<string, string> = {
+    syncReady: '同步就绪',
+    governanceReady: '治理就绪',
+    realtimeServiceReady: '实时服务就绪',
+    realtimeLiveGatewayReady: '实时网关就绪',
+    rollbackReady: '回滚预案就绪',
+    overallReady: '总体就绪',
+    readinessGate: '门禁通过',
+    loadTestReady: '负载测试通过',
+    drillReady: '演练通过',
+    checklistReady: '清单完成',
+  }
+  return map[key] || key
 }
 
 function latestArtifactId(key: 'loadTest' | 'drill' | 'checklistSnapshot') {
-  return ((handoffSummary.value.latestArtifacts || {})[key] || {}).id || '??'
+  return ((handoffSummary.value.latestArtifacts || {})[key] || {}).id || '--'
 }
 
 function pretty(value: unknown) {
@@ -465,9 +494,9 @@ async function copyCurrentLink() {
       await navigator.clipboard.writeText(window.location.href)
       return
     }
-    error.value = '???????????'
+    error.value = '当前环境不支持复制链接'
   } catch {
-    error.value = '??????'
+    error.value = '复制链接失败'
   }
 }
 
@@ -531,7 +560,7 @@ async function refreshAll() {
       loadDrills(),
     ])
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '?????????'
+    error.value = err instanceof Error ? err.message : '加载上线工作台失败'
   } finally {
     loading.value = false
   }
@@ -548,7 +577,7 @@ async function runSmoke() {
       },
     })
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Smoke ????'
+    error.value = err instanceof Error ? err.message : 'Smoke 执行失败'
   } finally {
     smokeLoading.value = false
   }
@@ -567,7 +596,7 @@ async function forceFallback() {
       },
     })
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Fallback ????'
+    error.value = err instanceof Error ? err.message : '回退演练执行失败'
   } finally {
     chaosLoading.value = false
   }
@@ -578,7 +607,7 @@ async function recoverFallback() {
   try {
     chaosResult.value = await recoverLaunchRealtimeFallback()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Fallback ????'
+    error.value = err instanceof Error ? err.message : '回退恢复失败'
   }
 }
 
@@ -594,7 +623,7 @@ async function submitLoadTest() {
       loadLaunchPackage(),
     ])
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '????????'
+    error.value = err instanceof Error ? err.message : '提交负载测试失败'
   }
 }
 
@@ -610,7 +639,7 @@ async function submitDrill() {
       loadLaunchPackage(),
     ])
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '????????'
+    error.value = err instanceof Error ? err.message : '提交演练记录失败'
   }
 }
 
@@ -620,7 +649,7 @@ async function submitSignoff() {
     await recordLaunchSignoff({ ...signoffForm.value })
     await Promise.all([loadHandoffSummary(), loadTimeline(), loadLaunchPackage()])
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '??????'
+    error.value = err instanceof Error ? err.message : '提交签核失败'
   }
 }
 
@@ -630,7 +659,7 @@ async function submitDependencyCheck() {
     await recordLaunchDependencyCheck({ ...dependencyForm.value })
     await Promise.all([loadHandoffSummary(), loadTimeline(), loadLaunchPackage()])
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '????????'
+    error.value = err instanceof Error ? err.message : '提交依赖检查失败'
   }
 }
 
@@ -640,7 +669,7 @@ async function submitLaunchWindow() {
     await createLaunchWindow({ ...launchWindowForm.value })
     await Promise.all([loadHandoffSummary(), loadTimeline(), loadLaunchPackage()])
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '????????'
+    error.value = err instanceof Error ? err.message : '创建上线窗口失败'
   }
 }
 
@@ -650,13 +679,13 @@ async function closeCurrentLaunchWindow() {
     const windows = await listLaunchWindows(10)
     const openWindow = windows.find((item) => String(item.status || '').toLowerCase() === 'open')
     if (!openWindow?.id) {
-      error.value = '????????????'
+      error.value = '当前没有进行中的上线窗口'
       return
     }
     await closeLaunchWindow({ id: openWindow.id, status: 'closed' })
     await Promise.all([loadHandoffSummary(), loadTimeline(), loadLaunchPackage()])
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '????????'
+    error.value = err instanceof Error ? err.message : '关闭上线窗口失败'
   }
 }
 

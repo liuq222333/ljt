@@ -223,7 +223,7 @@ interface PriceRange {
   label: string;
 }
 
-const API_BASE = 'http://localhost:8080';
+const API_BASE = ((import.meta as any)?.env?.VITE_API_BASE ?? (window as any)?.VITE_API_BASE ?? 'http://localhost:8080');
 
 const products = ref<Product[]>([]);
 const loading = ref(false);

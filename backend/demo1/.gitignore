@@ -18,7 +18,12 @@ target/
 *.iws
 *.iml
 *.ipr
-
+*.txt
+*.drawio
+*.png
+*.mmd
+*.html
+*.svg
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/

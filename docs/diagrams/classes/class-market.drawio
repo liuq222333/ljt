@@ -1,0 +1,100 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.6 Chrome/144.0.7559.236 Electron/40.8.4 Safari/537.36" version="29.6.6">
+  <diagram id="5a6b1c7e" name="社区集市模块类图">
+    <mxGraphModel dx="1505" dy="1082" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1400" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;用户（User）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String userId&lt;br/&gt;+String userName&lt;br/&gt;+String phone&lt;hr size=&quot;1&quot;/&gt;+publishProduct(): void&lt;br/&gt;+placeOrder(): void" vertex="1">
+          <mxGeometry height="174" width="260" x="40" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;商品（Product）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+Long id&lt;br/&gt;+Integer sellerId&lt;br/&gt;+Integer categoryId&lt;br/&gt;+String title&lt;br/&gt;+BigDecimal price&lt;br/&gt;+Integer stockQuantity&lt;br/&gt;+String location&lt;br/&gt;+String status&lt;hr size=&quot;1&quot;/&gt;+updatePrice(price): void&lt;br/&gt;+increaseStock(delta): void&lt;br/&gt;+takeDown(): void" vertex="1">
+          <mxGeometry height="306" width="260" x="40" y="274" as="geometry" />
+        </mxCell>
+        <mxCell id="4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;商品图片（ProductImages）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+Long id&lt;br/&gt;+Long productId&lt;br/&gt;+String imageUrl&lt;br/&gt;+Integer sortOrder&lt;hr size=&quot;1&quot;/&gt;+sortTo(order): void" vertex="1">
+          <mxGeometry height="174" width="260" x="40" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;商品分类（Category）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String id&lt;br/&gt;+String name&lt;br/&gt;+String parentId&lt;br/&gt;+String iconUrl&lt;hr size=&quot;1&quot;/&gt;+isRoot(): boolean" vertex="1">
+          <mxGeometry height="174" width="260" x="350" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;购物车（Cart）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+Long id&lt;br/&gt;+String userName&lt;br/&gt;+Long productId&lt;br/&gt;+int quantity&lt;br/&gt;+BigDecimal price&lt;hr size=&quot;1&quot;/&gt;+increaseQuantity(delta): void&lt;br/&gt;+decreaseQuantity(delta): void&lt;br/&gt;+calcAmount(): BigDecimal" vertex="1">
+          <mxGeometry height="240" width="260" x="350" y="274" as="geometry" />
+        </mxCell>
+        <mxCell id="7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;订单（Orders）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+Long id&lt;br/&gt;+String orderId&lt;br/&gt;+Long userId&lt;br/&gt;+Integer productId&lt;br/&gt;+BigDecimal totalAmount&lt;br/&gt;+Integer status&lt;hr size=&quot;1&quot;/&gt;+submit(): void&lt;br/&gt;+cancel(): void&lt;br/&gt;+complete(): void" vertex="1">
+          <mxGeometry height="262" width="260" x="350" y="554" as="geometry" />
+        </mxCell>
+        <mxCell id="8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;商品查询条件（ProductQueryDTO）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String keyword&lt;br/&gt;+String categoryId&lt;br/&gt;+Integer priceMin&lt;br/&gt;+Integer priceMax&lt;br/&gt;+String sort&lt;br/&gt;+Integer page&lt;br/&gt;+Integer size&lt;hr size=&quot;1&quot;/&gt;+hasKeyword(): boolean&lt;br/&gt;+normalizePage(): void" vertex="1">
+          <mxGeometry height="262" width="260" x="660" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;商品卖家详情（ProductAndSellerQueryDTO）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String id&lt;br/&gt;+String sellerId&lt;br/&gt;+String title&lt;br/&gt;+String price&lt;br/&gt;+String username&lt;br/&gt;+String phone&lt;hr size=&quot;1&quot;/&gt;+buildSummary(): String" vertex="1">
+          <mxGeometry height="218" width="260" x="660" y="362" as="geometry" />
+        </mxCell>
+        <mxCell id="10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;购买请求（PurchaseRequest）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String userName&lt;br/&gt;+List~PurchaseItem~ items&lt;hr size=&quot;1&quot;/&gt;+totalItems(): int&lt;br/&gt;+validate(): boolean" vertex="1">
+          <mxGeometry height="152" width="260" x="660" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;购买项（PurchaseItem）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+Integer productId&lt;br/&gt;+Integer quantity&lt;hr size=&quot;1&quot;/&gt;+calcSubtotal(unitPrice): BigDecimal" vertex="1">
+          <mxGeometry height="130" width="260" x="970" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="12" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;商品服务（ProductsService）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;&amp;lt;&amp;lt;interface&amp;gt;&amp;gt;&lt;hr size=&quot;1&quot;/&gt;+getProducts(query): PageResponse&lt;br/&gt;+getProductById(id): ResponseEntity&lt;br/&gt;+getProductAndSeller(id): ResponseEntity&lt;br/&gt;+addProduct(product): Resp&lt;br/&gt;+takeDownProduct(productId): Resp&lt;br/&gt;+increaseStock(productId, delta): Resp&lt;br/&gt;+updatePrice(productId, price): Resp" vertex="1">
+          <mxGeometry height="240" width="260" x="970" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;购物车服务（CartService）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;&amp;lt;&amp;lt;interface&amp;gt;&amp;gt;&lt;hr size=&quot;1&quot;/&gt;+addToCart(cart): boolean&lt;br/&gt;+getCartItems(userName): ResponseEntity&lt;br/&gt;+deleteCartItem(userName, productId): Resp&lt;br/&gt;+buySelected(request): Resp&lt;br/&gt;+getOrders(userName): ResponseEntity" vertex="1">
+          <mxGeometry height="240" width="260" x="970" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="14" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;商品控制器（ProductsController）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;-productsService: ProductsService&lt;hr size=&quot;1&quot;/&gt;+getProducts(query): PageResponse&lt;br/&gt;+getProductAndSeller(id): ResponseEntity&lt;br/&gt;+addProduct(product): Resp&lt;br/&gt;+getMyProducts(userName): ResponseEntity" vertex="1">
+          <mxGeometry height="190" width="260" x="1280" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="15" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;购物车控制器（CartController）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;-cartService: CartService&lt;hr size=&quot;1&quot;/&gt;+addToCart(cart): Resp&lt;br/&gt;+getCartItems(userName): ResponseEntity&lt;br/&gt;+deleteCartItem(userName, productId): Resp&lt;br/&gt;+buySelected(request): Resp&lt;br/&gt;+getOrders(userName): ResponseEntity" vertex="1">
+          <mxGeometry height="246" width="260" x="1280" y="274" as="geometry" />
+        </mxCell>
+        <mxCell id="16" edge="1" parent="1" source="3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;startArrow=diamondThin;startFill=1;endArrow=none;startSize=14;" target="4" value="images">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="17" edge="1" parent="1" source="3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=block;endFill=1;" target="5" value="belongsTo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="18" edge="1" parent="1" source="3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=block;endFill=1;" target="2" value="seller">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="19" edge="1" parent="1" source="6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=block;endFill=1;" target="3" value="productId">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="20" edge="1" parent="1" source="7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=block;endFill=1;" target="3" value="productId">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="21" edge="1" parent="1" source="7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=block;endFill=1;" target="2" value="buyer">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="22" edge="1" parent="1" source="10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;startArrow=diamondThin;startFill=1;endArrow=none;startSize=14;" target="11" value="items">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="23" edge="1" parent="1" source="14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="12" value="calls">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="24" edge="1" parent="1" source="14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="8" value="receives">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="25" edge="1" parent="1" source="12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="3" value="manages">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="26" edge="1" parent="1" source="12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="4" value="queries">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="27" edge="1" parent="1" source="12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="9" value="builds">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="28" edge="1" parent="1" source="15" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="13" value="calls">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="29" edge="1" parent="1" source="15" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="10" value="receives">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="30" edge="1" parent="1" source="13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="6" value="manages">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="31" edge="1" parent="1" source="13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="7" value="creates">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

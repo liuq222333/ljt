@@ -1,0 +1,4 @@
+#NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+#Sun Mar 29 22:25:28 CST 2026
+reactor-core-3.4.24.jar>nexus-speedcode=
+reactor-core-3.4.24.pom>nexus-speedcode=

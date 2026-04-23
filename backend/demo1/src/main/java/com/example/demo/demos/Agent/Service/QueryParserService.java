@@ -1,11 +1,15 @@
 package com.example.demo.demos.Agent.Service;
 
-import com.example.demo.demos.Agent.Config.AgentAiProperties;
+import com.example.demo.demos.Agent.Config.DeepSeekProperties;
+import com.example.demo.demos.Agent.Config.QueryParserPythonProperties;
 import com.example.demo.demos.common.enums.FollowUpType;
 import com.example.demo.demos.common.enums.TaskType;
 import com.example.demo.demos.Agent.Pojo.AgentChatMessage;
 import com.example.demo.demos.Agent.Pojo.CandidateSlots;
 import com.example.demo.demos.Agent.Pojo.ParsedIntent;
+import com.example.demo.demos.Agent.Python.PythonQueryParserClient;
+import com.example.demo.demos.Agent.Python.PythonSidecarException;
+import com.example.demo.demos.Agent.Runtime.SessionState;
 import com.example.demo.demos.Agent.Service.helper.deepseek.DeepSeekPayload;
 import com.example.demo.demos.Agent.Service.helper.deepseek.DeepSeekResponse;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -26,6 +30,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Query Parser 核心服务 — 将用户自然语言输入解析为结构化的 ParsedIntent。
@@ -40,13 +45,14 @@ public class QueryParserService {
     private static final Logger log = LoggerFactory.getLogger(QueryParserService.class);
 
     /** LLM 调用超时阈值（毫秒），超过则降级 */
-    private static final long LLM_TIMEOUT_MS = 500;
 
     /** LLM 输出格式异常时的最大重试次数 */
     private static final int MAX_RETRY = 1;
 
     private final RestTemplate restTemplate;
-    private final AgentAiProperties properties;
+    private final DeepSeekProperties properties;
+    private final QueryParserPythonProperties pythonProperties;
+    private final PythonQueryParserClient pythonQueryParserClient;
     private final RuleFallbackParser ruleFallbackParser;
     private final ObjectMapper objectMapper;
 
@@ -107,16 +113,24 @@ public class QueryParserService {
             + "1. candidate_slots 中只放用户说了的内容，不要自己推断\n"
             + "2. intent_confidence 要真实反映你的判断确定度\n"
             + "3. 如果用户说\"这个\"\"那个\"，在 candidate_slots 中用 entity_ref 记录\n"
-            + "4. 只输出 JSON，不要输出任何解释文字";
+            + "4. 只输出 JSON，不要输出任何解释文字\n"
+            + "5. 即使信息不足，也必须返回合法 JSON，缺失字段填 null、false、0.0 或空字符串\n"
+            + "6. 不要向用户追问，不要输出补充说明，不要输出自然语言";
 
     public QueryParserService(RestTemplateBuilder restTemplateBuilder,
-                              AgentAiProperties properties,
+                              DeepSeekProperties properties,
+                              QueryParserPythonProperties pythonProperties,
+                              PythonQueryParserClient pythonQueryParserClient,
                               RuleFallbackParser ruleFallbackParser) {
+        long connectTimeoutMs = properties.getConnectTimeoutMs() != null ? properties.getConnectTimeoutMs() : 3000L;
+        long readTimeoutMs = properties.getReadTimeoutMs() != null ? properties.getReadTimeoutMs() : 10000L;
         this.restTemplate = restTemplateBuilder
-                .setConnectTimeout(Duration.ofMillis(LLM_TIMEOUT_MS))
-                .setReadTimeout(Duration.ofMillis(LLM_TIMEOUT_MS))
+                .setConnectTimeout(Duration.ofMillis(connectTimeoutMs))
+                .setReadTimeout(Duration.ofMillis(readTimeoutMs))
                 .build();
         this.properties = properties;
+        this.pythonProperties = pythonProperties;
+        this.pythonQueryParserClient = pythonQueryParserClient;
         this.ruleFallbackParser = ruleFallbackParser;
         this.objectMapper = new ObjectMapper()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -130,6 +144,19 @@ public class QueryParserService {
      * @return 结构化意图识别结果
      */
     public ParsedIntent parse(String currentMessage, List<AgentChatMessage> recentMessages) {
+        return parse(currentMessage, recentMessages, null, null);
+    }
+
+    public ParsedIntent parse(String currentMessage,
+                              List<AgentChatMessage> recentMessages,
+                              SessionState.SessionContext sessionContext) {
+        return parse(currentMessage, recentMessages, sessionContext, null);
+    }
+
+    public ParsedIntent parse(String currentMessage,
+                              List<AgentChatMessage> recentMessages,
+                              SessionState.SessionContext sessionContext,
+                              Map<String, Object> userProfile) {
         if (!StringUtils.hasText(currentMessage)) {
             ParsedIntent empty = new ParsedIntent();
             empty.setTaskType(TaskType.CHITCHAT);
@@ -138,28 +165,64 @@ public class QueryParserService {
             return empty;
         }
 
-        // 尝试 LLM 解析
-        for (int attempt = 0; attempt <= MAX_RETRY; attempt++) {
-            try {
-                ParsedIntent result = callLlmForIntent(currentMessage, recentMessages);
-                if (result != null) {
-                    log.info("QueryParser LLM 解析成功: taskType={}, confidence={}",
-                            result.getTaskType(), result.getIntentConfidence());
-                    return result;
-                }
-            } catch (Exception e) {
-                log.warn("QueryParser LLM 调用失败 (attempt {}/{}): {}",
-                        attempt + 1, MAX_RETRY + 1, e.getMessage());
-            }
+        ParsedIntent pythonResult = tryPythonSidecar(currentMessage, recentMessages, sessionContext, userProfile);
+        if (pythonResult != null) {
+            return pythonResult;
         }
 
-        // LLM 不可用，降级到规则引擎
-        log.info("QueryParser 降级到规则引擎: input={}", currentMessage);
-        return ruleFallbackParser.parse(currentMessage);
+        if (shouldTryLocalLlm()) {
+            for (int attempt = 0; attempt <= MAX_RETRY; attempt++) {
+                try {
+                    ParsedIntent result = callLlmForIntent(currentMessage, recentMessages);
+                    if (result != null) {
+                        log.info("QueryParser local LLM parsed: taskType={}, confidence={}",
+                                result.getTaskType(), result.getIntentConfidence());
+                        return result;
+                    }
+                } catch (Exception e) {
+                    log.warn("QueryParser local LLM failed (attempt {}/{}): {}",
+                            attempt + 1, MAX_RETRY + 1, e.getMessage());
+                }
+            }
+        } else {
+            log.info("QueryParser local LLM disabled, fallback to rules");
+        }
+
+        log.info("QueryParser fallback to rules input={}", currentMessage);
+        return sessionContext == null
+                ? ruleFallbackParser.parse(currentMessage)
+                : ruleFallbackParser.parse(currentMessage, sessionContext);
+    }
+
+    private ParsedIntent tryPythonSidecar(String currentMessage,
+                                          List<AgentChatMessage> recentMessages,
+                                          SessionState.SessionContext sessionContext,
+                                          Map<String, Object> userProfile) {
+        if (pythonProperties == null || !pythonProperties.isEnabled()) {
+            return null;
+        }
+        try {
+            ParsedIntent parsedIntent = pythonQueryParserClient.parse(
+                    currentMessage,
+                    recentMessages,
+                    sessionContext,
+                    userProfile
+            );
+            log.info("QueryParser Python sidecar parsed: taskType={}, confidence={}",
+                    parsedIntent.getTaskType(), parsedIntent.getIntentConfidence());
+            return parsedIntent;
+        } catch (PythonSidecarException ex) {
+            log.warn("QueryParser Python sidecar failed, fallback to Java parser: {}", ex.getMessage());
+            return null;
+        }
+    }
+
+    private boolean shouldTryLocalLlm() {
+        return properties != null && StringUtils.hasText(properties.getKey()) && StringUtils.hasText(properties.getUrl());
     }
 
     /**
-     * 调用 LLM 进行意图识别。
+     * ??? LLM ???????????
      */
     private ParsedIntent callLlmForIntent(String currentMessage, List<AgentChatMessage> recentMessages) {
         // 构建消息列表
@@ -191,6 +254,7 @@ public class QueryParserService {
         payload.setTemperature(0.1); // 意图识别用低温度保证稳定性
         payload.setMaxTokens(512);   // 意图 JSON 不需要太多 token
         payload.setStream(false);
+        payload.setResponseFormat(new DeepSeekPayload.ResponseFormat("json_object"));
         payload.setMessages(messages);
 
         // 调用 LLM

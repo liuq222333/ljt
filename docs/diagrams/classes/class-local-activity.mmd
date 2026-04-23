@@ -1,0 +1,141 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'fontFamily': 'Microsoft YaHei',
+    'fontSize': '18px',
+    'primaryColor': '#ffffff',
+    'primaryTextColor': '#111827',
+    'primaryBorderColor': '#1f2937',
+    'lineColor': '#334155',
+    'secondaryColor': '#f8fafc',
+    'tertiaryColor': '#eef2ff'
+  }
+}}%%
+classDiagram
+direction LR
+
+class UserProfile["用户（User）"] {
+  +String userId
+  +String userName
+  +publishActivity(): void
+  +createSupportTask(): void
+}
+
+class LocalActivity["本地活动（LocalActivity）"] {
+  +Long id
+  +Integer organizerUserId
+  +String title
+  +String categoryCode
+  +String status
+  +LocalDateTime startAt
+  +LocalDateTime endAt
+  +publish(): void
+  +updateStatus(status): void
+  +closeRegistration(): void
+}
+
+class LocalActivityScheduleTemplate["固定日程模板（LocalActivityScheduleTemplate）"] {
+  +Long id
+  +Integer ownerUserId
+  +String title
+  +Integer weekday
+  +LocalTime startTime
+  +String status
+  +generateActivity(): LocalActivity
+  +disable(): void
+}
+
+class LocalActivityStory["活动故事（LocalActivityStory）"] {
+  +Long id
+  +Long activityId
+  +Integer authorUserId
+  +String title
+  +String summary
+  +publish(): void
+  +updateSummary(summary): void
+}
+
+class NeighborSupportTask["互助任务（NeighborSupportTask）"] {
+  +Long id
+  +Integer requesterUserId
+  +String title
+  +String categoryCode
+  +String priority
+  +Integer rewardPoints
+  +String status
+  +assignVolunteer(userId): void
+  +complete(): void
+}
+
+class LocalActCreateRequest["活动创建请求（LocalActCreateRequest）"] {
+  +String username
+  +String title
+  +String category
+  +String date
+  +String location
+  +Integer capacity
+  +validate(): boolean
+}
+
+class NeighborSupportTaskRequest["互助任务请求（NeighborSupportTaskRequest）"] {
+  +String username
+  +String title
+  +String category
+  +String description
+  +String location
+  +validate(): boolean
+}
+
+class NeighborSupportTaskResponse["互助任务响应（NeighborSupportTaskResponse）"] {
+  +Long taskId
+  +String status
+  +isSuccess(): boolean
+}
+
+class LocalActivityService["活动服务（LocalActivityService）"] {
+  <<interface>>
+  +createActivity(request): LocalActCreateResponse
+  +listActivities(status, page, size): List
+}
+
+class LocalScheduleTemplateService["模板服务（LocalScheduleTemplateService）"] {
+  <<interface>>
+  +createTemplate(request): LocalActScheduleTemplateResponse
+}
+
+class NeighborSupportService["互助服务（NeighborSupportService）"] {
+  <<interface>>
+  +createTask(request): NeighborSupportTaskResponse
+  +listTasks(status): List
+}
+
+class LocalActEnrollmentController["活动控制器（LocalActEnrollmentController）"] {
+  -activityService: LocalActivityService
+  -scheduleTemplateService: LocalScheduleTemplateService
+  +createActivity(request): Resp
+  +createScheduleTemplate(request): Resp
+  +listActivities(status, page, size): Resp
+}
+
+class NeighborSupportController["互助控制器（NeighborSupportController）"] {
+  -neighborSupportService: NeighborSupportService
+  +createTask(request): Resp
+  +listTasks(status): Resp
+}
+
+UserProfile "1" <-- "0..*" LocalActivity : organizer
+UserProfile "1" <-- "0..*" LocalActivityScheduleTemplate : owner
+UserProfile "1" <-- "0..*" LocalActivityStory : author
+UserProfile "1" <-- "0..*" NeighborSupportTask : requester
+LocalActivity "1" *-- "0..*" LocalActivityStory : stories
+
+LocalActEnrollmentController ..> LocalActivityService : calls
+LocalActEnrollmentController ..> LocalScheduleTemplateService : calls
+LocalActEnrollmentController ..> LocalActCreateRequest : receives
+LocalActivityService ..> LocalActivity : manages
+LocalScheduleTemplateService ..> LocalActivityScheduleTemplate : manages
+
+NeighborSupportController ..> NeighborSupportService : calls
+NeighborSupportController ..> NeighborSupportTaskRequest : receives
+NeighborSupportController ..> NeighborSupportTaskResponse : returns
+NeighborSupportService ..> NeighborSupportTask : manages

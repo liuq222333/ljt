@@ -1,0 +1,181 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'fontFamily': 'Microsoft YaHei',
+    'fontSize': '18px',
+    'primaryColor': '#ffffff',
+    'primaryTextColor': '#111827',
+    'primaryBorderColor': '#1f2937',
+    'lineColor': '#334155',
+    'secondaryColor': '#f8fafc',
+    'tertiaryColor': '#eef2ff'
+  }
+}}%%
+classDiagram
+direction LR
+
+class UserProfile["用户（User）"]
+class UserProfile {
+  +String userId
+  +String userName
+  +String phone
+  +publishProduct(): void
+  +placeOrder(): void
+}
+
+class Product["商品（Product）"]
+class Product {
+  +Long id
+  +Integer sellerId
+  +Integer categoryId
+  +String title
+  +BigDecimal price
+  +Integer stockQuantity
+  +String location
+  +String status
+  +updatePrice(price): void
+  +increaseStock(delta): void
+  +takeDown(): void
+}
+
+class ProductImages["商品图片（ProductImages）"]
+class ProductImages {
+  +Long id
+  +Long productId
+  +String imageUrl
+  +Integer sortOrder
+  +sortTo(order): void
+}
+
+class Category["商品分类（Category）"]
+class Category {
+  +String id
+  +String name
+  +String parentId
+  +String iconUrl
+  +isRoot(): boolean
+}
+
+class Cart["购物车（Cart）"]
+class Cart {
+  +Long id
+  +String userName
+  +Long productId
+  +int quantity
+  +BigDecimal price
+  +increaseQuantity(delta): void
+  +decreaseQuantity(delta): void
+  +calcAmount(): BigDecimal
+}
+
+class Orders["订单（Orders）"]
+class Orders {
+  +Long id
+  +String orderId
+  +Long userId
+  +Integer productId
+  +BigDecimal totalAmount
+  +Integer status
+  +submit(): void
+  +cancel(): void
+  +complete(): void
+}
+
+class ProductQueryDTO["商品查询条件（ProductQueryDTO）"]
+class ProductQueryDTO {
+  +String keyword
+  +String categoryId
+  +Integer priceMin
+  +Integer priceMax
+  +String sort
+  +Integer page
+  +Integer size
+  +hasKeyword(): boolean
+  +normalizePage(): void
+}
+
+class ProductAndSellerQueryDTO["商品卖家详情（ProductAndSellerQueryDTO）"]
+class ProductAndSellerQueryDTO {
+  +String id
+  +String sellerId
+  +String title
+  +String price
+  +String username
+  +String phone
+  +buildSummary(): String
+}
+
+class PurchaseRequest["购买请求（PurchaseRequest）"]
+class PurchaseRequest {
+  +String userName
+  +List~PurchaseItem~ items
+  +totalItems(): int
+  +validate(): boolean
+}
+
+class PurchaseItem["购买项（PurchaseItem）"]
+class PurchaseItem {
+  +Integer productId
+  +Integer quantity
+  +calcSubtotal(unitPrice): BigDecimal
+}
+
+class ProductsService["商品服务（ProductsService）"]
+class ProductsService {
+  <<interface>>
+  +getProducts(query): PageResponse
+  +getProductById(id): ResponseEntity
+  +getProductAndSeller(id): ResponseEntity
+  +addProduct(product): Resp
+  +takeDownProduct(productId): Resp
+  +increaseStock(productId, delta): Resp
+  +updatePrice(productId, price): Resp
+}
+
+class CartService["购物车服务（CartService）"]
+class CartService {
+  <<interface>>
+  +addToCart(cart): boolean
+  +getCartItems(userName): ResponseEntity
+  +deleteCartItem(userName, productId): Resp
+  +buySelected(request): Resp
+  +getOrders(userName): ResponseEntity
+}
+
+class ProductsController["商品控制器（ProductsController）"]
+class ProductsController {
+  -productsService: ProductsService
+  +getProducts(query): PageResponse
+  +getProductAndSeller(id): ResponseEntity
+  +addProduct(product): Resp
+  +getMyProducts(userName): ResponseEntity
+}
+
+class CartController["购物车控制器（CartController）"]
+class CartController {
+  -cartService: CartService
+  +addToCart(cart): Resp
+  +getCartItems(userName): ResponseEntity
+  +deleteCartItem(userName, productId): Resp
+  +buySelected(request): Resp
+  +getOrders(userName): ResponseEntity
+}
+
+Product "1" *-- "0..*" ProductImages : images
+Product "*" --> "1" Category : belongsTo
+UserProfile "1" <-- "0..*" Product : seller
+Cart "*" --> "1" Product : productId
+Orders "*" --> "1" Product : productId
+Orders "*" --> "1" UserProfile : buyer
+PurchaseRequest "1" *-- "1..*" PurchaseItem : items
+
+ProductsController ..> ProductsService : calls
+ProductsController ..> ProductQueryDTO : receives
+ProductsService ..> Product : manages
+ProductsService ..> ProductImages : queries
+ProductsService ..> ProductAndSellerQueryDTO : builds
+
+CartController ..> CartService : calls
+CartController ..> PurchaseRequest : receives
+CartService ..> Cart : manages
+CartService ..> Orders : creates

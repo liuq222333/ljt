@@ -1,85 +1,95 @@
 <template>
   <dhstyle />
   <div class="lae-page">
-    <section class="lae-hero">
+    <section class="lae-hero card">
       <div>
-        <p class="eyebrow">��������</p>
-        <h1>��ע��������г̣�ǩ�����򲹡�����һվ����</h1>
+        <p class="eyebrow">????</p>
+        <h1>???????</h1>
+        <p class="subtitle">??????????????????????????</p>
       </div>
       <div class="hero-actions">
-        <button class="ghost" @click="exportEnrollments">����������¼</button>
-        <button class="primary" @click="goToPublish">�����</button>
+        <button class="btn btn-light" @click="exportEnrollments">????</button>
+        <button class="btn btn-primary" @click="goToPublish">????</button>
       </div>
     </section>
 
-    <section class="stats">
-      <div class="stat-card" v-for="stat in statsCards" :key="stat.key">
+    <section class="stats-row">
+      <article class="stat-card" v-for="stat in statsCards" :key="stat.key">
         <p class="label">{{ stat.label }}</p>
         <strong>{{ stat.value }}</strong>
-        <small>{{ stat.desc }}</small>
-      </div>
+        <span>{{ stat.desc }}</span>
+      </article>
     </section>
 
-    <div class="layout">
-      <aside class="filters">
-        <h3>ɸѡ</h3>
+    <section class="content-layout">
+      <aside class="filters card">
+        <h3>????</h3>
         <label>
-          ״̬
+          ??
           <select v-model="filters.status">
-            <option value="">ȫ��</option>
-            <option value="confirmed">��ȷ��</option>
-            <option value="pending">�����</option>
-            <option value="waitlist">��</option>
+            <option value="">????</option>
+            <option value="confirmed">???</option>
+            <option value="pending">???</option>
+            <option value="waitlist">???</option>
           </select>
         </label>
         <label>
-          ʱ��
+          ??
           <select v-model="filters.period">
-            <option value="upcoming">������ʼ</option>
-            <option value="past">��ʷ�</option>
+            <option value="upcoming">????</option>
+            <option value="past">????</option>
           </select>
         </label>
         <label>
-          �ؼ���
-          <input v-model="filters.keyword" type="text" placeholder="�������֯��" />
+          ???
+          <input v-model="filters.keyword" type="text" placeholder="??? / ?? / ???" />
         </label>
+        <button class="btn btn-light full" @click="refreshList">????</button>
       </aside>
 
-      <section class="list">
-        <header class="list-header">
+      <div class="records card">
+        <header class="records-header">
           <div>
-            <h2>�ҵı���</h2>
-            <p>��ǰ��ʾ {{ filtered.length }} ����¼</p>
+            <h2>????</h2>
+            <p>??? {{ filtered.length }} ?</p>
           </div>
-          <button class="ghost sm">��������</button>
         </header>
 
-        <div class="cards">
-          <div v-if="loading" class="card info-card">���ڼ��ر�������...</div>
-          <div v-else-if="errorMsg" class="card info-card error-card">{{ errorMsg }}</div>
-          <div v-else-if="!filtered.length" class="card info-card">���ޱ�����¼</div>
-          <article v-else v-for="item in filtered" :key="item.id" class="card">
-            <div class="card-left">
-              <p class="date">{{ item.date }}</p>
+        <p v-if="infoMsg" class="info-msg">{{ infoMsg }}</p>
+
+        <div class="records-list">
+          <div v-if="loading" class="record empty">????????...</div>
+          <div v-else-if="errorMsg" class="record empty error">{{ errorMsg }}</div>
+          <div v-else-if="!filtered.length" class="record empty">???????????</div>
+
+          <article v-else v-for="item in filtered" :key="item.id" class="record">
+            <div class="record-main">
+              <div class="record-head">
+                <p class="date">{{ item.date }}</p>
+                <span class="status" :class="item.status">{{ statusLabel(item.status) }}</span>
+              </div>
               <h3>{{ item.title }}</h3>
-              <p class="meta">{{ item.location }} �� {{ item.organizer }}</p>
-              <div class="tags">
+              <p class="meta">{{ item.location }} ? {{ item.organizer }}</p>
+              <div class="tags" v-if="item.tags.length">
                 <span v-for="tag in item.tags" :key="tag">{{ tag }}</span>
               </div>
+              <p class="reminder">???{{ item.reminder }}</p>
             </div>
-            <div class="card-right">
-              <span class="status" :class="item.status">{{ statusLabel(item.status) }}</span>
-              <p class="reminder">{{ item.reminder }}</p>
-              <div class="actions">
-                <button class="ghost sm">�鿴����</button>
-                <button v-if="item.status === 'pending'" class="primary sm">��������</button>
-                <button v-else class="ghost sm">ȡ������</button>
-              </div>
+            <div class="record-actions">
+              <button class="btn btn-light sm" @click="goToDetail(item.id)">????</button>
+              <button
+                v-if="item.status === 'pending'"
+                class="btn btn-light sm"
+                @click="remindReview(item)"
+              >
+                ???
+              </button>
+              <button v-else class="btn btn-primary sm" @click="cancelEnrollment(item)">????</button>
             </div>
           </article>
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -134,14 +144,15 @@ const router = useRouter();
 const username = ref(localStorage.getItem('username') || '');
 
 const statsCards = ref([
-  { key: 'upcoming', label: '������ʼ', value: 0, desc: '��Ҫǩ��' },
-  { key: 'participated', label: '�ۼƲ���', value: 0, desc: '�����' },
-  { key: 'hours', label: '־Ըʱ��', value: 0, desc: '�Ѽ�¼' }
+  { key: 'upcoming', label: '????', value: 0, desc: '????' },
+  { key: 'participated', label: '????', value: 0, desc: '????' },
+  { key: 'hours', label: '????', value: 0, desc: '????' }
 ]);
 
 const enrollments = ref<Enrollment[]>([]);
 const loading = ref(false);
 const errorMsg = ref('');
+const infoMsg = ref('');
 
 const filters = ref<Filters>({
   status: '',
@@ -150,9 +161,9 @@ const filters = ref<Filters>({
 });
 
 const formatDate = (iso?: string) => {
-  if (!iso) return 'ʱ�����';
+  if (!iso) return '????';
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 'ʱ�����';
+  if (Number.isNaN(date.getTime())) return '????';
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const day = date.getDate().toString().padStart(2, '0');
   return `${month}/${day}`;
@@ -160,19 +171,20 @@ const formatDate = (iso?: string) => {
 
 const updateStats = (stats?: ApiStats) => {
   statsCards.value = [
-    { key: 'upcoming', label: '������ʼ', value: stats?.upcomingCount ?? 0, desc: '��Ҫǩ��' },
-    { key: 'participated', label: '�ۼƲ���', value: stats?.totalParticipated ?? 0, desc: '�����' },
-    { key: 'hours', label: '־Ըʱ��', value: stats?.volunteerHours ?? 0, desc: '�Ѽ�¼' }
+    { key: 'upcoming', label: '????', value: stats?.upcomingCount ?? 0, desc: '????' },
+    { key: 'participated', label: '????', value: stats?.totalParticipated ?? 0, desc: '????' },
+    { key: 'hours', label: '????', value: stats?.volunteerHours ?? 0, desc: '????' }
   ];
 };
 
 const fetchEnrollments = async () => {
   if (!username.value) {
-    errorMsg.value = '���ȵ�¼��鿴������Ϣ';
+    errorMsg.value = '???????????';
     enrollments.value = [];
     updateStats();
     return;
   }
+
   loading.value = true;
   errorMsg.value = '';
   try {
@@ -180,10 +192,12 @@ const fetchEnrollments = async () => {
     if (filters.value.status) params.append('status', filters.value.status);
     if (filters.value.period) params.append('period', filters.value.period);
     if (filters.value.keyword.trim()) params.append('keyword', filters.value.keyword.trim());
+
     const resp = await fetch(`${API_BASE}/api/local-act/enrollments?${params.toString()}`);
     if (!resp.ok) {
       throw new Error(await resp.text());
     }
+
     const data = (await resp.json()) as ApiResponse;
     updateStats(data.stats);
     enrollments.value =
@@ -197,8 +211,8 @@ const fetchEnrollments = async () => {
         tags: item.tags ?? [],
         date: formatDate(item.startAt)
       })) ?? [];
-  } catch (err) {
-    errorMsg.value = err instanceof Error ? err.message : '���ر�������ʧ��';
+  } catch (error) {
+    errorMsg.value = error instanceof Error ? error.message : '????????';
   } finally {
     loading.value = false;
   }
@@ -217,25 +231,44 @@ watch(
 const filtered = computed(() => enrollments.value);
 
 const statusLabel = (status: Status) => {
-  if (status === 'confirmed') return '��ȷ��';
-  if (status === 'pending') return '�����';
-  return '����';
+  if (status === 'confirmed') return '???';
+  if (status === 'pending') return '???';
+  return '???';
 };
 
 const goToPublish = () => {
   router.push('/local-act/publish');
 };
 
+const goToDetail = (id: number) => {
+  router.push(`/local-act/${id}`);
+};
+
+const refreshList = () => {
+  infoMsg.value = '';
+  fetchEnrollments();
+};
+
+const remindReview = (item: Enrollment) => {
+  infoMsg.value = `???????????${item.title}?`;
+};
+
+const cancelEnrollment = (item: Enrollment) => {
+  infoMsg.value = `????${item.title}??????????`;
+};
+
 const exportEnrollments = () => {
   if (!filtered.value.length) {
-    errorMsg.value = '���޿ɵ����ı�����¼';
+    errorMsg.value = '????????????';
     return;
   }
+
   const csv = [
-    ['�', 'ʱ��', '�ص�', '״̬'].join(','),
+    ['??', '??', '??', '??'].join(','),
     ...filtered.value.map((item) => [item.title, item.date, item.location, statusLabel(item.status)].join(','))
-  ].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  ].join('\\n');
+
+  const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = 'local-act-enrollments.csv';
@@ -246,228 +279,325 @@ const exportEnrollments = () => {
 
 <style scoped>
 :global(body) {
-  background: #f4f6f8;
+  background: #f5f6f8;
 }
 
 .lae-page {
-  padding-top: 80px;
-  color: #111827;
-  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  padding: 76px 40px 36px;
+  color: #1f2937;
+  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e3e9f2;
+  border-radius: 12px;
 }
 
 .lae-hero {
-  margin: 48px;
-  padding: 28px 32px;
-  border-radius: 28px;
-  background: linear-gradient(120deg, #122a19, #1aa053);
-  color: #fff;
+  padding: 18px 20px;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 20px;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 12px;
+  color: #667085;
+  letter-spacing: 0.08em;
+}
+
+.lae-hero h1 {
+  margin: 8px 0 6px;
+  font-size: 28px;
+  color: #1f2937;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #4b5563;
+  line-height: 1.6;
 }
 
 .hero-actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
 }
 
-.stats {
+.stats-row {
+  margin-top: 12px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-  margin: 0 48px 24px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .stat-card {
-  background: #fff;
-  border-radius: 20px;
-  padding: 18px;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #e3e9f2;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .stat-card .label {
-  font-size: 13px;
-  color: #6b7280;
+  margin: 0;
+  font-size: 12px;
+  color: #667085;
 }
 
 .stat-card strong {
-  font-size: 32px;
+  font-size: 28px;
+  color: #2f6ea5;
+  line-height: 1.2;
 }
 
-.layout {
+.stat-card span {
+  font-size: 12px;
+  color: #667085;
+}
+
+.content-layout {
+  margin-top: 12px;
   display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 20px;
-  margin: 0 48px 56px;
-  align-items: start;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 12px;
 }
 
-.filters,
-.list {
-  background: #fff;
-  border-radius: 24px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
-  padding: 24px;
+.filters {
+  padding: 14px;
+  height: fit-content;
+}
+
+.filters h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #1f2937;
 }
 
 .filters label {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
+  gap: 5px;
+  margin-bottom: 10px;
+  font-size: 13px;
   color: #4b5563;
-  margin-bottom: 14px;
 }
 
 .filters input,
 .filters select {
-  border: 1px solid #e0e5f0;
-  border-radius: 12px;
+  border: 1px solid #d9e0ea;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #1f2937;
+}
+
+.records {
+  padding: 14px;
+}
+
+.records-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.records-header h2 {
+  margin: 0;
+  font-size: 16px;
+  color: #1f2937;
+}
+
+.records-header p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: #667085;
+}
+
+.info-msg {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #edf5fc;
+  border: 1px solid #cfe0f2;
+  font-size: 12px;
+  color: #2f6ea5;
+}
+
+.records-list {
+  display: grid;
+  gap: 8px;
+}
+
+.record {
+  border: 1px solid #e5ebf3;
+  border-radius: 10px;
+  background: #ffffff;
   padding: 10px 12px;
-}
-
-.list-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 16px;
+  gap: 12px;
 }
 
-.cards {
+.record.empty {
+  justify-content: center;
+  color: #667085;
+  font-size: 13px;
+}
+
+.record.empty.error {
+  color: #cf4f4f;
+}
+
+.record-main {
+  min-width: 0;
+}
+
+.record-head {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
+  align-items: center;
+  gap: 8px;
 }
 
-.card {
-  border: 1px solid #edf0f5;
-  border-radius: 18px;
-  padding: 18px;
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
+.date {
+  margin: 0;
+  font-size: 12px;
+  color: #2f6ea5;
 }
 
-.card-left .date {
-  color: #1aa053;
-  font-weight: 600;
+.record h3 {
+  margin: 4px 0 2px;
+  font-size: 16px;
+  color: #1f2937;
 }
 
-.meta {
-  color: #6b7280;
+.meta,
+.reminder {
+  margin: 0;
+  font-size: 13px;
+  color: #667085;
 }
 
 .tags {
   display: flex;
-  gap: 8px;
   flex-wrap: wrap;
-  margin-top: 10px;
+  gap: 6px;
+  margin: 7px 0;
 }
 
 .tags span {
-  background: #f3f6fb;
-  color: #475467;
-  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #dce4ef;
   border-radius: 999px;
+  padding: 2px 8px;
   font-size: 12px;
+  color: #475467;
+  background: #f8fafd;
 }
 
-.card-right {
-  text-align: right;
-  min-width: 200px;
-}
-
-.info-card {
-  justify-content: center;
-  text-align: center;
-  color: #4b5563;
-}
-
-.error-card {
-  color: #d93025;
+.record-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .status {
-  display: inline-block;
-  padding: 4px 12px;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
   border-radius: 999px;
-  font-size: 13px;
-  margin-bottom: 6px;
+  font-size: 12px;
+  border: 1px solid;
 }
 
 .status.confirmed {
-  background: rgba(26, 160, 83, 0.12);
-  color: #1aa053;
+  color: #2f855a;
+  border-color: #b9e2cc;
+  background: #f2fbf6;
 }
 
 .status.pending {
-  background: rgba(245, 158, 11, 0.12);
-  color: #d97706;
+  color: #c56e10;
+  border-color: #f2d9b3;
+  background: #fdf8ef;
 }
 
 .status.waitlist {
-  background: rgba(59, 130, 246, 0.12);
-  color: #2563eb;
+  color: #2f6ea5;
+  border-color: #cfe0f2;
+  background: #f1f7fd;
 }
 
-.reminder {
+.btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid #d2dae8;
+  background: #ffffff;
+  color: #334155;
   font-size: 13px;
-  color: #6b7280;
-}
-
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.primary,
-.ghost {
-  border-radius: 999px;
-  padding: 10px 20px;
-  border: none;
   cursor: pointer;
-  font-weight: 600;
 }
 
-.ghost {
-  border: 1px solid #d2d8e5;
-  background: transparent;
-  color: #1f2933;
+.btn:hover {
+  background: #f6f8fc;
+  border-color: #c3cddd;
 }
 
-.primary {
-  background: linear-gradient(120deg, #1aa053, #0a6b3b);
-  color: #fff;
+.btn-primary {
+  background: #8cb4db;
+  border-color: #8cb4db;
+  color: #ffffff;
 }
 
-.primary.sm,
-.ghost.sm {
-  padding: 8px 16px;
-  font-size: 13px;
+.btn-primary:hover {
+  background: #7ea7cf;
+  border-color: #7ea7cf;
 }
 
-@media (max-width: 1024px) {
-  .layout {
+.btn.sm {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.btn.full {
+  width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .lae-page {
+    padding: 72px 20px 30px;
+  }
+
+  .content-layout {
     grid-template-columns: 1fr;
   }
-  .card {
-    flex-direction: column;
-  }
-  .card-right {
-    text-align: left;
+
+  .filters {
+    order: 2;
   }
 }
 
-@media (max-width: 768px) {
-  .lae-hero,
-  .stats,
-  .layout {
-    margin: 24px;
+@media (max-width: 900px) {
+  .stats-row {
+    grid-template-columns: 1fr;
   }
-  .hero-actions {
+
+  .record {
     flex-direction: column;
+  }
+
+  .record-actions {
+    justify-content: flex-start;
   }
 }
 </style>

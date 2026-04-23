@@ -1,0 +1,101 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seq-agent-toolcalling-search</title>
+<style>
+  body { margin: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+  .page { width: 2200px; margin: 0 auto; padding: 28px 36px; box-sizing: border-box; background: #ffffff; }
+  .mermaid { max-width: 100%; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, securityLevel: 'loose' });
+</script>
+</head>
+<body>
+  <div class="page">
+    <div class="mermaid">
+%%{init: {
+  &#39;theme&#39;: &#39;base&#39;,
+  &#39;themeVariables&#39;: {
+    &#39;fontFamily&#39;: &#39;Microsoft YaHei&#39;,
+    &#39;fontSize&#39;: &#39;18px&#39;,
+    &#39;primaryColor&#39;: &#39;#ffffff&#39;,
+    &#39;primaryTextColor&#39;: &#39;#111827&#39;,
+    &#39;primaryBorderColor&#39;: &#39;#1f2937&#39;,
+    &#39;lineColor&#39;: &#39;#334155&#39;,
+    &#39;secondaryColor&#39;: &#39;#f8fafc&#39;,
+    &#39;tertiaryColor&#39;: &#39;#eef2ff&#39;,
+    &#39;actorBkg&#39;: &#39;#f8fafc&#39;,
+    &#39;actorBorder&#39;: &#39;#1f2937&#39;,
+    &#39;actorTextColor&#39;: &#39;#111827&#39;,
+    &#39;signalColor&#39;: &#39;#334155&#39;,
+    &#39;signalTextColor&#39;: &#39;#111827&#39;,
+    &#39;labelBoxBkgColor&#39;: &#39;#ffffff&#39;,
+    &#39;labelBoxBorderColor&#39;: &#39;#1f2937&#39;,
+    &#39;labelTextColor&#39;: &#39;#111827&#39;,
+    &#39;noteBkgColor&#39;: &#39;#fff7ed&#39;,
+    &#39;noteBorderColor&#39;: &#39;#c2410c&#39;,
+    &#39;noteTextColor&#39;: &#39;#7c2d12&#39;,
+    &#39;sequenceNumberColor&#39;: &#39;#111827&#39;
+  },
+  &#39;sequence&#39;: {
+    &#39;useMaxWidth&#39;: true,
+    &#39;mirrorActors&#39;: false,
+    &#39;diagramMarginX&#39;: 40,
+    &#39;diagramMarginY&#39;: 30,
+    &#39;actorMargin&#39;: 60,
+    &#39;messageMargin&#39;: 36,
+    &#39;noteMargin&#39;: 24,
+    &#39;boxMargin&#39;: 12,
+    &#39;width&#39;: 230,
+    &#39;height&#39;: 64
+  }
+}}%%
+sequenceDiagram
+    title 智能检索 Agent Tool Calling 时序图
+    autonumber
+    actor 用户
+    participant 前端
+    participant AgentChatController
+    participant AgentRuntime as Agent Runtime
+    participant IntentParser as Intent Parser
+    participant ToolRouter as Tool Router
+    participant SearchTool as Structured Search Tool
+    participant KnowledgeTool as Knowledge Tool
+    participant RealtimeTool as Realtime Tool
+    participant Composer as Response Composer
+
+    note over 用户,Composer: 智能检索 Agent Tool Calling 简化流程
+
+    用户-&gt;&gt;前端: 输入智能检索问题
+    前端-&gt;&gt;AgentChatController: POST /api/agent/chat
+    AgentChatController-&gt;&gt;AgentRuntime: chat(request, authorization)
+    AgentRuntime-&gt;&gt;IntentParser: parseIntent(messages, sessionContext)
+    IntentParser--&gt;&gt;AgentRuntime: parsedIntent
+    AgentRuntime-&gt;&gt;ToolRouter: routeTools(parsedIntent, normalizedParams)
+    ToolRouter--&gt;&gt;AgentRuntime: search -&gt; parallel(knowledge, realtime)
+
+    AgentRuntime-&gt;&gt;SearchTool: search_events(params)
+    SearchTool--&gt;&gt;AgentRuntime: topN 候选结果
+
+    par 知识补充
+        AgentRuntime-&gt;&gt;KnowledgeTool: retrieve_knowledge(topEntities, question)
+        KnowledgeTool--&gt;&gt;AgentRuntime: 规则与注意事项摘要
+    and 实时确认
+        AgentRuntime-&gt;&gt;RealtimeTool: check_event_availability(topIds, date)
+        RealtimeTool--&gt;&gt;AgentRuntime: 当前可预约状态
+    end
+
+    AgentRuntime-&gt;&gt;Composer: merge(searchResults, knowledge, realtime)
+    Composer--&gt;&gt;AgentRuntime: answerText + cards + disclaimers
+    AgentRuntime--&gt;&gt;AgentChatController: AgentChatResponse
+    AgentChatController--&gt;&gt;前端: Resp.success(data)
+    前端--&gt;&gt;用户: 展示推荐结果、实时状态与注意事项
+
+    </div>
+  </div>
+</body>
+</html>

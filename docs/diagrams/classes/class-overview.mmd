@@ -1,0 +1,148 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'fontFamily': 'Microsoft YaHei',
+    'fontSize': '18px',
+    'primaryColor': '#ffffff',
+    'primaryTextColor': '#111827',
+    'primaryBorderColor': '#1f2937',
+    'lineColor': '#334155',
+    'secondaryColor': '#f8fafc',
+    'tertiaryColor': '#eef2ff'
+  }
+}}%%
+classDiagram
+direction LR
+
+class UserProfile["用户（User）"]
+class UserProfile {
+  +String userId
+  +String userName
+  +String phone
+  +String address
+  +updateProfile(): void
+  +bindLocation(): void
+}
+
+class Product["商品（Product）"]
+class Product {
+  +Long id
+  +Integer sellerId
+  +String title
+  +BigDecimal price
+  +Integer stockQuantity
+  +String status
+  +updatePrice(price): void
+  +changeStock(delta): void
+  +takeDown(): void
+}
+
+class Cart["购物车（Cart）"]
+class Cart {
+  +Long id
+  +String userName
+  +Long productId
+  +int quantity
+  +addItem(productId, quantity): void
+  +removeItem(productId): void
+  +calcSubtotal(): BigDecimal
+}
+
+class Orders["订单（Orders）"]
+class Orders {
+  +Long id
+  +String orderId
+  +Long userId
+  +Integer productId
+  +BigDecimal totalAmount
+  +Integer status
+  +pay(): void
+  +cancel(): void
+  +complete(): void
+}
+
+class LocalActivity["本地活动（LocalActivity）"]
+class LocalActivity {
+  +Long id
+  +Integer organizerUserId
+  +String title
+  +String categoryCode
+  +String status
+  +LocalDateTime startAt
+  +publish(): void
+  +updateStatus(status): void
+  +isJoinable(): boolean
+}
+
+class CommunityFeed["社区动态（CommunityFeed）"]
+class CommunityFeed {
+  +Long id
+  +Long userId
+  +String content
+  +Integer likesCount
+  +Integer commentsCount
+  +publish(): void
+  +addComment(content): void
+  +like(userId): void
+}
+
+class Notification["通知（Notification）"]
+class Notification {
+  +Long id
+  +Long userId
+  +String title
+  +String type
+  +Integer readStatus
+  +markRead(): void
+  +markUnread(): void
+  +isUnread(): boolean
+}
+
+class AgentChatRequest["智能对话请求（AgentChatRequest）"]
+class AgentChatRequest {
+  +List~AgentChatMessage~ messages
+  +String sessionId
+  +String userId
+  +Boolean debug
+  +appendMessage(message): void
+  +enableDebug(): void
+}
+
+class ParsedIntent["解析意图（ParsedIntent）"]
+class ParsedIntent {
+  +String taskType
+  +Boolean needRealtime
+  +Boolean needExplanation
+  +requiresRealtime(): boolean
+  +requiresExplanation(): boolean
+}
+
+class KnowledgeBase["知识库文档（KnowledgeBase）"]
+class KnowledgeBase {
+  +Long id
+  +String category
+  +String docType
+  +String title
+  +String entityType
+  +String entityId
+  +isEffective(): boolean
+  +matchEntity(entityId): boolean
+}
+
+class AgentChatService["智能对话服务（AgentChatService）"]
+class AgentChatService {
+  -queryParserService
+  -knowledgeSearchService
+  +chat(request, authorization): AgentChatResponse
+}
+
+UserProfile "1" <-- "0..*" Product : seller
+UserProfile "1" <-- "0..*" LocalActivity : organizer
+UserProfile "1" <-- "0..*" CommunityFeed : author
+UserProfile "1" <-- "0..*" Notification : receiver
+Cart "*" --> "1" Product : references
+Orders "*" --> "1" Product : orderedProduct
+Orders "*" --> "1" UserProfile : buyer
+AgentChatService ..> AgentChatRequest : accepts
+AgentChatService ..> ParsedIntent : builds
+AgentChatService ..> KnowledgeBase : retrieves

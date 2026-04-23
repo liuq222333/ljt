@@ -1,0 +1,172 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'fontFamily': 'Microsoft YaHei',
+    'fontSize': '18px',
+    'primaryColor': '#ffffff',
+    'primaryTextColor': '#111827',
+    'primaryBorderColor': '#1f2937',
+    'lineColor': '#334155',
+    'secondaryColor': '#f8fafc',
+    'tertiaryColor': '#eef2ff'
+  }
+}}%%
+classDiagram
+direction LR
+
+class AgentChatRequest["智能对话请求（AgentChatRequest）"] {
+  +List~AgentChatMessage~ messages
+  +String sessionId
+  +String userId
+  +Boolean debug
+  +appendMessage(message): void
+  +enableDebug(): void
+}
+
+class AgentChatResponse["智能对话响应（AgentChatResponse）"] {
+  +String reply
+  +String model
+  +String requestId
+  +String traceId
+  +String sessionId
+  +boolean degraded
+  +isDegraded(): boolean
+  +getSummary(): String
+}
+
+class ParsedIntent["解析意图（ParsedIntent）"] {
+  +TaskType taskType
+  +double intentConfidence
+  +boolean needRealtime
+  +boolean needExplanation
+  +requiresRealtime(): boolean
+  +requiresExplanation(): boolean
+}
+
+class KnowledgeRetrievalRequest["知识检索请求（KnowledgeRetrievalRequest）"] {
+  +String queryText
+  +String purpose
+  +String entityType
+  +int topK
+  +normalize(): void
+  +validate(): boolean
+}
+
+class KnowledgeRetrievalResponse["知识检索响应（KnowledgeRetrievalResponse）"] {
+  +boolean filterApplied
+  +boolean rerankApplied
+  +int candidateCount
+  +int hitCount
+  +String queryVersion
+  +hasHits(): boolean
+}
+
+class KnowledgeBase["知识库文档（KnowledgeBase）"] {
+  +Long id
+  +String category
+  +String docType
+  +String title
+  +String entityType
+  +String entityId
+  +isEffective(): boolean
+  +matchEntity(entityId): boolean
+}
+
+class AgentChatService["智能对话服务（AgentChatService）"] {
+  <<interface>>
+  +chat(request, authorization): AgentChatResponse
+}
+
+class KnowledgeSearchService["知识检索服务（KnowledgeSearchService）"] {
+  -knowledgeService
+  -embeddingService
+  +search(query): List
+  +vectorSearch(query, topK): List
+  +retrieve(request): KnowledgeRetrievalResponse
+}
+
+class AgentChatController["智能对话控制器（AgentChatController）"] {
+  -agentChatService: AgentChatService
+  +chat(request, authorization): Resp
+}
+
+class KnowledgeController["知识库控制器（KnowledgeController）"] {
+  -knowledgeSearchService: KnowledgeSearchService
+  +addKnowledge(dto): Map
+  +listKnowledge(page, size): Map
+  +retrieveKnowledge(request): Map
+}
+
+class GovernanceAdminStateEntity["治理状态实体（GovernanceAdminStateEntity）"] {
+  +Long id
+  +String storeKey
+  +String payloadJson
+  +LocalDateTime updatedAt
+  +serialize(): String
+}
+
+class AdminGovernanceService["治理服务（AdminGovernanceService）"] {
+  -agentRuntime
+  -queryParserService
+  +dashboard(days, releaseLimit, versionLimit): Map
+  +replayList(keyword, limit): List
+  +evalCases(...): List
+  +releaseRecords(...): List
+}
+
+class AdminGovernanceController["治理控制器（AdminGovernanceController）"] {
+  -service: AdminGovernanceService
+  +dashboard(days, releaseLimit, versionLimit): Resp
+  +replayList(keyword, limit): Resp
+  +evalCases(...): Resp
+  +releaseRecords(...): Resp
+}
+
+class ApiRoute["接口路由（ApiRoute）"] {
+  +Long id
+  +String resource
+  +String action
+  +String httpMethod
+  +String pathTemplate
+  +Integer enabled
+  +enable(): void
+  +disable(): void
+}
+
+class ApiManagementService["接口管理服务（ApiManagementService）"] {
+  <<interface>>
+  +listRoutes(keyword, page, size): List
+  +addRoute(route): ApiRoute
+  +updateRoute(route): void
+  +enableRoute(id): void
+  +disableRoute(id): void
+}
+
+class ApiManagementController["接口管理控制器（ApiManagementController）"] {
+  -apiService: ApiManagementService
+  +list(keyword, page, size): Resp
+  +add(route): Resp
+  +update(route): Resp
+  +enable(id): Resp
+  +disable(id): Resp
+}
+
+AgentChatController ..> AgentChatService : calls
+AgentChatController ..> AgentChatRequest : receives
+AgentChatController ..> AgentChatResponse : returns
+AgentChatService ..> ParsedIntent : builds
+
+KnowledgeController ..> KnowledgeSearchService : calls
+KnowledgeController ..> KnowledgeRetrievalRequest : receives
+KnowledgeSearchService ..> KnowledgeRetrievalRequest : accepts
+KnowledgeSearchService ..> KnowledgeRetrievalResponse : returns
+KnowledgeSearchService ..> KnowledgeBase : retrieves
+KnowledgeRetrievalResponse "1" o-- "0..*" KnowledgeBase : items
+
+AdminGovernanceController ..> AdminGovernanceService : calls
+AdminGovernanceService ..> GovernanceAdminStateEntity : persists
+AdminGovernanceService ..> AgentChatRequest : replays
+AdminGovernanceService ..> ParsedIntent : evaluates
+
+ApiManagementController ..> ApiManagementService : calls
+ApiManagementService ..> ApiRoute : manages

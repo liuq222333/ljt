@@ -1,0 +1,61 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.6 Chrome/144.0.7559.236 Electron/40.8.4 Safari/537.36" version="29.6.6">
+  <diagram id="f5901556" name="用户与认证模块类图">
+    <mxGraphModel dx="1183" dy="850" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1400" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;登录用户（LoginUser）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String userId&lt;br/&gt;+String userName&lt;br/&gt;+String password&lt;br/&gt;+String phone&lt;br/&gt;+String address&lt;hr size=&quot;1&quot;/&gt;+checkPassword(rawPassword): boolean&lt;br/&gt;+changePassword(newPassword): void" vertex="1">
+          <mxGeometry height="218" width="260" x="40" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;用户资料（UserProfile）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String userId&lt;br/&gt;+String userName&lt;br/&gt;+String email&lt;br/&gt;+String phone&lt;br/&gt;+String avatarKey&lt;br/&gt;+Double latitude&lt;br/&gt;+Double longitude&lt;hr size=&quot;1&quot;/&gt;+updateInfo(dto): void&lt;br/&gt;+updateAvatar(avatarKey): void&lt;br/&gt;+updateLocation(latitude, longitude): void" vertex="1">
+          <mxGeometry height="284" width="260" x="40" y="318" as="geometry" />
+        </mxCell>
+        <mxCell id="4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;登录请求（LoginRequest）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String username&lt;br/&gt;+String password&lt;br/&gt;+String phone&lt;hr size=&quot;1&quot;/&gt;+isValid(): boolean&lt;br/&gt;+normalizePhone(): String" vertex="1">
+          <mxGeometry height="174" width="260" x="40" y="642" as="geometry" />
+        </mxCell>
+        <mxCell id="5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;登录响应（LoginResponse）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String token&lt;br/&gt;+String username&lt;br/&gt;+Integer userId&lt;hr size=&quot;1&quot;/&gt;+hasToken(): boolean" vertex="1">
+          <mxGeometry height="152" width="260" x="350" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;用户信息（UserInfoDTO）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String userId&lt;br/&gt;+String userName&lt;br/&gt;+String email&lt;br/&gt;+String phone&lt;br/&gt;+String address&lt;hr size=&quot;1&quot;/&gt;+isComplete(): boolean&lt;br/&gt;+toUserProfile(): UserProfile" vertex="1">
+          <mxGeometry height="218" width="260" x="350" y="252" as="geometry" />
+        </mxCell>
+        <mxCell id="7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;登录服务（LoginService）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;&amp;lt;&amp;lt;interface&amp;gt;&amp;gt;&lt;hr size=&quot;1&quot;/&gt;+getUserByName(userName): LoginUser&lt;br/&gt;+register(userName, rawPassword, phone): boolean&lt;br/&gt;+validateLogin(userName, rawPassword): boolean&lt;br/&gt;+getUserById(userId): LoginUser&lt;br/&gt;+changePassword(userId, oldPassword, newPassword): boolean" vertex="1">
+          <mxGeometry height="240" width="260" x="350" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;用户服务（UserService）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;&amp;lt;&amp;lt;interface&amp;gt;&amp;gt;&lt;hr size=&quot;1&quot;/&gt;+updateUser(userId, userName): void&lt;br/&gt;+updateUserInfo(userInfoDTO): void&lt;br/&gt;+deleteUser(userId, password): void&lt;br/&gt;+getUserIdByName(userName): Integer&lt;br/&gt;+findById(userId): UserProfile" vertex="1">
+          <mxGeometry height="196" width="260" x="660" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;登录控制器（LoginController）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;-loginService: LoginService&lt;br/&gt;-userService: UserService&lt;hr size=&quot;1&quot;/&gt;+login(request): ResponseEntity&lt;br/&gt;+register(request): ResponseEntity&lt;br/&gt;+sendSmsCode(payload): ResponseEntity&lt;br/&gt;+verifyCode(payload): ResponseEntity&lt;br/&gt;+changePassword(payload): ResponseEntity" vertex="1">
+          <mxGeometry height="218" width="260" x="660" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;用户控制器（UserController）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;-userService: UserService&lt;hr size=&quot;1&quot;/&gt;+updateUser(userId, userName): ResponseEntity&lt;br/&gt;+updateUserInfo(userInfoDTO): ResponseEntity&lt;br/&gt;+deleteUser(userId, password): ResponseEntity&lt;br/&gt;+getUserIdByName(userName): Integer&lt;br/&gt;+getUserById(userId): ResponseEntity" vertex="1">
+          <mxGeometry height="246" width="260" x="660" y="554" as="geometry" />
+        </mxCell>
+        <mxCell id="11" edge="1" parent="1" source="9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="4" value="receives">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="12" edge="1" parent="1" source="9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="5" value="returns">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="13" edge="1" parent="1" source="9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="7" value="calls">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="14" edge="1" parent="1" source="9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="8" value="queries userId">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="15" edge="1" parent="1" source="7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="2" value="manages">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="16" edge="1" parent="1" source="10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="8" value="calls">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="17" edge="1" parent="1" source="10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="6" value="receives">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="18" edge="1" parent="1" source="8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="3" value="manages">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

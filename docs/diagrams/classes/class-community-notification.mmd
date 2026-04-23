@@ -1,0 +1,140 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'fontFamily': 'Microsoft YaHei',
+    'fontSize': '18px',
+    'primaryColor': '#ffffff',
+    'primaryTextColor': '#111827',
+    'primaryBorderColor': '#1f2937',
+    'lineColor': '#334155',
+    'secondaryColor': '#f8fafc',
+    'tertiaryColor': '#eef2ff'
+  }
+}}%%
+classDiagram
+direction LR
+
+class UserProfile["用户（User）"] {
+  +String userId
+  +String userName
+  +String avatarKey
+  +updateAvatar(): void
+}
+
+class CommunityFeed["社区动态（CommunityFeed）"] {
+  +Long id
+  +Long userId
+  +String content
+  +String visibility
+  +Integer likesCount
+  +Integer commentsCount
+  +publish(): void
+  +like(userId): void
+  +delete(): void
+}
+
+class CommunityFeedComment["动态评论（CommunityFeedComment）"] {
+  +Long id
+  +Long feedId
+  +Long userId
+  +String content
+  +String status
+  +publish(): void
+  +delete(): void
+}
+
+class CommunityFeedPostRequest["动态发布请求（CommunityFeedPostRequest）"] {
+  +Long userId
+  +String content
+  +List~String~ images
+  +String visibility
+  +validate(): boolean
+}
+
+class CommunityFeedCommentRequest["评论请求（CommunityFeedCommentRequest）"] {
+  +Long userId
+  +String content
+  +validate(): boolean
+}
+
+class CommunityFeedService["动态服务（CommunityFeedService）"] {
+  <<interface>>
+  +createPost(request): CommunityFeed
+  +listFeeds(visibility, page, size): List
+  +addComment(feedId, userId, content): CommunityFeedComment
+  +deleteFeed(feedId, userId): boolean
+}
+
+class CommunityFeedController["动态控制器（CommunityFeedController）"] {
+  -communityFeedService: CommunityFeedService
+  +createPost(request): ResponseEntity
+  +listFeeds(visibility, page, size): ResponseEntity
+  +addComment(id, request): ResponseEntity
+  +deletePost(id, userId): ResponseEntity
+}
+
+class Notification["通知（Notification）"] {
+  +Long id
+  +Long userId
+  +String title
+  +String type
+  +Integer readStatus
+  +markRead(): void
+  +markAllRead(): void
+  +isUnread(): boolean
+}
+
+class NotificationMessage["通知消息（NotificationMessage）"] {
+  +String msgId
+  +String title
+  +String content
+  +Long targetUserId
+  +String targetType
+  +buildPayload(): Map
+}
+
+class NotificationService["通知服务（NotificationService）"] {
+  <<interface>>
+  +list(userId, readStatus): List
+  +addNotification(notification): Resp
+  +markRead(id, userId): Resp
+  +markAllRead(userId): Resp
+  +sendAsync(message): Resp
+}
+
+class NotificationController["通知控制器（NotificationController）"] {
+  -notificationService: NotificationService
+  +getNotifications(userId, readStatus): Resp
+  +markRead(id, userId): Resp
+  +markAllRead(userId): Resp
+  +unreadCount(userId): Resp
+}
+
+class AdminNotificationService["后台通知服务（AdminNotificationService）"] {
+  <<interface>>
+  +addNotification(message): Resp
+}
+
+class AdminNotificationController["后台通知控制器（AdminNotificationController）"] {
+  -adminNotificationService: AdminNotificationService
+  +add(message): Resp
+}
+
+UserProfile "1" <-- "0..*" CommunityFeed : author
+UserProfile "1" <-- "0..*" CommunityFeedComment : author
+UserProfile "1" <-- "0..*" Notification : receiver
+CommunityFeed "1" *-- "0..*" CommunityFeedComment : comments
+
+CommunityFeedController ..> CommunityFeedService : calls
+CommunityFeedController ..> CommunityFeedPostRequest : receives
+CommunityFeedController ..> CommunityFeedCommentRequest : receives
+CommunityFeedService ..> CommunityFeed : manages
+CommunityFeedService ..> CommunityFeedComment : manages
+
+NotificationController ..> NotificationService : calls
+NotificationService ..> Notification : manages
+NotificationService ..> NotificationMessage : dispatches
+
+AdminNotificationController ..> AdminNotificationService : calls
+AdminNotificationController ..> NotificationMessage : receives
+AdminNotificationService ..> NotificationMessage : publishes

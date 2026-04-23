@@ -1,0 +1,46 @@
+erDiagram
+    AGENT_SESSION ||--o{ USER_MESSAGE : "包含"
+    USER_MESSAGE ||--o{ TOOL_CALL_RECORD : "触发"
+    API_ROUTE ||--o{ TOOL_CALL_RECORD : "被匹配"
+    TOOL_CALL_RECORD ||--|| TOOL_RESULT : "产生"
+
+    AGENT_SESSION {
+        string session_id PK "会话编号"
+        string user_id "用户编号"
+        datetime created_at "创建时间"
+        string status "会话状态"
+    }
+
+    USER_MESSAGE {
+        bigint id PK "消息编号"
+        string session_id FK "会话编号"
+        string content "消息内容"
+        string parsed_intent "识别意图"
+        datetime created_at "创建时间"
+    }
+
+    API_ROUTE {
+        bigint id PK "路由编号"
+        string resource "资源名"
+        string action "动作名"
+        string description "接口描述"
+        int enabled "是否启用"
+    }
+
+    TOOL_CALL_RECORD {
+        bigint id PK "调用记录编号"
+        bigint message_id FK "消息编号"
+        bigint route_id FK "路由编号"
+        string match_reason "匹配依据"
+        string params_json "调用参数"
+        string status "调用状态"
+        datetime created_at "创建时间"
+    }
+
+    TOOL_RESULT {
+        bigint id PK "结果编号"
+        bigint tool_call_id FK "调用记录编号"
+        string result_summary "结果摘要"
+        string raw_data_json "结果数据"
+        datetime created_at "创建时间"
+    }

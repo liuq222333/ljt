@@ -1,0 +1,22 @@
+flowchart TD
+    A[backend_api 工具入参\n{resource, action, pathVariables, params, payload, authorization}] --> B
+
+    subgraph L1[输入层]
+      A
+    end
+
+    subgraph L2[解析层]
+      direction LR
+      B[路由解析\nresource + action\n路由匹配] <--> C[参数解析\nparams / payload / pathVariables\n结构化参数]
+    end
+
+    subgraph L3[执行层]
+      D[查找路由配置\napi_routes] --> E[状态校验\nenabled]
+      E --> F[参数校验]
+      F --> G[URL 拼装]
+      G --> H[接口转发]
+      H --> I[结果返回]
+    end
+
+    B --> D
+    C --> F

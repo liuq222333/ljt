@@ -1,0 +1,106 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.6 Chrome/144.0.7559.236 Electron/40.8.4 Safari/537.36" version="29.6.6">
+  <diagram id="03a56030" name="Agent 与后台治理模块类图">
+    <mxGraphModel dx="1380" dy="992" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1400" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;智能对话请求（AgentChatRequest）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+List~AgentChatMessage~ messages&lt;br/&gt;+String sessionId&lt;br/&gt;+String userId&lt;br/&gt;+Boolean debug&lt;hr size=&quot;1&quot;/&gt;+appendMessage(message): void&lt;br/&gt;+enableDebug(): void" vertex="1">
+          <mxGeometry height="196" width="260" x="40" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;智能对话响应（AgentChatResponse）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String reply&lt;br/&gt;+String model&lt;br/&gt;+String requestId&lt;br/&gt;+String traceId&lt;br/&gt;+String sessionId&lt;br/&gt;+boolean degraded&lt;hr size=&quot;1&quot;/&gt;+isDegraded(): boolean&lt;br/&gt;+getSummary(): String" vertex="1">
+          <mxGeometry height="240" width="260" x="40" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;解析意图（ParsedIntent）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+TaskType taskType&lt;br/&gt;+double intentConfidence&lt;br/&gt;+boolean needRealtime&lt;br/&gt;+boolean needExplanation&lt;hr size=&quot;1&quot;/&gt;+requiresRealtime(): boolean&lt;br/&gt;+requiresExplanation(): boolean" vertex="1">
+          <mxGeometry height="196" width="260" x="40" y="576" as="geometry" />
+        </mxCell>
+        <mxCell id="5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;知识检索请求（KnowledgeRetrievalRequest）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String queryText&lt;br/&gt;+String purpose&lt;br/&gt;+String entityType&lt;br/&gt;+int topK&lt;hr size=&quot;1&quot;/&gt;+normalize(): void&lt;br/&gt;+validate(): boolean" vertex="1">
+          <mxGeometry height="196" width="260" x="40" y="812" as="geometry" />
+        </mxCell>
+        <mxCell id="6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;知识检索响应（KnowledgeRetrievalResponse）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+boolean filterApplied&lt;br/&gt;+boolean rerankApplied&lt;br/&gt;+int candidateCount&lt;br/&gt;+int hitCount&lt;br/&gt;+String queryVersion&lt;hr size=&quot;1&quot;/&gt;+hasHits(): boolean" vertex="1">
+          <mxGeometry height="196" width="260" x="350" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;知识库文档（KnowledgeBase）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+Long id&lt;br/&gt;+String category&lt;br/&gt;+String docType&lt;br/&gt;+String title&lt;br/&gt;+String entityType&lt;br/&gt;+String entityId&lt;hr size=&quot;1&quot;/&gt;+isEffective(): boolean&lt;br/&gt;+matchEntity(entityId): boolean" vertex="1">
+          <mxGeometry height="240" width="260" x="350" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;智能对话服务（AgentChatService）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;&amp;lt;&amp;lt;interface&amp;gt;&amp;gt;&lt;hr size=&quot;1&quot;/&gt;+chat(request, authorization): AgentChatResponse" vertex="1">
+          <mxGeometry height="130" width="260" x="350" y="576" as="geometry" />
+        </mxCell>
+        <mxCell id="9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;知识检索服务（KnowledgeSearchService）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;-knowledgeService&lt;br/&gt;-embeddingService&lt;hr size=&quot;1&quot;/&gt;+search(query): List&lt;br/&gt;+vectorSearch(query, topK): List&lt;br/&gt;+retrieve(request): KnowledgeRetrievalResponse" vertex="1">
+          <mxGeometry height="174" width="260" x="350" y="746" as="geometry" />
+        </mxCell>
+        <mxCell id="10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;智能对话控制器（AgentChatController）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;-agentChatService: AgentChatService&lt;hr size=&quot;1&quot;/&gt;+chat(request, authorization): Resp" vertex="1">
+          <mxGeometry height="130" width="260" x="660" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;知识库控制器（KnowledgeController）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;-knowledgeSearchService: KnowledgeSearchService&lt;hr size=&quot;1&quot;/&gt;+addKnowledge(dto): Map&lt;br/&gt;+listKnowledge(page, size): Map&lt;br/&gt;+retrieveKnowledge(request): Map" vertex="1">
+          <mxGeometry height="170" width="260" x="660" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="12" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;治理状态实体（GovernanceAdminStateEntity）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+Long id&lt;br/&gt;+String storeKey&lt;br/&gt;+String payloadJson&lt;br/&gt;+LocalDateTime updatedAt&lt;hr size=&quot;1&quot;/&gt;+serialize(): String" vertex="1">
+          <mxGeometry height="174" width="260" x="660" y="422" as="geometry" />
+        </mxCell>
+        <mxCell id="13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;治理服务（AdminGovernanceService）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;-agentRuntime&lt;br/&gt;-queryParserService&lt;hr size=&quot;1&quot;/&gt;+dashboard(days, releaseLimit, versionLimit): Map&lt;br/&gt;+replayList(keyword, limit): List&lt;br/&gt;+evalCases(...): List&lt;br/&gt;+releaseRecords(...): List" vertex="1">
+          <mxGeometry height="196" width="260" x="660" y="636" as="geometry" />
+        </mxCell>
+        <mxCell id="14" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;治理控制器（AdminGovernanceController）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;-service: AdminGovernanceService&lt;hr size=&quot;1&quot;/&gt;+dashboard(days, releaseLimit, versionLimit): Resp&lt;br/&gt;+replayList(keyword, limit): Resp&lt;br/&gt;+evalCases(...): Resp&lt;br/&gt;+releaseRecords(...): Resp" vertex="1">
+          <mxGeometry height="174" width="260" x="970" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="15" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;接口路由（ApiRoute）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+Long id&lt;br/&gt;+String resource&lt;br/&gt;+String action&lt;br/&gt;+String httpMethod&lt;br/&gt;+String pathTemplate&lt;br/&gt;+Integer enabled&lt;hr size=&quot;1&quot;/&gt;+enable(): void&lt;br/&gt;+disable(): void" vertex="1">
+          <mxGeometry height="240" width="260" x="970" y="274" as="geometry" />
+        </mxCell>
+        <mxCell id="16" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;接口管理服务（ApiManagementService）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;&amp;lt;&amp;lt;interface&amp;gt;&amp;gt;&lt;hr size=&quot;1&quot;/&gt;+listRoutes(keyword, page, size): List&lt;br/&gt;+addRoute(route): ApiRoute&lt;br/&gt;+updateRoute(route): void&lt;br/&gt;+enableRoute(id): void&lt;br/&gt;+disableRoute(id): void" vertex="1">
+          <mxGeometry height="196" width="260" x="970" y="554" as="geometry" />
+        </mxCell>
+        <mxCell id="17" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;接口管理控制器（ApiManagementController）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;-apiService: ApiManagementService&lt;hr size=&quot;1&quot;/&gt;+list(keyword, page, size): Resp&lt;br/&gt;+add(route): Resp&lt;br/&gt;+update(route): Resp&lt;br/&gt;+enable(id): Resp&lt;br/&gt;+disable(id): Resp" vertex="1">
+          <mxGeometry height="196" width="260" x="970" y="790" as="geometry" />
+        </mxCell>
+        <mxCell id="18" edge="1" parent="1" source="10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="8" value="calls">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="19" edge="1" parent="1" source="10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="2" value="receives">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="20" edge="1" parent="1" source="10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="3" value="returns">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="21" edge="1" parent="1" source="8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="4" value="builds">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="22" edge="1" parent="1" source="11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="9" value="calls">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="23" edge="1" parent="1" source="11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="5" value="receives">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="24" edge="1" parent="1" source="9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="5" value="accepts">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="25" edge="1" parent="1" source="9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="6" value="returns">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="26" edge="1" parent="1" source="9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="7" value="retrieves">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="27" edge="1" parent="1" source="6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=block;endFill=1;" target="7" value="items">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="28" edge="1" parent="1" source="14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="13" value="calls">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="29" edge="1" parent="1" source="13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="12" value="persists">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="30" edge="1" parent="1" source="13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="2" value="replays">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="31" edge="1" parent="1" source="13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="4" value="evaluates">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="32" edge="1" parent="1" source="17" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="16" value="calls">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="33" edge="1" parent="1" source="16" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="15" value="manages">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,119 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seq-login-sms</title>
+<style>
+  body { margin: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+  .page { width: 2200px; margin: 0 auto; padding: 28px 36px; box-sizing: border-box; background: #ffffff; }
+  .mermaid { max-width: 100%; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, securityLevel: 'loose' });
+</script>
+</head>
+<body>
+  <div class="page">
+    <div class="mermaid">
+%%{init: {
+  &#39;theme&#39;: &#39;base&#39;,
+  &#39;themeVariables&#39;: {
+    &#39;fontFamily&#39;: &#39;Microsoft YaHei&#39;,
+    &#39;fontSize&#39;: &#39;18px&#39;,
+    &#39;primaryColor&#39;: &#39;#ffffff&#39;,
+    &#39;primaryTextColor&#39;: &#39;#111827&#39;,
+    &#39;primaryBorderColor&#39;: &#39;#1f2937&#39;,
+    &#39;lineColor&#39;: &#39;#334155&#39;,
+    &#39;secondaryColor&#39;: &#39;#f8fafc&#39;,
+    &#39;tertiaryColor&#39;: &#39;#eef2ff&#39;,
+    &#39;actorBkg&#39;: &#39;#f8fafc&#39;,
+    &#39;actorBorder&#39;: &#39;#1f2937&#39;,
+    &#39;actorTextColor&#39;: &#39;#111827&#39;,
+    &#39;signalColor&#39;: &#39;#334155&#39;,
+    &#39;signalTextColor&#39;: &#39;#111827&#39;,
+    &#39;labelBoxBkgColor&#39;: &#39;#ffffff&#39;,
+    &#39;labelBoxBorderColor&#39;: &#39;#1f2937&#39;,
+    &#39;labelTextColor&#39;: &#39;#111827&#39;,
+    &#39;noteBkgColor&#39;: &#39;#fff7ed&#39;,
+    &#39;noteBorderColor&#39;: &#39;#c2410c&#39;,
+    &#39;noteTextColor&#39;: &#39;#7c2d12&#39;,
+    &#39;sequenceNumberColor&#39;: &#39;#111827&#39;
+  },
+  &#39;sequence&#39;: {
+    &#39;useMaxWidth&#39;: true,
+    &#39;mirrorActors&#39;: false,
+    &#39;diagramMarginX&#39;: 40,
+    &#39;diagramMarginY&#39;: 30,
+    &#39;actorMargin&#39;: 60,
+    &#39;messageMargin&#39;: 36,
+    &#39;noteMargin&#39;: 24,
+    &#39;boxMargin&#39;: 12,
+    &#39;width&#39;: 220,
+    &#39;height&#39;: 64
+  }
+}}%%
+sequenceDiagram
+    title 用户登录与短信验证码时序图
+    autonumber
+    actor 用户
+    participant 前端
+    participant LoginController
+    participant Redis
+    participant LoginService
+    participant UserService
+
+    rect rgb(245, 247, 250)
+        note over 用户,Redis: 注册前短信验证码流程
+        用户-&gt;&gt;前端: 输入手机号并发送验证码
+        前端-&gt;&gt;LoginController: POST /api/sms/send-code
+        LoginController-&gt;&gt;Redis: setIfAbsent(lockKey, 60s)
+        alt 60 秒内已发送过
+            Redis--&gt;&gt;LoginController: false + ttl
+            LoginController--&gt;&gt;前端: 返回 remaining 秒数
+            前端--&gt;&gt;用户: 提示稍后重试
+        else 允许发送
+            LoginController-&gt;&gt;Redis: set(code, 300s)
+            LoginController--&gt;&gt;前端: 验证码已发送
+            前端--&gt;&gt;用户: 提示验证码已发送
+        end
+        用户-&gt;&gt;前端: 输入验证码并提交
+        前端-&gt;&gt;LoginController: POST /api/sms/verify-code
+        LoginController-&gt;&gt;Redis: get(sms:code:phone)
+        Redis--&gt;&gt;LoginController: storedCode
+        LoginController--&gt;&gt;前端: true / false
+    end
+
+    rect rgb(250, 250, 245)
+        note over 用户,UserService: 注册与登录主流程
+        用户-&gt;&gt;前端: 输入注册信息
+        前端-&gt;&gt;LoginController: POST /api/register
+        LoginController-&gt;&gt;LoginService: register(username, password, phone)
+        alt 用户名已存在
+            LoginService--&gt;&gt;LoginController: false
+            LoginController--&gt;&gt;前端: 409 用户名已存在
+        else 注册成功
+            LoginService--&gt;&gt;LoginController: true
+            LoginController--&gt;&gt;前端: 201 注册成功
+        end
+
+        用户-&gt;&gt;前端: 输入用户名和密码
+        前端-&gt;&gt;LoginController: POST /api/login
+        LoginController-&gt;&gt;LoginService: validateLogin(username, password)
+        alt 账号或密码错误
+            LoginService--&gt;&gt;LoginController: false
+            LoginController--&gt;&gt;前端: 401 用户名或密码错误
+        else 登录成功
+            LoginService--&gt;&gt;LoginController: true
+            LoginController-&gt;&gt;UserService: getUserIdByName(username)
+            UserService--&gt;&gt;LoginController: userId
+            LoginController--&gt;&gt;前端: token + userId + userName
+            前端--&gt;&gt;用户: 进入系统首页
+        end
+    end
+
+    </div>
+  </div>
+</body>
+</html>

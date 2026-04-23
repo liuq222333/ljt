@@ -1,100 +1,104 @@
 <template>
   <dhstyle />
   <div class="lap-page">
-    <section class="lap-hero">
-      <div>
-        <p class="eyebrow">邻里活动 · 发布</p>
-        <h1>把你的活动告诉邻里，尽快找到一起参与的伙伴</h1>
+    <section class="lap-hero card">
+      <div class="hero-main">
+        <p class="eyebrow">?????</p>
+        <h1>??????</h1>
         <p class="subtitle">
-          填写活动信息后，将自动展示地点和标签，方便附近的邻居快速查看。保存草稿不会公开，提交后进入审核。
+          ?????????????????????????????????????????
         </p>
+      </div>
+      <div class="hero-side">
+        <div class="progress-head">
+          <span>?????</span>
+          <strong>{{ publishProgress }}%</strong>
+        </div>
+        <div class="progress-track" role="progressbar" :aria-valuenow="publishProgress" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-fill" :style="{ width: `${publishProgress}%` }"></div>
+        </div>
+        <p class="progress-tip">{{ progressTip }}</p>
         <div class="hero-actions">
-          <button class="ghost" :disabled="saving" @click="handleSubmit('DRAFT')">保存草稿</button>
-          <button class="primary" :disabled="saving" @click="handleSubmit('PUBLISHED')">
-            {{ saving ? '提交中...' : '提交发布' }}
+          <button class="btn btn-light" :disabled="saving" @click="handleSubmit('DRAFT')">????</button>
+          <button class="btn btn-primary" :disabled="saving" @click="handleSubmit('PUBLISHED')">
+            {{ saving ? '???...' : '????' }}
           </button>
         </div>
-      </div>
-      <div class="hero-progress">
-        <span>完成度</span>
-        <div class="progress-bar">
-          <div class="progress" :style="{ width: `${publishProgress}%` }"></div>
-        </div>
-        <p class="progress-tip">{{ publishProgress }}% · {{ progressTip }}</p>
       </div>
     </section>
 
     <div class="lap-layout">
-      <section class="form-panel">
-        <h2>活动基础信息</h2>
+      <section class="panel form-panel">
+        <h2>????</h2>
         <div class="form-grid">
           <label class="field">
-            <span>活动标题</span>
-            <input v-model="form.title" type="text" placeholder="例如：社区夜跑 · 光影健康" />
+            <span>????</span>
+            <input v-model="form.title" type="text" placeholder="??????? ? ????" />
           </label>
           <label class="field">
-            <span>副标题</span>
-            <input v-model="form.subtitle" type="text" placeholder="一句话亮点（可选）" />
+            <span>???</span>
+            <input v-model="form.subtitle" type="text" placeholder="?????????" />
           </label>
           <label class="field">
-            <span>活动类型</span>
+            <span>????</span>
             <select v-model="form.category">
-              <option disabled value="">请选择类型</option>
+              <option disabled value="">?????</option>
               <option v-for="cat in categories" :key="cat.value" :value="cat.value">
                 {{ cat.label }}
               </option>
             </select>
           </label>
           <label class="field">
-            <span>举办日期</span>
+            <span>????</span>
             <input v-model="form.date" type="date" />
           </label>
-          <label class="field inline">
-            <span>开始时间</span>
+          <label class="field">
+            <span>????</span>
             <input v-model="form.timeStart" type="time" />
           </label>
-          <label class="field inline">
-            <span>结束时间</span>
+          <label class="field">
+            <span>????</span>
             <input v-model="form.timeEnd" type="time" />
           </label>
           <label class="field address-field">
-            <span>活动地点</span>
-            <div class="address-row">
-              <input v-model="form.location" type="text" placeholder="请填写详细地址或集合点" />
-              <button class="locate-btn" type="button" :disabled="locating" @click="locateCurrent" aria-label="定位当前位置">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 2.5a.75.75 0 0 1 .75.75v1.74a6.26 6.26 0 0 1 6.26 6.26h1.74a.75.75 0 0 1 0 1.5h-1.74a6.26 6.26 0 0 1-6.26 6.26v1.73a.75.75 0 0 1-1.5 0v-1.73a6.26 6.26 0 0 1-6.26-6.26H3.01a.75.75 0 0 1 0-1.5h1.73A6.26 6.26 0 0 1 11.25 5V3.25A.75.75 0 0 1 12 2.5Zm0 4.51a5 5 0 1 0 0 10.01 5 5 0 0 0 0-10Z" fill="currentColor" />
-                  <circle cx="12" cy="12" r="2" fill="currentColor" />
-                </svg>
+            <span>????</span>
+            <div class="address-controls">
+              <input v-model="form.location" type="text" placeholder="???????????" />
+              <button class="btn btn-light sm" type="button" :disabled="locating" @click="locateByAddress">
+                {{ locating ? '???...' : '????' }}
+              </button>
+              <button class="btn btn-light sm" type="button" :disabled="locating" @click="locateCurrent">
+                {{ locating ? '???...' : '????' }}
               </button>
             </div>
           </label>
           <label class="field">
-            <span>人数上限</span>
+            <span>????</span>
             <input v-model.number="form.capacity" type="number" min="1" />
           </label>
           <label class="field">
-            <span>费用说明</span>
-            <input v-model="form.fee" type="text" placeholder="免费 / AA / 金额" />
+            <span>????</span>
+            <input v-model="form.fee" type="text" placeholder="?? / AA / ??" />
           </label>
         </div>
 
-        <div class="field">
-          <span>活动介绍</span>
+        <label class="field block-field">
+          <span>????</span>
           <textarea
             v-model="form.description"
             rows="5"
-            placeholder="填写活动亮点、流程、需携带物品等"
+            placeholder="????????????????"
           ></textarea>
-        </div>
+        </label>
 
-        <div class="field">
-          <span>标签（可选）</span>
+        <div class="field block-field">
+          <span>??????</span>
           <div class="tag-suggestions">
             <button
               v-for="tag in tagSuggestions"
               :key="tag"
               :class="['tag-chip', form.tags.includes(tag) ? 'active' : '']"
+              type="button"
               @click="toggleTag(tag)"
             >
               {{ tag }}
@@ -102,53 +106,56 @@
           </div>
         </div>
 
-        <h2>报名与提醒</h2>
+        <h2>????</h2>
         <div class="form-grid">
           <label class="field">
-            <span>报名方式</span>
+            <span>????</span>
             <select v-model="form.registration">
-              <option value="auto">自动确认 / 即时</option>
-              <option value="manual">人工审核</option>
-              <option value="external">外部链接</option>
+              <option value="auto">???? / ??</option>
+              <option value="manual">????</option>
+              <option value="external">????</option>
             </select>
           </label>
           <label class="field">
-            <span>提醒时间</span>
+            <span>????</span>
             <select v-model="form.reminder">
-              <option value="24h">活动前 24 小时</option>
-              <option value="3h">活动前 3 小时</option>
-              <option value="custom">自定义</option>
+              <option value="24h">??? 24 ??</option>
+              <option value="3h">??? 3 ??</option>
+              <option value="custom">???</option>
             </select>
           </label>
           <label class="field">
-            <span>需要签到</span>
+            <span>????</span>
             <select v-model="form.checkin">
-              <option value="yes">需要现场签到</option>
-              <option value="no">无需签到</option>
+              <option value="yes">??????</option>
+              <option value="no">????</option>
             </select>
           </label>
           <label class="field">
-            <span>候补名单</span>
+            <span>????</span>
             <select v-model="form.waiting">
-              <option value="yes">开启候补</option>
-              <option value="no">不开启</option>
+              <option value="yes">????</option>
+              <option value="no">???</option>
             </select>
           </label>
         </div>
 
         <div class="form-actions">
-          <button class="ghost" :disabled="saving" @click="handleSubmit('DRAFT')">保存草稿</button>
-          <button class="primary" :disabled="saving" @click="handleSubmit('PUBLISHED')">提交发布</button>
+          <button class="btn btn-light" :disabled="saving" @click="handleSubmit('DRAFT')">????</button>
+          <button class="btn btn-primary" :disabled="saving" @click="handleSubmit('PUBLISHED')">????</button>
         </div>
         <p v-if="message" :class="['submit-msg', messageType]">{{ message }}</p>
       </section>
 
       <aside class="preview-panel">
-        <div class="preview-card">
-          <p class="eyebrow">实时预览</p>
+        <div class="panel preview-card">
+          <div class="preview-head">
+            <p class="eyebrow">????</p>
+            <span class="state-chip">{{ registrationLabel }}</span>
+          </div>
           <h3>{{ preview.title }}</h3>
           <p class="preview-meta">
-            {{ preview.date }} · {{ preview.timeRange }}<br />
+            {{ preview.date }} ? {{ preview.timeRange }}<br />
             {{ preview.location }}
           </p>
           <div class="preview-tags">
@@ -156,13 +163,13 @@
           </div>
           <p class="preview-desc">{{ preview.description }}</p>
           <div class="preview-seats">
-            <span>人数 {{ form.capacity || 0 }}</span>
-            <span>报名方式：{{ registrationLabel }}</span>
+            <span>?????{{ form.capacity || 0 }}</span>
+            <span>???{{ form.checkin === 'yes' ? '??' : '??' }}</span>
           </div>
         </div>
 
-        <div class="steps-card">
-          <h4>发布流程</h4>
+        <div class="panel steps-card">
+          <h4>????</h4>
           <ul>
             <li v-for="(step, index) in steps" :key="step.title">
               <span class="dot" :class="{ done: index < completedSteps }"></span>
@@ -174,12 +181,12 @@
           </ul>
         </div>
 
-        <div class="tips-card">
-          <h4>温馨提示</h4>
+        <div class="panel tips-card">
+          <h4>????</h4>
           <ul>
-            <li>内容需符合平台规范，不得含违规信息。</li>
-            <li>建议封面 1200×600 以上清晰图片。</li>
-            <li>志愿/公益活动可注明时间段与必备说明。</li>
+            <li>???????????????????????</li>
+            <li>???? 1200?600 ??????????</li>
+            <li>??/??????????????????</li>
           </ul>
         </div>
       </aside>
@@ -193,7 +200,6 @@ import dhstyle from '../../dhstyle/dhstyle.vue';
 
 type PublishStatus = 'DRAFT' | 'PUBLISHED';
 
-// Vite will inline env values; use direct access to ensure they are picked up at build time.
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080';
 const AMAP_KEY = import.meta.env.VITE_AMAP_KEY || '';
 const GEOCODER_BASE = 'https://restapi.amap.com/v3/geocode/geo';
@@ -202,19 +208,19 @@ const COORD_CONVERT_BASE = 'https://restapi.amap.com/v3/assistant/coordinate/con
 const username = ref(localStorage.getItem('username') || '');
 
 const categories = [
-  { value: 'sport', label: '运动健身' },
-  { value: 'eco', label: '环保公益' },
-  { value: 'skill', label: '技能分享' },
-  { value: 'kids', label: '亲子活动' },
-  { value: 'market', label: '市集/展会' }
+  { value: 'sport', label: '????' },
+  { value: 'eco', label: '????' },
+  { value: 'skill', label: '????' },
+  { value: 'kids', label: '????' },
+  { value: 'market', label: '??/??' }
 ];
 
-const tagSuggestions = ['志愿时光', '社区友好', '亲子', '技能交流', '环保', '健康', '签到实拍'];
+const tagSuggestions = ['????', '????', '??', '????', '??', '??', '????'];
 
 const steps = [
-  { title: '填写信息', desc: '补全标题、时间、地点和介绍' },
-  { title: '提交审核', desc: '管理员会在 1 个工作日内处理' },
-  { title: '成功展示', desc: '通过后自动展示到活动页' }
+  { title: '????', desc: '?????????????' },
+  { title: '????', desc: '????? 1 ???????' },
+  { title: '????', desc: '???????????' }
 ];
 
 const form = ref({
@@ -226,7 +232,7 @@ const form = ref({
   timeEnd: '',
   location: '',
   capacity: 20,
-  fee: 'Free',
+  fee: '??',
   description: '',
   tags: [] as string[],
   registration: 'auto',
@@ -242,7 +248,15 @@ const lat = ref<number | null>(null);
 const lng = ref<number | null>(null);
 const locating = ref(false);
 
-const requiredKeys: (keyof typeof form.value)[] = ['title', 'category', 'date', 'timeStart', 'timeEnd', 'location', 'description'];
+const requiredKeys: (keyof typeof form.value)[] = [
+  'title',
+  'category',
+  'date',
+  'timeStart',
+  'timeEnd',
+  'location',
+  'description'
+];
 
 const publishProgress = computed(() => {
   const filled = requiredKeys.filter((key) => String(form.value[key]).trim().length > 0).length;
@@ -250,28 +264,28 @@ const publishProgress = computed(() => {
 });
 
 const progressTip = computed(() => {
-  if (publishProgress.value < 40) return '建议补全时间和地点，提升展示效果';
-  if (publishProgress.value < 80) return '再补充标签、介绍和封面';
-  return '准备提交发布';
+  if (publishProgress.value < 40) return '??????????';
+  if (publishProgress.value < 80) return '?????????????';
+  return '???????????';
 });
 
 const preview = computed(() => ({
-  title: form.value.title || '邻里活动标题',
-  date: form.value.date ? new Date(form.value.date).toLocaleDateString('zh-CN') : '日期待定',
-  timeRange: form.value.timeStart && form.value.timeEnd ? `${form.value.timeStart} - ${form.value.timeEnd}` : '时间待定',
-  location: form.value.location || '地点待定',
-  tags: form.value.tags.length ? form.value.tags : ['社区活动', '欢迎加入'],
-  description: form.value.description || '这里将展示活动亮点、流程和注意事项'
+  title: form.value.title || '??????',
+  date: form.value.date ? new Date(form.value.date).toLocaleDateString('zh-CN') : '????',
+  timeRange: form.value.timeStart && form.value.timeEnd ? `${form.value.timeStart} - ${form.value.timeEnd}` : '????',
+  location: form.value.location || '????',
+  tags: form.value.tags.length ? form.value.tags : ['????', '????'],
+  description: form.value.description || '?????????????????'
 }));
 
 const registrationLabel = computed(() => {
   switch (form.value.registration) {
     case 'manual':
-      return '人工审核';
+      return '????';
     case 'external':
-      return '外部报名';
+      return '????';
     default:
-      return '自动确认';
+      return '????';
   }
 });
 
@@ -283,39 +297,40 @@ const completedSteps = computed(() => {
 
 const toggleTag = (tag: string) => {
   form.value.tags = form.value.tags.includes(tag)
-    ? form.value.tags.filter((t) => t !== tag)
+    ? form.value.tags.filter((value) => value !== tag)
     : [...form.value.tags, tag];
 };
 
 const locateByAddress = async () => {
   if (!AMAP_KEY) {
-    message.value = '未配置 VITE_AMAP_KEY';
+    message.value = '??? VITE_AMAP_KEY';
     messageType.value = 'error';
     return;
   }
-  const addr = form.value.location?.trim();
-  if (!addr) {
-    message.value = '请先填写地址';
+  const address = form.value.location.trim();
+  if (!address) {
+    message.value = '??????';
     messageType.value = 'error';
     return;
   }
+
   locating.value = true;
   try {
-    const resp = await fetch(`${GEOCODER_BASE}?key=${AMAP_KEY}&address=${encodeURIComponent(addr)}`);
+    const resp = await fetch(`${GEOCODER_BASE}?key=${AMAP_KEY}&address=${encodeURIComponent(address)}`);
     const data = await resp.json();
     if (data.status !== '1' || !data.geocodes?.length || !data.geocodes[0]?.location) {
-      throw new Error('地址解析失败');
+      throw new Error('??????');
     }
     const parts = String(data.geocodes[0].location).split(',').map(parseFloat);
-    if (parts.length !== 2 || parts.some((n) => Number.isNaN(n))) {
-      throw new Error('无效坐标');
+    if (parts.length !== 2 || parts.some((value) => Number.isNaN(value))) {
+      throw new Error('????');
     }
     lng.value = parts[0];
     lat.value = parts[1];
-    message.value = '已解析地址坐标';
+    message.value = '??????';
     messageType.value = 'success';
-  } catch (e: any) {
-    message.value = e?.message || '地址解析失败';
+  } catch (error: any) {
+    message.value = error?.message || '??????';
     messageType.value = 'error';
   } finally {
     locating.value = false;
@@ -324,15 +339,16 @@ const locateByAddress = async () => {
 
 const locateCurrent = async () => {
   if (!AMAP_KEY) {
-    message.value = '未配置 VITE_AMAP_KEY';
+    message.value = '??? VITE_AMAP_KEY';
     messageType.value = 'error';
     return;
   }
   if (!('geolocation' in navigator)) {
-    message.value = '当前浏览器不支持定位';
+    message.value = '??????????';
     messageType.value = 'error';
     return;
   }
+
   locating.value = true;
   try {
     const coords = await new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
@@ -342,40 +358,44 @@ const locateCurrent = async () => {
         { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
       );
     });
+
     let useLat = coords.latitude;
     let useLng = coords.longitude;
+
     try {
       const convertResp = await fetch(`${COORD_CONVERT_BASE}?key=${AMAP_KEY}&locations=${useLng},${useLat}&coordsys=gps`);
       const convertData = await convertResp.json();
       if (convertData.status === '1' && convertData.locations) {
-        const p = String(convertData.locations).split(',');
-        if (p.length === 2) {
-          const clng = parseFloat(p[0]);
-          const clat = parseFloat(p[1]);
-          if (!Number.isNaN(clng) && !Number.isNaN(clat)) {
-            useLng = clng;
-            useLat = clat;
-          }
+        const points = String(convertData.locations).split(',').map(parseFloat);
+        if (points.length === 2 && points.every((value: number) => !Number.isNaN(value))) {
+          useLng = points[0];
+          useLat = points[1];
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      // Fallback to browser-provided coordinates.
+    }
+
     try {
-      const resp = await fetch(`${REVERSE_GEOCODER_BASE}?key=${AMAP_KEY}&location=${useLng},${useLat}&extensions=base`);
-      const data = await resp.json();
-      if (resp.ok && data.status === '1' && data.regeocode?.formatted_address) {
-        form.value.location = data.regeocode.formatted_address;
+      const reverseResp = await fetch(`${REVERSE_GEOCODER_BASE}?key=${AMAP_KEY}&location=${useLng},${useLat}&extensions=base`);
+      const reverseData = await reverseResp.json();
+      if (reverseResp.ok && reverseData.status === '1' && reverseData.regeocode?.formatted_address) {
+        form.value.location = reverseData.regeocode.formatted_address;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Keep coordinate values even if reverse geocode fails.
+    }
+
     lat.value = useLat;
     lng.value = useLng;
-    message.value = '已根据当前位置填充地址与坐标';
+    message.value = '??????????????';
     messageType.value = 'success';
-  } catch (e: any) {
-    const code = Number(e?.code);
-    if (code === 1) message.value = '定位权限被拒绝';
-    else if (code === 2) message.value = '位置不可用';
-    else if (code === 3) message.value = '定位超时';
-    else message.value = e?.message || '定位失败';
+  } catch (error: any) {
+    const code = Number(error?.code);
+    if (code === 1) message.value = '???????';
+    else if (code === 2) message.value = '?????';
+    else if (code === 3) message.value = '????';
+    else message.value = error?.message || '????';
     messageType.value = 'error';
   } finally {
     locating.value = false;
@@ -384,7 +404,7 @@ const locateCurrent = async () => {
 
 const handleSubmit = async (status: PublishStatus) => {
   if (!username.value) {
-    message.value = '请先登录再发布活动';
+    message.value = '?????????';
     messageType.value = 'error';
     return;
   }
@@ -422,10 +442,10 @@ const handleSubmit = async (status: PublishStatus) => {
       throw new Error(await resp.text());
     }
 
-    message.value = status === 'DRAFT' ? '草稿已保存' : '提交成功，等待审核';
+    message.value = status === 'DRAFT' ? '?????' : '?????????';
     messageType.value = 'success';
-  } catch (err) {
-    message.value = err instanceof Error ? err.message : '提交失败，请稍后再试';
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : '??????????';
     messageType.value = 'error';
   } finally {
     saving.value = false;
@@ -435,351 +455,393 @@ const handleSubmit = async (status: PublishStatus) => {
 
 <style scoped>
 :global(body) {
-  background: #f4f6f8;
+  background: #f5f6f8;
 }
 
 .lap-page {
-  padding-top: 80px;
-  padding-bottom: 48px;
-  color: #1f2a37;
-  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  padding: 76px 40px 36px;
+  color: #1f2937;
+  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.card,
+.panel {
+  background: #ffffff;
+  border: 1px solid #e4e9f1;
+  border-radius: 12px;
 }
 
 .lap-hero {
-  margin: 48px;
-  padding: 32px;
-  border-radius: 32px;
-  background: linear-gradient(120deg, #092515, #1aa053);
-  color: #fff;
-  display: flex;
-  justify-content: space-between;
-  gap: 32px;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 20px;
+  padding: 20px 22px;
 }
 
 .eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.3em;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  margin: 0;
 }
 
 .lap-hero h1 {
-  font-size: 36px;
-  margin: 12px 0;
+  margin: 10px 0 8px;
+  font-size: 30px;
+  line-height: 1.25;
+  color: #1f2937;
 }
 
 .subtitle {
-  font-size: 15px;
-  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+  max-width: 660px;
   line-height: 1.6;
+  font-size: 14px;
+  color: #4b5563;
 }
 
-.hero-actions {
-  margin-top: 20px;
+.hero-side {
   display: flex;
+  flex-direction: column;
   gap: 12px;
+  padding: 14px;
+  border: 1px solid #e8ecf3;
+  border-radius: 10px;
+  background: #fafbfd;
 }
 
-.hero-progress {
-  flex: 0 0 280px;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 20px;
-  border-radius: 24px;
+.progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+  color: #4b5563;
 }
 
-.hero-progress span {
-  font-size: 14px;
-  letter-spacing: 0.2em;
+.progress-head strong {
+  font-size: 20px;
+  color: #2f6ea5;
 }
 
-.progress-tip {
-  margin-top: 12px;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.progress-bar {
+.progress-track {
+  height: 8px;
   width: 100%;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  height: 10px;
-  margin: 12px 0;
+  border-radius: 999px;
+  background: #e8edf5;
   overflow: hidden;
 }
 
-.progress {
+.progress-fill {
   height: 100%;
-  background: #4ade80;
-  border-radius: 12px;
+  background: #8cb4db;
+}
+
+.progress-tip {
+  margin: 0;
+  font-size: 12px;
+  color: #667085;
+}
+
+.hero-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
 }
 
 .lap-layout {
-  margin: 32px 48px 0;
+  margin-top: 14px;
   display: grid;
-  grid-template-columns: minmax(0, 2fr) 360px;
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 14px;
   align-items: start;
 }
 
-.form-panel,
-.preview-panel {
-  background: #fff;
-  border-radius: 28px;
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
-  padding: 28px;
+.form-panel {
+  padding: 16px;
 }
 
 .form-panel h2 {
-  margin-bottom: 18px;
-  font-size: 20px;
+  margin: 2px 0 12px;
+  font-size: 16px;
+  color: #1f2937;
 }
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 18px;
-  margin-bottom: 18px;
-}
-
-.address-field {
-  grid-column: 1 / -1;
-  min-width: 320px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  margin-bottom: 12px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
-  color: #475467;
+  gap: 5px;
+}
+
+.field span {
+  font-size: 13px;
+  color: #4b5563;
 }
 
 .field input,
 .field select,
 .field textarea {
-  border: 1px solid #dfe3eb;
-  border-radius: 14px;
-  padding: 12px 14px;
-  font-size: 14px;
-  transition: border-color 0.2s;
+  width: 100%;
+  border: 1px solid #d9e0ea;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1f2937;
+  background: #ffffff;
 }
 
 .field input:focus,
 .field select:focus,
 .field textarea:focus {
-  border-color: #1aa053;
   outline: none;
+  border-color: #8ab1d8;
+  box-shadow: 0 0 0 2px rgba(138, 177, 216, 0.18);
 }
 
-.inline {
-  min-width: 160px;
+.address-field,
+.block-field {
+  grid-column: 1 / -1;
+}
+
+.address-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
 }
 
 .tag-suggestions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .tag-chip {
-  border-radius: 999px;
-  border: 1px solid #dfe3eb;
-  background: #f7fafc;
-  padding: 6px 14px;
-  font-size: 13px;
+  border: 1px solid #dbe2ec;
+  background: #ffffff;
+  color: #4b5563;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
   cursor: pointer;
 }
 
 .tag-chip.active {
-  background: rgba(26, 160, 83, 0.15);
-  color: #1aa053;
-  border-color: rgba(26, 160, 83, 0.3);
+  border-color: #8cb4db;
+  background: #eff5fc;
+  color: #2f6ea5;
 }
 
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
-}
-
-.primary,
-.ghost {
-  border-radius: 999px;
-  padding: 12px 26px;
-  font-weight: 600;
+.btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid #d1d9e6;
+  background: #ffffff;
+  color: #334155;
+  font-size: 13px;
   cursor: pointer;
 }
 
-.primary {
-  border: none;
-  background: linear-gradient(120deg, #1aa053, #0a6b3b);
-  color: #fff;
+.btn:hover:not(:disabled) {
+  background: #f5f7fb;
+  border-color: #c3ccdb;
 }
 
-.ghost {
-  border: 1px solid #cfd5e2;
-  background: transparent;
-  color: #4a5568;
+.btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #8cb4db;
+  border-color: #8cb4db;
+  color: #ffffff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #7ea7cf;
+  border-color: #7ea7cf;
+}
+
+.btn.sm {
+  height: 32px;
+  padding: 0 12px;
+}
+
+.form-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .submit-msg {
-  margin-top: 12px;
-  font-size: 14px;
+  margin: 10px 0 0;
+  font-size: 13px;
 }
 
 .submit-msg.success {
-  color: #0a8754;
+  color: #23855c;
 }
 
 .submit-msg.error {
-  color: #d93025;
+  color: #d14343;
 }
 
 .preview-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 10px;
 }
 
 .preview-card,
 .steps-card,
 .tips-card {
-  border: 1px solid #edf0f5;
-  border-radius: 22px;
-  padding: 18px;
+  padding: 14px;
+}
+
+.preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.state-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #2f6ea5;
+  border: 1px solid #cfe0f2;
+  background: #f0f6fc;
+}
+
+.preview-card h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #1f2937;
 }
 
 .preview-meta {
-  font-size: 14px;
-  color: #4a5568;
+  margin: 8px 0;
   line-height: 1.5;
+  font-size: 13px;
+  color: #4b5563;
 }
 
 .preview-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin: 12px 0;
+  gap: 6px;
 }
 
 .preview-tags span {
-  background: rgba(26, 160, 83, 0.12);
-  color: #1aa053;
-  padding: 4px 10px;
+  border: 1px solid #d4dde9;
   border-radius: 999px;
+  padding: 3px 8px;
   font-size: 12px;
+  color: #475467;
+  background: #f8fafc;
 }
 
 .preview-desc {
-  font-size: 14px;
-  color: #475467;
+  margin: 8px 0;
+  font-size: 13px;
   line-height: 1.5;
+  color: #4b5563;
 }
 
 .preview-seats {
   display: flex;
   justify-content: space-between;
-  font-size: 13px;
-  color: #475467;
-  margin-top: 12px;
+  gap: 10px;
+  font-size: 12px;
+  color: #667085;
+}
+
+.steps-card h4,
+.tips-card h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #1f2937;
 }
 
 .steps-card ul,
 .tips-card ul {
-  list-style: none;
-  padding: 0;
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 9px;
 }
 
 .steps-card li {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.steps-card .dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid #d4dbe7;
-  margin-top: 6px;
-}
-
-.steps-card .dot.done {
-  background: #1aa053;
-  border-color: #1aa053;
-}
-
-.tips-card li {
-  font-size: 14px;
-  color: #4a5568;
-}
-
-.address-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 12px minmax(0, 1fr);
   gap: 8px;
-  align-items: center;
-  width: 100%;
-  min-width: 260px;
 }
 
-.address-row input {
-  width: 100%;
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid #c5d0de;
+  margin-top: 4px;
 }
 
-.locate-btn {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  border: 1px solid #cfd5e2;
-  background: #fff;
-  color: #1aa053;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
+.dot.done {
+  border-color: #79a7d4;
+  background: #79a7d4;
 }
 
-.locate-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.steps-card strong {
+  display: block;
+  font-size: 13px;
+  color: #344054;
 }
 
-.locate-btn:hover:not(:disabled) {
-  background: rgba(26, 160, 83, 0.08);
-  border-color: rgba(26, 160, 83, 0.4);
+.steps-card p,
+.tips-card li {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #667085;
+  line-height: 1.5;
 }
 
-.locate-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-@media (max-width: 1100px) {
-  .lap-hero,
-  .lap-layout {
-    margin: 32px;
+@media (max-width: 1200px) {
+  .lap-page {
+    padding: 72px 22px 30px;
   }
+
+  .lap-hero,
   .lap-layout {
     grid-template-columns: 1fr;
   }
+
+  .hero-actions {
+    justify-content: flex-start;
+  }
 }
 
-@media (max-width: 768px) {
-  .lap-hero {
-    flex-direction: column;
-  }
+@media (max-width: 900px) {
   .form-grid {
     grid-template-columns: 1fr;
   }
-  .hero-progress {
-    width: 100%;
+
+  .address-controls {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -59,12 +59,12 @@
               <th>资源</th>
               <th>动作</th>
               <th>方法</th>
-              <th>路径模板</th>
               <th>操作类型</th>
               <th>描述</th>
               <th>状态</th>
               <th>更新时间</th>
-              <th>操作</th>
+              <th>路径模板</th>
+              <th class="actions-col">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -77,16 +77,16 @@
                   {{ item.httpMethod }}
                 </span>
               </td>
-              <td class="path-cell">{{ item.pathTemplate }}</td>
               <td>{{ item.operationType || '-' }}</td>
-              <td class="desc-cell">{{ item.description || '-' }}</td>
+              <td class="desc-cell" :title="item.description || '-'">{{ item.description || '-' }}</td>
               <td>
                 <span class="state-pill" :class="item.enabled === 1 ? 'state-pill--success' : 'state-pill--neutral'">
                   {{ item.enabled === 1 ? '启用' : '停用' }}
                 </span>
               </td>
               <td>{{ formatTimestamp(item.updatedAt || item.createdAt) }}</td>
-              <td>
+              <td class="path-cell" :title="item.pathTemplate">{{ item.pathTemplate }}</td>
+              <td class="actions-cell">
                 <div class="row-actions">
                   <button
                     class="admin-button admin-button--secondary admin-button--small"
@@ -508,17 +508,47 @@ onMounted(fetchList)
   min-width: 1320px;
 }
 
+.actions-col,
+.actions-cell {
+  position: sticky;
+  right: 0;
+  width: 240px;
+  min-width: 240px;
+  white-space: nowrap;
+  border-left: 1px solid #eceff3;
+  box-shadow: -8px 0 12px rgba(15, 23, 42, 0.04);
+}
+
+.actions-col {
+  z-index: 3;
+  background: var(--admin-bg-subtle);
+}
+
+.actions-cell {
+  z-index: 2;
+  background: var(--admin-bg-surface);
+}
+
 .path-cell {
-  min-width: 220px;
+  width: 260px;
+  min-width: 260px;
+  max-width: 260px;
   color: var(--admin-accent);
   font-family: Consolas, 'SFMono-Regular', monospace;
   font-size: 12px;
-  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .desc-cell {
-  min-width: 220px;
+  width: 240px;
+  min-width: 240px;
+  max-width: 240px;
   line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .state-pill {
@@ -567,7 +597,8 @@ onMounted(fetchList)
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: max-content;
 }
 
 .empty-state {

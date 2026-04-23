@@ -42,6 +42,9 @@ public class KnowledgeSearchService {
     @Resource
     private KnowledgeBaseMapper knowledgeBaseMapper;
 
+    @Resource
+    private KnowledgeChunkService knowledgeChunkService;
+
     public List<KnowledgeBase> search(String query) {
         KnowledgeRetrievalRequest request = new KnowledgeRetrievalRequest();
         request.setQueryText(query);
@@ -69,7 +72,7 @@ public class KnowledgeSearchService {
         List<KnowledgeBase> lexicalCandidates = searchLexicalCandidates(queryText, docTypes, topK * 4, timeContext);
         Map<Long, CandidateScore> candidateScores = new LinkedHashMap<Long, CandidateScore>();
         for (KnowledgeBase knowledgeBase : lexicalCandidates) {
-            if (!matchesKnowledgeFilters(knowledgeBase, safeRequest, docTypes, timeContext)) {
+            if (!knowledgeService.matchesKnowledgeFilters(knowledgeBase, safeRequest, docTypes, timeContext)) {
                 continue;
             }
             CandidateScore candidate = getOrCreateCandidate(candidateScores, knowledgeBase);
@@ -87,6 +90,26 @@ public class KnowledgeSearchService {
                 }
             } catch (Exception ex) {
                 log.warn("Knowledge vector retrieval failed, fallback to lexical only: {}", ex.getMessage());
+            }
+        }
+
+        boolean usedChunk = false;
+        if (StringUtils.hasText(queryText)) {
+            Map<Long, Double> chunkScores = knowledgeChunkService.collectChunkScores(
+                    queryText,
+                    safeRequest,
+                    docTypes,
+                    topK * 6,
+                    timeContext
+            );
+            usedChunk = !chunkScores.isEmpty();
+            for (Map.Entry<Long, Double> entry : chunkScores.entrySet()) {
+                KnowledgeBase knowledgeBase = knowledgeBaseMapper.selectById(entry.getKey());
+                if (!knowledgeService.matchesKnowledgeFilters(knowledgeBase, safeRequest, docTypes, timeContext)) {
+                    continue;
+                }
+                CandidateScore existing = getOrCreateCandidate(candidateScores, knowledgeBase);
+                existing.chunkScore = Math.max(existing.chunkScore, entry.getValue());
             }
         }
 
@@ -110,7 +133,15 @@ public class KnowledgeSearchService {
         response.setFilterApplied(hasMetadataFilters(safeRequest) || !CollectionUtils.isEmpty(docTypes));
         response.setRerankApplied(safeRequest.isNeedRerank() && rankedCandidates.size() > 1);
         response.setCandidateCount(rankedCandidates.size());
-        response.setQueryVersion(usedVector ? "kb_v1_hybrid" : "kb_v1_keyword");
+        if (usedChunk && usedVector) {
+            response.setQueryVersion("kb_v2_chunk_hybrid");
+        } else if (usedChunk) {
+            response.setQueryVersion("kb_v2_chunk_keyword");
+        } else if (usedVector) {
+            response.setQueryVersion("kb_v1_hybrid");
+        } else {
+            response.setQueryVersion("kb_v1_keyword");
+        }
         for (int index = 0; index < Math.min(topK, rankedCandidates.size()); index++) {
             response.getItems().add(rankedCandidates.get(index).knowledgeBase);
         }
@@ -152,7 +183,7 @@ public class KnowledgeSearchService {
                 continue;
             }
             KnowledgeBase knowledgeBase = knowledgeBaseMapper.selectById(vector.getKnowledgeId());
-            if (!matchesKnowledgeFilters(knowledgeBase, request, docTypes, timeContext)) {
+            if (!knowledgeService.matchesKnowledgeFilters(knowledgeBase, request, docTypes, timeContext)) {
                 continue;
             }
             CandidateScore candidate = new CandidateScore();
@@ -165,40 +196,6 @@ public class KnowledgeSearchService {
             return result;
         }
         return new ArrayList<CandidateScore>(result.subList(0, limit));
-    }
-
-    private boolean matchesKnowledgeFilters(KnowledgeBase knowledgeBase,
-                                            KnowledgeRetrievalRequest request,
-                                            List<String> docTypes,
-                                            LocalDateTime timeContext) {
-        if (knowledgeBase == null || knowledgeBase.getStatus() == null || knowledgeBase.getStatus() != 1) {
-            return false;
-        }
-        if (knowledgeBase.getEffectiveFrom() != null && knowledgeBase.getEffectiveFrom().isAfter(timeContext)) {
-            return false;
-        }
-        if (knowledgeBase.getEffectiveTo() != null && knowledgeBase.getEffectiveTo().isBefore(timeContext)) {
-            return false;
-        }
-        if (!CollectionUtils.isEmpty(docTypes) && !docTypes.contains(resolveDocType(knowledgeBase))) {
-            return false;
-        }
-        if (StringUtils.hasText(request.getEntityType())
-                && StringUtils.hasText(knowledgeBase.getEntityType())
-                && !request.getEntityType().equalsIgnoreCase(knowledgeBase.getEntityType())) {
-            return false;
-        }
-        if (!CollectionUtils.isEmpty(request.getEntityIds()) && StringUtils.hasText(knowledgeBase.getEntityId())
-                && !request.getEntityIds().contains(knowledgeBase.getEntityId())) {
-            return false;
-        }
-        if (!matchesAnyLongToken(request.getCityIds(), knowledgeBase.getCityIds())) {
-            return false;
-        }
-        if (!matchesAnyLongToken(request.getCategoryIds(), knowledgeBase.getCategoryIds())) {
-            return false;
-        }
-        return true;
     }
 
     private CandidateScore getOrCreateCandidate(Map<Long, CandidateScore> candidates, KnowledgeBase knowledgeBase) {
@@ -245,7 +242,9 @@ public class KnowledgeSearchService {
                                      String queryText,
                                      KnowledgeRetrievalRequest request,
                                      List<String> docTypes) {
-        double score = candidate.lexicalScore * 0.60D + Math.max(candidate.vectorScore, 0.0D) * 0.30D;
+        double score = candidate.lexicalScore * 0.50D
+                + Math.max(candidate.vectorScore, 0.0D) * 0.25D
+                + Math.max(candidate.chunkScore, 0.0D) * 0.20D;
         if (!CollectionUtils.isEmpty(docTypes)
                 && docTypes.contains(resolveDocType(candidate.knowledgeBase))) {
             score += 0.08D;
@@ -319,8 +318,8 @@ public class KnowledgeSearchService {
         }
         String normalized = queryText.replace('，', ' ')
                 .replace('。', ' ')
-                .replace('？', ' ')
-                .replace('、', ' ')
+                .replace('；', ' ')
+                .replace('：', ' ')
                 .replace(',', ' ')
                 .replace('.', ' ');
         String[] parts = normalized.split("\\s+");
@@ -361,36 +360,6 @@ public class KnowledgeSearchService {
         return safeText(knowledgeBase.getCategory()).toLowerCase(Locale.ROOT);
     }
 
-    private boolean matchesAnyLongToken(List<Long> expectedIds, String csvValue) {
-        if (CollectionUtils.isEmpty(expectedIds)) {
-            return true;
-        }
-        if (!StringUtils.hasText(csvValue)) {
-            return false;
-        }
-        Set<String> tokens = parseCsvTokens(csvValue);
-        for (Long expectedId : expectedIds) {
-            if (expectedId != null && tokens.contains(String.valueOf(expectedId))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private Set<String> parseCsvTokens(String csvValue) {
-        Set<String> tokens = new LinkedHashSet<String>();
-        if (!StringUtils.hasText(csvValue)) {
-            return tokens;
-        }
-        String[] parts = csvValue.split(",");
-        for (String part : parts) {
-            if (StringUtils.hasText(part)) {
-                tokens.add(part.trim());
-            }
-        }
-        return tokens;
-    }
-
     private int compareNullable(Integer left, Integer right) {
         int leftValue = left == null ? 0 : left;
         int rightValue = right == null ? 0 : right;
@@ -419,6 +388,7 @@ public class KnowledgeSearchService {
         private KnowledgeBase knowledgeBase;
         private double lexicalScore;
         private double vectorScore;
+        private double chunkScore;
         private double finalScore;
     }
 }

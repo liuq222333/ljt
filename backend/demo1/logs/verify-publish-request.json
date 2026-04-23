@@ -1,0 +1,10 @@
+{
+    "messages":  [
+                     {
+                         "content":  "帮我发布一个商品",
+                         "role":  "user"
+                     }
+                 ],
+    "userId":  "u-verify",
+    "sessionId":  "verify-phone-publish"
+}

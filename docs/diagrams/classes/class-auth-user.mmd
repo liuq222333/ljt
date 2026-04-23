@@ -1,0 +1,119 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'fontFamily': 'Microsoft YaHei',
+    'fontSize': '18px',
+    'primaryColor': '#ffffff',
+    'primaryTextColor': '#111827',
+    'primaryBorderColor': '#1f2937',
+    'lineColor': '#334155',
+    'secondaryColor': '#f8fafc',
+    'tertiaryColor': '#eef2ff'
+  }
+}}%%
+classDiagram
+direction LR
+
+class LoginUser["登录用户（LoginUser）"]
+class LoginUser {
+  +String userId
+  +String userName
+  +String password
+  +String phone
+  +String address
+  +checkPassword(rawPassword): boolean
+  +changePassword(newPassword): void
+}
+
+class UserProfile["用户资料（UserProfile）"]
+class UserProfile {
+  +String userId
+  +String userName
+  +String email
+  +String phone
+  +String avatarKey
+  +Double latitude
+  +Double longitude
+  +updateInfo(dto): void
+  +updateAvatar(avatarKey): void
+  +updateLocation(latitude, longitude): void
+}
+
+class LoginRequest["登录请求（LoginRequest）"]
+class LoginRequest {
+  +String username
+  +String password
+  +String phone
+  +isValid(): boolean
+  +normalizePhone(): String
+}
+
+class LoginResponse["登录响应（LoginResponse）"]
+class LoginResponse {
+  +String token
+  +String username
+  +Integer userId
+  +hasToken(): boolean
+}
+
+class UserInfoDTO["用户信息（UserInfoDTO）"]
+class UserInfoDTO {
+  +String userId
+  +String userName
+  +String email
+  +String phone
+  +String address
+  +isComplete(): boolean
+  +toUserProfile(): UserProfile
+}
+
+class LoginService["登录服务（LoginService）"]
+class LoginService {
+  <<interface>>
+  +getUserByName(userName): LoginUser
+  +register(userName, rawPassword, phone): boolean
+  +validateLogin(userName, rawPassword): boolean
+  +getUserById(userId): LoginUser
+  +changePassword(userId, oldPassword, newPassword): boolean
+}
+
+class UserService["用户服务（UserService）"]
+class UserService {
+  <<interface>>
+  +updateUser(userId, userName): void
+  +updateUserInfo(userInfoDTO): void
+  +deleteUser(userId, password): void
+  +getUserIdByName(userName): Integer
+  +findById(userId): UserProfile
+}
+
+class LoginController["登录控制器（LoginController）"]
+class LoginController {
+  -loginService: LoginService
+  -userService: UserService
+  +login(request): ResponseEntity
+  +register(request): ResponseEntity
+  +sendSmsCode(payload): ResponseEntity
+  +verifyCode(payload): ResponseEntity
+  +changePassword(payload): ResponseEntity
+}
+
+class UserController["用户控制器（UserController）"]
+class UserController {
+  -userService: UserService
+  +updateUser(userId, userName): ResponseEntity
+  +updateUserInfo(userInfoDTO): ResponseEntity
+  +deleteUser(userId, password): ResponseEntity
+  +getUserIdByName(userName): Integer
+  +getUserById(userId): ResponseEntity
+}
+
+LoginController ..> LoginRequest : receives
+LoginController ..> LoginResponse : returns
+LoginController ..> LoginService : calls
+LoginController ..> UserService : queries userId
+LoginService ..> LoginUser : manages
+
+UserController ..> UserService : calls
+UserController ..> UserInfoDTO : receives
+UserService ..> UserProfile : manages

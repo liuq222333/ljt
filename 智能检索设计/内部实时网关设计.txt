@@ -1,0 +1,383 @@
+﻿# 《内部实时网关设计 V1》
+
+创建日期：2026-04-06
+适用阶段：W10 / W14
+定位：在当前项目内部提供一层正式的 realtime gateway，对 Agent Runtime 暴露稳定的实时查询协议，并为未来接入真实外部业务实时系统保留扩展点。
+
+---
+
+## 1. 背景
+
+当前仓库已经有一套 realtime 层实现：
+
+- `demos/realtime` 下已有统一请求/响应协议
+- 已有 `RealtimeQueryOrchestratorService`
+- 已有 `HttpRealtimeGatewayClient`
+- 已有 `ProductRealtimeFallbackService`
+- 已有本地 mock gateway 与本地联调 profile
+
+但经过项目代码、配置、`api_routes` 真实数据和数据库表结构核查，可以确认以下事实：
+
+1. 总体设计和实时层设计文档里明确规划了“实时层 / realtime service”
+2. 当前代码已经具备 realtime 主链与管理入口
+3. 现有项目中没有明确证据表明曾经接入过一个正式外部 realtime gateway
+4. 当前最稳定、最真实的可用数据来源其实是：
+   - 商品主表 `products`
+   - 搜索快照 `product_search_snapshot`
+5. 当前 `application.properties` 中的 `agent.realtime.gateway-base-url=http://127.0.0.1:9010` 更像预留配置，而不是正在使用的真实下游地址
+
+因此，系统需要一层“内部实时网关”，用来解决以下问题：
+
+- 把当前 fallback 能力正式服务化，而不是继续停留在内部 helper
+- 让 Agent Runtime 调用的是稳定、正式的网关接口
+- 保留未来接入真实外部 realtime 系统时的替换能力
+- 统一商品 / 门店 / 活动三类实体的实时查询协议
+
+---
+
+## 2. 目标
+
+内部实时网关的目标是：
+
+1. 在 `backend/demo1` 内部提供一组正式的 realtime gateway 接口
+2. 当前先真正支持 `product` 实体的实时确认
+3. 对 `store`、`event` 先预留正式协议与 provider 扩展点
+4. 保持与现有 `RealtimeQueryRequest / RealtimeQueryResponse` 主协议兼容
+5. 允许 Agent Runtime、Launch Center、Smoke/Chaos/Drill 统一复用
+
+一句话总结：
+
+**先把“项目内部可用的实时确认能力”做成正式网关，再为未来真实外部实时系统预留无破坏接入路径。**
+
+---
+
+## 3. 不做什么
+
+本次内部实时网关设计不承担以下职责：
+
+1. 不做海量候选召回
+2. 不替代结构化搜索
+3. 不替代知识层解释
+4. 不直接改造为独立部署服务
+5. 不在本阶段引入额外鉴权
+
+说明：
+
+- 本网关首先服务于项目内部调用
+- 当前只要求“正式接口 + 正式 provider 边界”
+- 不要求一开始就拆成单独服务
+
+---
+
+## 4. 对外接口设计
+
+建议新增以下正式接口：
+
+### 4.1 健康检查
+
+`GET /api/realtime/gateway/health`
+
+用途：
+
+- 管理端查看 realtime gateway 是否可用
+- W14 smoke / readiness / launch 检查复用
+
+返回建议：
+
+- `status`
+- `enabled`
+- `productProviderReady`
+- `storeProviderReady`
+- `eventProviderReady`
+- `gatewayMode`
+
+其中：
+
+- 当前 `gatewayMode` 默认应为 `internal`
+- 若后续接真实外部 gateway，可扩展为 `external` / `hybrid`
+
+### 4.2 单次查询
+
+`POST /api/realtime/gateway/query`
+
+请求体建议继续复用现有 realtime 协议：
+
+- `entityType`
+- `entityIds`
+- `queryType`
+- `date`
+- `timeSlot`
+- `traceId`
+- `forceRefresh`
+
+说明：
+
+- 即使是单次查询，也继续允许 `entityIds` 为数组
+- 这样可以避免单查和批量查两套协议长期分裂
+
+### 4.3 批量查询
+
+`POST /api/realtime/gateway/query/batch`
+
+用途：
+
+- 支持前端/治理/联调时一次发起多批请求
+- 支持未来并行压测和批量 smoke
+
+请求建议为：
+
+- `requests: RealtimeQueryRequest[]`
+
+响应建议为：
+
+- `results: RealtimeQueryResponse[]`
+- `batchMeta`
+
+---
+
+## 5. 协议口径
+
+### 5.1 请求模型
+
+沿用现有 `RealtimeQueryRequest`：
+
+- `entityType`
+- `entityIds`
+- `queryType`
+- `date`
+- `timeSlot`
+- `traceId`
+- `timeoutMs`
+- `userId`
+- `forceRefresh`
+
+### 5.2 响应模型
+
+沿用现有 `RealtimeQueryResponse`：
+
+- `realtimeStatus`
+- `items`
+- `partialFailedIds`
+- `queryMeta`
+
+### 5.3 item 模型
+
+沿用现有 `RealtimeResultItem`：
+
+- `entityId`
+- `inventoryStatus`
+- `inventoryCount`
+- `sellStatus`
+- `availabilityStatus`
+- `bookable`
+- `price`
+- `currency`
+- `businessStatus`
+- `openNow`
+- `success`
+- `degraded`
+- `source`
+- `errorCode`
+- `errorMessage`
+
+---
+
+## 6. 内部结构设计
+
+建议在 `demos/realtime` 下形成以下结构：
+
+### 6.1 controller
+
+- `RealtimeGatewayController`
+
+职责：
+
+- 只处理 HTTP 协议
+- 对外暴露正式内部 gateway 接口
+- 不直接写具体业务逻辑
+
+### 6.2 gateway
+
+- `InternalRealtimeGatewayService`
+- `RealtimeProviderRegistry`
+
+职责：
+
+- 根据 `entityType` 分发到对应 provider
+- 统一处理空请求、不支持实体、批量聚合等逻辑
+
+### 6.3 provider
+
+- `ProductRealtimeProvider`
+- `StoreRealtimeProvider`
+- `EventRealtimeProvider`
+
+职责：
+
+- 各实体自己的实时数据拼装与状态判断
+
+---
+
+## 7. Product / Store / Event 三类 provider 设计
+
+### 7.1 ProductRealtimeProvider
+
+本阶段必须真正实现。
+
+数据来源：
+
+- `products`
+- `product_search_snapshot`
+
+复用现有逻辑：
+
+- `ProductRealtimeFallbackService`
+
+本 provider 应对外输出：
+
+- 库存数量
+- 库存状态
+- 售卖状态
+- availability
+- 价格
+- currency
+
+状态判断建议：
+
+- `stock <= 0 -> sold_out`
+- `stock <= 5 -> low_stock`
+- `status=下架/off_shelf -> off_shelf`
+- 其余 -> `available / on_sale`
+
+### 7.2 StoreRealtimeProvider
+
+本阶段先预留正式接口，不伪造成功。
+
+预留字段：
+
+- `businessStatus`
+- `openNow`
+- `availabilityStatus`
+
+当前返回原则：
+
+- `realtimeStatus = DEGRADED` 或 `FAILED`
+- `queryMeta.implemented = false`
+- `queryMeta.reason = provider_not_implemented`
+
+### 7.3 EventRealtimeProvider
+
+本阶段先预留正式接口，不伪造成功。
+
+预留字段：
+
+- `availabilityStatus`
+- `bookable`
+- `inventoryCount`
+- `price`
+
+当前返回原则同 `store`：
+
+- 不返回伪造成功态
+- 明确写入 `implemented=false`
+
+---
+
+## 8. 与现有 realtime 代码的关系
+
+### 8.1 不推翻现有 Orchestrator
+
+现有：
+
+- `RealtimeQueryOrchestratorService`
+- `HttpRealtimeGatewayClient`
+- `ProductRealtimeFallbackService`
+
+仍然保留。
+
+新的内部实时网关设计，不是推翻现有 realtime 主链，而是增加一层更正式的“对内网关协议”：
+
+- `AgentRuntime`
+- Launch / Smoke / Chaos
+- 管理端
+
+都可以调用内部 gateway
+
+### 8.2 与外部 gateway 的关系
+
+当前没有证据表明项目已经接入真实外部 gateway。
+
+因此：
+
+- 内部实时网关先作为当前正式实现
+- 外部 gateway 未来若出现，可放在 `HttpRealtimeGatewayClient` 之后，作为 provider 的更高优先级数据源
+
+建议未来优先级：
+
+1. 外部正式业务 realtime gateway
+2. 内部 product fallback
+3. 最终降级响应
+
+---
+
+## 9. 配置设计
+
+现有配置继续保留：
+
+- `agent.realtime.enabled`
+- `agent.realtime.gateway-enabled`
+- `agent.realtime.gateway-base-url`
+- `agent.realtime.gateway-query-path`
+- `agent.realtime.mock-gateway-enabled`
+
+建议再增加两个内部网关口径配置：
+
+- `agent.realtime.internal-gateway-enabled=true`
+- `agent.realtime.internal-gateway-mode=provider_registry`
+
+说明：
+
+- 当前内部网关默认启用
+- 外部 gateway 未来属于 provider 数据源之一，不影响内部网关 Controller 的存在
+
+---
+
+## 10. W14 联调口径
+
+在没有真实外部 realtime 服务的前提下，W14 可以按以下口径收尾：
+
+1. 内部实时网关 health 正常
+2. product realtime query 真实可用
+3. store/event 接口预留清晰、返回非伪造成功态
+4. Launch Center 的 `gateway-config / smoke / chaos` 都能围绕内部网关验证
+5. 将“真实外部 gateway 接入”明确标记为后续扩展项，而不是当前系统缺陷
+
+---
+
+## 11. 推荐实施顺序
+
+1. 新增 `RealtimeGatewayController`
+2. 新增 `InternalRealtimeGatewayService`
+3. 新增 `RealtimeProviderRegistry`
+4. 将 `ProductRealtimeFallbackService` 包装为正式 `ProductRealtimeProvider`
+5. 新增 `StoreRealtimeProvider` 占位实现
+6. 新增 `EventRealtimeProvider` 占位实现
+7. 让 `AgentRuntime` 和 Launch smoke 优先调用内部 gateway
+8. 补 health / batch / provider not implemented 回归
+
+---
+
+## 12. 结论
+
+基于当前项目现状，最合理的 realtime 正式化方案不是继续等待一个不存在的外部下游服务，而是：
+
+**先在 `backend/demo1` 内部落地一层正式内部实时网关。**
+
+这样可以同时满足：
+
+- 当前系统真实可用
+- W14 可验收
+- 商品实时确认立即可用
+- 门店 / 活动实时协议提前稳定
+- 未来接入真实外部业务 realtime 系统时不需要推翻现有 Agent 主链
+

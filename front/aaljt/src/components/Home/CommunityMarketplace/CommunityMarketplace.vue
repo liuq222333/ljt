@@ -2,716 +2,2292 @@
   <div class="nd-page">
     <dhstyle />
 
-    <!-- Option B: Removed Full Width Hero -->
-    <!-- <div class="market-hero">...</div> -->
+    <div class="page-shell">
+      <CebianTool />
 
-    <div class="page-container">
-      <div class="market-layout">
-        
-        <!-- 右侧固定侧边栏 -->
-        <CebianTool />
+      <main class="page-main">
+        <section class="page-hero">
+          <img class="hero-bg" :src="heroBannerImage" alt="Community marketplace hero" />
+          <div class="hero-overlay"></div>
 
-        <!-- 左侧悬浮区域 (Agent Chat) -->
-        <aside class="sidebar-wrapper">
-          <div class="sidebar-sticky">
-            <section class="card-panel agent-chat-card">
-              <div class="chat-header">
-                <div class="header-left">
-                  <h3>社区助手</h3>
-                  <span class="status-tag">在线</span>
-                </div>
-                <p class="subtitle">发布闲置 / 寻找好物 / 活动咨询</p>
+          <div class="hero-inner">
+            <div class="hero-copy">
+              <p class="hero-kicker">COMMUNITY MARKETPLACE · AI WORKBENCH</p>
+              <h1>先选模板，再让 AI 快速处理任务</h1>
+              <p class="hero-description">
+                保留 Nexthome 首页的视觉语气和沉浸感，把 AI 作为第一入口，市场内容作为下层辅助区。
+              </p>
+              <div class="hero-meta">
+                <span class="meta-pill">Nexthome 风格</span>
+                <span class="meta-pill">模板启动</span>
+                <span class="meta-pill">桌面优先</span>
               </div>
 
-              <div class="chat-window" ref="chatWindowRef">
-                <div v-if="!agentMessages.length" class="chat-empty">
-                  👋 嗨！我是社区助手，想发布什么宝贝？
-                </div>
-                <div v-else class="chat-messages">
-                  <div
-                    v-for="message in agentMessages"
-                    :key="message.id"
-                    :class="['chat-row', message.sender]"
-                  >
-                    <div class="chat-bubble">{{ message.text }}</div>
-                    <span class="chat-time">{{ message.time }}</span>
-                  </div>
-                  <div v-if="agentLoading" class="chat-row agent">
-                    <div class="chat-bubble loading">
-                      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-                    </div>
-                  </div>
-                </div>
+              <div class="hero-actions">
+                <button class="primary-btn" type="button" @click="continueLatestTask">继续上次任务</button>
+                <button class="ghost-btn" type="button" @click="goToMarketSearch">浏览完整市场</button>
               </div>
-              
-              <div class="chat-error" v-if="agentError">{{ agentError }}</div>
+            </div>
 
-              <div class="chat-input-area">
-                <input
-                  v-model="agentInput"
-                  type="text"
-                  placeholder="输入需求..."
-                  @keyup.enter="sendAgentMessage"
-                  :disabled="agentLoading"
-                />
-                <button
-                  class="send-btn"
-                  :disabled="agentLoading || !agentInput.trim()"
-                  @click="sendAgentMessage"
-                  type="button"
-                  aria-label="发送消息"
-                >
-                  <svg class="send-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor" />
-                  </svg>
-                </button>
-              </div>
-            </section>
+            <div class="hero-side">
+              <article v-for="item in heroMetrics" :key="item.id" class="hero-metric">
+                <span class="metric-dot"></span>
+                <div>
+                  <p>{{ item.label }}</p>
+                  <strong>{{ item.value }}</strong>
+                  <small>{{ item.helper }}</small>
+                </div>
+              </article>
+            </div>
           </div>
-        </aside>
+        </section>
 
-        <!-- 右侧内容区域 -->
-        <main class="main-content">
-          
-          <!-- Option B: Content-Area Header (Integrated Search) -->
-          <section class="content-header">
-            <div class="header-bg">
-              <img :src="heroImage" alt="Header Background" />
-              <div class="header-overlay"></div>
+        <section class="card-panel content-section market-section market-section-priority">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">精选资源与服务</p>
+              <h2>先看商品，再进入 AI 处理</h2>
+              <p class="section-subtitle">把你最关心的商品和服务提前展示，AI 工作台放在后面随时可用。</p>
             </div>
-            <div class="header-content">
-              <div class="text-group">
-                <h2>社区寻宝</h2>
-                <p>让闲置流动起来</p>
+            <button class="ghost-btn" type="button" @click="goToMarketSearch">查看更多</button>
+          </div>
+
+          <div class="market-toolbar">
+            <div class="search-control">
+              <input
+                v-model="marketKeyword"
+                type="text"
+                placeholder="搜索资源、服务或商品"
+                @keyup.enter="goToMarketSearch"
+              />
+              <button class="text-btn" type="button" @click="goToMarketSearch">搜索</button>
+            </div>
+
+            <div class="radius-group">
+              <button
+                v-for="option in nearbyOptions"
+                :key="option"
+                type="button"
+                :class="['radius-btn', { active: nearbyRadius === option }]"
+                @click="toggleNearby(option)"
+              >
+                {{ option }}km
+              </button>
+              <button type="button" :class="['radius-btn', { active: nearbyRadius === null }]" @click="clearNearby">
+                全城
+              </button>
+            </div>
+
+            <div class="location-input">
+              <input
+                v-model="addr"
+                type="text"
+                placeholder="定位不准？输入地址"
+                @keyup.enter="locateByAddress"
+              />
+              <button class="text-btn" type="button" @click="locateByAddress">定位</button>
+            </div>
+          </div>
+
+          <div class="market-ai-cta">
+            <p>浏览商品时需要生成文案或运营建议？</p>
+            <button class="primary-btn" type="button" @click="openWorkbenchDrawer">打开 AI 工作台</button>
+          </div>
+
+          <div v-if="loading" class="section-state">正在加载附近资源...</div>
+          <div v-else-if="errorMsg" class="section-state error-state">{{ errorMsg }}</div>
+          <div v-else-if="featuredProducts.length === 0" class="section-state empty-state">
+            暂时没有可展示的资源，稍后再来看看。
+          </div>
+          <div v-else class="market-grid">
+            <article
+              v-for="product in featuredProducts"
+              :key="product.id"
+              class="market-card"
+              @click="navigateToDetail(product)"
+            >
+              <div class="market-image">
+                <img :src="getFirstImage(product)" :alt="product.title" @error="handleImageError($event, FALLBACK_ITEM)" />
+                <span v-if="isDown(product)" class="status-badge">已下架</span>
               </div>
-              
-              <!-- Integrated Large Search Bar -->
-              <div class="hero-search-box">
-                <div class="search-wrapper">
-                  <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input 
-                    v-model="keyword" 
-                    type="text" 
-                    placeholder="搜索好物 (例如: 自行车, 沙发...)" 
-                    @keyup.enter="doSearch"
-                  />
-                  <button class="search-btn" @click="doSearch">搜索</button>
+
+              <div class="market-card-body">
+                <div class="market-card-head">
+                  <h3 :title="product.title">{{ product.title }}</h3>
+                  <span class="market-price">￥{{ formatPrice(product.price) }}</span>
                 </div>
-                <div class="hot-tags">
-                  <span>热搜:</span>
-                  <a @click="searchTag('二手家具')">二手家具</a>
-                  <a @click="searchTag('儿童玩具')">儿童玩具</a>
-                  <a @click="searchTag('健身器材')">健身器材</a>
+
+                <div class="seller-row">
+                  <img :src="getSellerAvatar(product)" alt="seller" @error="handleImageError($event, FALLBACK_AVATAR)" />
+                  <span>{{ formatSellerId(product.seller_id ?? product.sellerId) }}</span>
+                </div>
+
+                <div class="market-meta">
+                  <span>{{ formatLocation(product.location ?? product.loaction) }}</span>
+                  <span v-if="product.distanceKm != null" class="dist-tag">{{ formatDistance(product.distanceKm) }}</span>
                 </div>
               </div>
+            </article>
+          </div>
+        </section>
+
+      </main>
+
+      <button class="workbench-fab" type="button" @click="toggleWorkbenchDrawer">
+        {{ isWorkbenchDrawerOpen ? '收起 AI 工作台' : '打开 AI 工作台' }}
+      </button>
+
+      <transition name="drawer-fade">
+        <div v-if="isWorkbenchDrawerOpen" class="workbench-drawer-mask" @click="closeWorkbenchDrawer"></div>
+      </transition>
+      <aside :class="['workbench-drawer', { open: isWorkbenchDrawerOpen }]">
+        <header class="drawer-header">
+          <div>
+            <p class="eyebrow">AI WORKBENCH</p>
+            <h3>Chat Dialog</h3>
+          </div>
+          <button class="ghost-btn" type="button" @click="closeWorkbenchDrawer">Close</button>
+        </header>
+
+        <div class="drawer-body">
+          <section class="card-panel drawer-chat-card">
+            <header class="chat-header">
+              <div class="header-left">
+                <h4>AI Assistant</h4>
+                <span class="status-tag">{{ agentLoading ? 'Thinking' : 'Online' }}</span>
+              </div>
+              <p class="chat-subtitle">Ask directly and keep chatting. Messages are sent to the backend chat API.</p>
+            </header>
+
+            <div class="chat-window" ref="chatWindowRef">
+              <div v-if="!agentMessages.length" class="chat-empty">
+                Hi, I am your marketplace assistant. Ask about product info, copywriting, or operations.
+              </div>
+              <div v-else class="chat-messages">
+                <div v-for="message in agentMessages" :key="message.id" :class="['chat-row', message.sender]">
+                  <div class="chat-bubble">{{ message.text }}</div>
+                  <div v-if="message.sender === 'agent' && message.cards?.length" class="chat-card-list">
+                    <article
+                      v-for="card in message.cards"
+                      :key="`${message.id}-${card.entityId || card.title}`"
+                      class="chat-result-card"
+                      :class="{ clickable: canOpenAgentCard(card) }"
+                      @click="handleAgentCardClick(card)"
+                    >
+                      <div class="chat-result-card-media">
+                        <img
+                          :src="card.imageUrl || FALLBACK_ITEM"
+                          :alt="card.title || 'result card'"
+                          @error="handleImageError($event, FALLBACK_ITEM)"
+                        />
+                      </div>
+                      <div class="chat-result-card-body">
+                        <div class="chat-result-card-head">
+                          <h5>{{ card.title || '未命名商品' }}</h5>
+                          <span v-if="card.priceText" class="chat-result-price">{{ card.priceText }}</span>
+                        </div>
+                        <p v-if="card.subtitle" class="chat-result-subtitle">{{ card.subtitle }}</p>
+                        <div v-if="card.locationText || card.realtimeStatusText" class="chat-result-meta">
+                          <span v-if="card.locationText">{{ card.locationText }}</span>
+                          <span v-if="card.realtimeStatusText">{{ card.realtimeStatusText }}</span>
+                        </div>
+                        <p v-if="card.recommendReason" class="chat-result-reason">{{ card.recommendReason }}</p>
+                        <div v-if="card.tags?.length" class="chat-result-tags">
+                          <span v-for="tag in card.tags" :key="tag" class="chat-result-tag">{{ tag }}</span>
+                        </div>
+                        <ul v-if="card.highlights?.length" class="chat-result-highlights">
+                          <li v-for="highlight in card.highlights" :key="highlight">{{ highlight }}</li>
+                        </ul>
+                      </div>
+                    </article>
+                  </div>
+                  <span class="chat-time">{{ message.time }}</span>
+                </div>
+                <div v-if="agentLoading" class="chat-row agent">
+                  <div class="chat-bubble loading">
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p v-if="agentError" class="chat-error">{{ agentError }}</p>
+
+            <div class="chat-input-area">
+              <input
+                ref="chatInputRef"
+                v-model="agentInput"
+                type="text"
+                :disabled="agentLoading"
+                placeholder="Type your question, for example: help me optimize this product title"
+                @keyup.enter="submitDialogMessage"
+              />
+              <button class="primary-btn" type="button" :disabled="agentLoading || !agentInput.trim()" @click="submitDialogMessage">
+                {{ agentLoading ? 'Sending...' : 'Send' }}
+              </button>
             </div>
           </section>
-
-          <!-- 商品推荐区 -->
-          <section class="card-panel recommendations">
-            <!-- 筛选栏 (Simplified, removed search input) -->
-            <div class="filter-bar">
-              <div class="tabs">
-                <span :class="{ active: activeTab === 'recommend' }" @click="activeTab = 'recommend'">为你推荐</span>
-              </div>
-              <div class="location-filters">
-                <div class="radius-group">
-                  <button :class="['radius-btn', nearbyRadius===1?'active':'']" @click="toggleNearby(1)">1km</button>
-                  <button :class="['radius-btn', nearbyRadius===3?'active':'']" @click="toggleNearby(3)">3km</button>
-                  <button :class="['radius-btn', nearbyRadius===5?'active':'']" @click="toggleNearby(5)">5km</button>
-                  <button class="radius-btn clear" :class="{active: nearbyRadius === null}" @click="clearNearby">全城</button>
-                </div>
-                <div class="location-input">
-                  <input v-model="addr" type="text" placeholder="定位不准？输入地址..." @keyup.enter="locateByAddress"/>
-                  <button class="locate-icon-btn" @click="locateByAddress"><i class="fas fa-map-marker-alt"></i></button>
-                </div>
-              </div>
-            </div>  
-
-            <!-- 商品列表 -->
-            <div class="item-grid">
-              <div v-if="loading" class="state-box">
-                <div class="spinner"></div>
-                <p>正在寻找附近的宝贝...</p>
-              </div>
-              <div v-else-if="errorMsg" class="state-box error">{{ errorMsg }}</div>
-              <div v-else-if="products.length === 0" class="state-box empty">暂无相关商品</div>
-              
-              <div v-else v-for="product in products" :key="product.id" class="item-card" @click="navigateToDetail(product)">
-                <div class="image-container">
-                  <img :src="getFirstImage(product)" :alt="product.title" @error="(e)=>{e.target.src=FALLBACK_ITEM}" />
-                  <div v-if="isDown(product)" class="status-badge down">已下架</div>
-                </div>
-                
-                <div class="card-content">
-                  <h3 class="item-title" :title="product.title">{{ product.title }}</h3>
-                  
-                  <div class="price-row">
-                    <div class="price-value">
-                      <span class="currency">¥</span>
-                      <span class="amount">{{ Number(product.price).toFixed(2) }}</span>
-                    </div>
-                    <div class="seller-info">
-                      <img :src="getSellerAvatar(product)" @error="(e)=>{e.target.src=FALLBACK_AVATAR}"/>
-                      <span class="seller-name">{{ formatSellerId(product.seller_id ?? product.sellerId) }}</span>
-                    </div>
-                  </div>
-
-                  <div class="meta-row">
-                    <span class="location-tag">
-                      {{ formatLocation(product.location ?? product.loaction) }}
-                      <span v-if="product.distanceKm != null" class="dist"> {{ formatDistance(product.distanceKm) }}</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        </main>
-      </div>
+        </div>
+      </aside>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import dhstyle from '../../dhstyle/dhstyle.vue';
 import CebianTool from './cebianTool.vue';
-import { ref, onMounted, computed, watch, nextTick } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import homePicture1 from '../../../pictures/homePicture1.jpg';
 
-// --- Hero Image ---
-const heroImage = new URL('./marketPictures/image3.png', import.meta.url).href; 
+interface Product {
+  id: number | string;
+  title: string;
+  price: number | string;
+  location?: string;
+  loaction?: string;
+  image_urls?: string | string[];
+  imageUrls?: string | string[];
+  seller_id?: number | string;
+  sellerId?: number | string;
+  seller_avatar?: string;
+  sellerAvatar?: string;
+  status?: string | number;
+  stock_quantity?: number | string;
+  stockQuantity?: number | string;
+  distanceKm?: number | string | null;
+}
 
-// --- Icons ---
-const ICONS = {
-  add: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`,
-  box: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
-  receipt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`,
-  cart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>`,
-  search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
-  home: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
-  user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
-  headset: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>`,
-  phone: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>`,
-  edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
-  arrowUp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="16 12 12 8 8 12"/><line x1="12" y1="16" x2="12" y2="8"/></svg>`,
-  chevronRight: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`,
-  chevronLeft: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`
-};
+interface AgentEntityCard {
+  entityId?: string;
+  entityType?: string;
+  title?: string;
+  subtitle?: string;
+  imageUrl?: string;
+  priceText?: string;
+  tags?: string[];
+  highlights?: string[];
+  locationText?: string;
+  realtimeStatusText?: string;
+  recommendReason?: string;
+  sourceLabel?: string;
+}
 
-// --- State ---
-const activeTab = ref('recommend');
+interface AgentFinalAnswer {
+  answerType?: string;
+  answerText?: string;
+  summary?: string;
+  cards?: AgentEntityCard[];
+}
+
+interface AgentMessage {
+  id: string;
+  sender: 'user' | 'agent';
+  text: string;
+  time: string;
+  preview?: string;
+  cards?: AgentEntityCard[];
+  answerType?: string;
+}
+
+interface TemplateCategory {
+  id: string;
+  label: string;
+}
+
+interface TemplateCard {
+  id: string;
+  categoryId: string;
+  title: string;
+  summary: string;
+  scenario: string;
+  placeholder: string;
+  promptPrefix: string;
+  tags: string[];
+}
+interface PlaybookHighlight {
+  id: string;
+  label: string;
+  title: string;
+  summary: string;
+  actionLabel: string;
+  templateId: string;
+}
+
+interface QuickAction {
+  id: string;
+  label: string;
+  routeName: string;
+}
+
+interface OverviewCard {
+  id: string;
+  label: string;
+  value: string;
+  helper: string;
+}
+
+interface HeroMetric {
+  id: string;
+  label: string;
+  value: string;
+  helper: string;
+}
+
 const router = useRouter();
 const route = useRoute();
-const API_BASE = 'http://localhost:8080'; 
-const products = ref([]);
+
+const API_BASE = ((import.meta as any)?.env?.VITE_API_BASE ?? (window as any)?.VITE_API_BASE ?? 'http://localhost:8080') as string;
+const AMAP_KEY = ((import.meta as any)?.env?.VITE_AMAP_KEY ?? (window as any)?.VITE_AMAP_KEY ?? '') as string;
+const AGENT_CHAT_API = `${API_BASE}/api/agent/chat`;
+const AGENT_SESSION_STORAGE_KEY = 'communityMarketplaceAgentSessionId';
+const heroBannerImage = homePicture1;
+
+const templateCategories: TemplateCategory[] = [
+  { id: 'copy', label: '文案生成' },
+  { id: 'campaign', label: '活动策划' },
+  { id: 'visual', label: '海报配图' },
+  { id: 'ops', label: '运营助手' },
+  { id: 'data', label: '数据整理' }
+];
+
+const templateCards: TemplateCard[] = [
+  {
+    id: 'campaign-plan',
+    categoryId: 'campaign',
+    title: '活动策划模板',
+    summary: '快速整理活动主题、亮点、执行节奏和分工。',
+    scenario: '适合社区活动、节日联动和周末主题活动。',
+    placeholder: '例如：帮我策划一个周末社区亲子市集活动，预算 5000 元，包含摊位、互动和宣传安排。',
+    promptPrefix: '请基于下面的需求输出结构化活动策划方案，包含目标、流程、分工、物料和风险提醒。',
+    tags: ['活动方案', '时间排期', '执行清单']
+  },
+  {
+    id: 'product-copy',
+    categoryId: 'copy',
+    title: '商品文案模板',
+    summary: '生成可信、简洁、适合社区场景的商品文案。',
+    scenario: '适合闲置转让、服务介绍和报名说明。',
+    placeholder: '例如：帮我写一段闲置婴儿推车的转让文案，突出成色、使用次数和自提方式。',
+    promptPrefix: '请根据下面的信息生成清晰可信的商品文案，并给出标题、卖点和详情说明。',
+    tags: ['标题优化', '卖点提炼', '详情描述']
+  },
+  {
+    id: 'poster-brief',
+    categoryId: 'visual',
+    title: '海报配图模板',
+    summary: '整理视觉需求，让海报或配图制作更明确。',
+    scenario: '适合活动海报、公告图、招募图和封面图。',
+    placeholder: '例如：为社区公益义卖活动整理一份海报需求，风格温暖、信息清晰，适合线上转发。',
+    promptPrefix: '请把下面的需求整理成清晰的海报创作 brief，包括主题、版式、主视觉和文案层级。',
+    tags: ['海报 brief', '主视觉建议', '文案层级']
+  },
+  {
+    id: 'ops-summary',
+    categoryId: 'ops',
+    title: '运营总结模板',
+    summary: '把零散信息整理成汇报、复盘或跟进说明。',
+    scenario: '适合周报、活动复盘、项目跟进和商户沟通。',
+    placeholder: '例如：根据本周活动报名、到场、反馈和问题，整理一份运营复盘，突出亮点和下周改进项。',
+    promptPrefix: '请把下面的信息整理成运营总结，输出亮点、问题、原因和下一步建议。',
+    tags: ['复盘总结', '重点提炼', '下一步建议']
+  },
+  {
+    id: 'data-cleanup',
+    categoryId: 'data',
+    title: '数据整理模板',
+    summary: '把杂乱信息整理成结构化清单或分类结果。',
+    scenario: '适合报名名单、资源清单、服务汇总和事项拆分。',
+    placeholder: '例如：把 30 条报名信息整理成分组名单，并标出需要电话确认的人。',
+    promptPrefix: '请把下面的信息整理成结构化清单，并给出适合继续处理的分类方式。',
+    tags: ['结构化清单', '分类整理', '后续跟进']
+  }
+];
+
+const playbookHighlights: PlaybookHighlight[] = [
+  {
+    id: 'highlight-campaign',
+    label: '热门玩法',
+    title: '活动策划先定流程再补细节',
+    summary: '先把目标、节点和分工跑通，再让 AI 填充执行清单，效率更高。',
+    actionLabel: '使用活动模板',
+    templateId: 'campaign-plan'
+  },
+  {
+    id: 'highlight-copy',
+    label: '高频场景',
+    title: '商品发布先写清成色和交付方式',
+    summary: '把成色、使用次数、取货方式写明确，文案可信度会更高。',
+    actionLabel: '使用商品文案',
+    templateId: 'product-copy'
+  },
+  {
+    id: 'highlight-ops',
+    label: '常用建议',
+    title: '复盘类任务先列事实，再补结论',
+    summary: '先输入客观数据和反馈，AI 更容易输出有层次的总结。',
+    actionLabel: '使用运营总结',
+    templateId: 'ops-summary'
+  }
+];
+
+const quickActions: QuickAction[] = [
+  { id: 'publish', label: '发布资源', routeName: 'AddProduct' },
+  { id: 'orders', label: '我的订单', routeName: 'MyOrder' },
+  { id: 'inventory', label: '我的商品', routeName: 'MyProducts' }
+];
+
+const heroMetrics: HeroMetric[] = [
+  { id: 'templates', label: '模板库', value: '5 个高频模板', helper: '覆盖文案、活动、运营和整理任务' },
+  { id: 'route', label: '工作路径', value: '模板 -> 输入 -> 生成', helper: '流程对齐首页“先行动再扩展”逻辑' }
+];
+
+const toneOptions = [
+  { value: 'professional', label: '专业稳重' },
+  { value: 'friendly', label: '亲和自然' },
+  { value: 'concise', label: '简洁直接' }
+] as const;
+
+const formatOptions = [
+  { value: 'plan', label: '结构化方案' },
+  { value: 'copy', label: '直接文案' },
+  { value: 'steps', label: '执行步骤' }
+] as const;
+
+const lengthOptions = [
+  { value: 'short', label: '简版' },
+  { value: 'standard', label: '标准' },
+  { value: 'long', label: '详细' }
+] as const;
+
+const nearbyOptions = [1, 3, 5] as const;
+const FALLBACK_ITEM = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220"><rect width="100%" height="100%" fill="%23f3f5f7"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%238894a0" font-size="16">暂无图片</text></svg>';
+const FALLBACK_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36"><circle cx="18" cy="18" r="18" fill="%23e2e8f0"/><text x="18" y="23" text-anchor="middle" fill="%23576774" font-size="14" font-family="Arial">U</text></svg>';
+
+const products = ref<Product[]>([]);
 const loading = ref(false);
 const errorMsg = ref('');
-const keyword = ref(String(route.query.keyword ?? ''));
-const showToolbar = ref(false);
-const userLat = ref(null);
-const userLng = ref(null);
-const nearbyRadius = ref(null);
+const marketKeyword = ref(String(route.query.keyword ?? ''));
+const userLat = ref<number | null>(null);
+const userLng = ref<number | null>(null);
+const nearbyRadius = ref<number | null>(3);
 const addr = ref('');
-const AMAP_KEY = ((import.meta as any)?.env?.VITE_AMAP_KEY ?? (window as any)?.VITE_AMAP_KEY ?? '');
-const chatWindowRef = ref(null);
 
-// --- Chat Logic ---
+const selectedCategoryId = ref(templateCategories[0].id);
+const selectedTemplateId = ref(templateCards[0].id);
+const taskInput = ref(templateCards[0].placeholder);
+const outputTone = ref<string>(toneOptions[0].value);
+const outputFormat = ref<string>(formatOptions[0].value);
+const outputLength = ref<string>(lengthOptions[0].value);
+const taskInputRef = ref<HTMLTextAreaElement | null>(null);
+const chatWindowRef = ref<HTMLDivElement | null>(null);
+const chatInputRef = ref<HTMLInputElement | null>(null);
 const agentInput = ref('');
+const isWorkbenchDrawerOpen = ref(false);
+
 const agentLoading = ref(false);
 const agentError = ref('');
-const agentMessages = ref([
+const agentSessionId = ref(sessionStorage.getItem(AGENT_SESSION_STORAGE_KEY) || '');
+const agentMessages = ref<AgentMessage[]>([
   {
     id: 'welcome',
     sender: 'agent',
-    text: '你好，我是社区助手。我可以帮你快速发布商品，或者帮你寻找附近的宝贝，请直接告诉我你的需求~',
+    text: 'Hello, I am your community marketplace assistant. Ask me anything and I will call the backend to help.',
     time: formatChatTime()
   }
 ]);
-const AGENT_CHAT_API = `${API_BASE}/api/agent/chat`;
+const visibleTemplates = computed(() =>
+  templateCards.filter((template) => template.categoryId === selectedCategoryId.value)
+);
 
-function scrollToBottom() {
+const activeTemplate = computed<TemplateCard>(() => {
+  return templateCards.find((template) => template.id === selectedTemplateId.value) ?? templateCards[0];
+});
+
+const templateShowcase = computed(() => templateCards.slice(0, 4));
+const featuredProducts = computed(() => products.value.slice(0, 6));
+
+const latestUserMessage = computed(() => {
+  return [...agentMessages.value].reverse().find((message) => message.sender === 'user') ?? null;
+});
+
+const latestAgentMessage = computed(() => {
+  return [...agentMessages.value].reverse().find((message) => message.sender === 'agent') ?? null;
+});
+
+const latestUserPreview = computed(() => {
+  return latestUserMessage.value ? summarizeText(latestUserMessage.value.preview ?? latestUserMessage.value.text, 54) : '';
+});
+
+const latestAgentReply = computed(() => latestAgentMessage.value?.text ?? '');
+const latestAgentReplyPreview = computed(() => summarizeText(latestAgentReply.value, 120));
+const latestAgentTime = computed(() => latestAgentMessage.value?.time ?? '刚刚');
+
+const overviewCards = computed<OverviewCard[]>(() => [
+  {
+    id: 'recent-task',
+    label: '最近任务',
+    value: latestUserPreview.value || '暂无任务',
+    helper: latestUserPreview.value ? '可以继续补充输入或直接再次生成。' : '先从上方选择模板开始。'
+  },
+  {
+    id: 'processing',
+    label: '当前状态',
+    value: agentLoading.value ? 'AI 生成中' : '等待发起',
+    helper: agentLoading.value ? '生成完成后会显示最近结果摘要。' : '模板和参数都可以随时切换。'
+  },
+  {
+    id: 'recent-result',
+    label: '最近结果',
+    value: latestAgentReplyPreview.value || '暂无结果',
+    helper: latestAgentReplyPreview.value ? '结果已保留在当前会话里，可继续追问。' : '生成完成后这里会展示摘要。'
+  }
+]);
+
+watch(selectedCategoryId, (categoryId) => {
+  const categoryTemplates = templateCards.filter((template) => template.categoryId === categoryId);
+  if (!categoryTemplates.length) {
+    return;
+  }
+
+  const stillVisible = categoryTemplates.some((template) => template.id === selectedTemplateId.value);
+  if (!stillVisible) {
+    selectedTemplateId.value = categoryTemplates[0].id;
+    taskInput.value = categoryTemplates[0].placeholder;
+  }
+}, { immediate: true });
+
+watch(
+  () => route.query.keyword,
+  (keyword) => {
+    marketKeyword.value = String(keyword ?? '');
+  }
+);
+
+watch(() => route.query, fetchProducts, { deep: true });
+
+function scrollChatToBottom() {
   nextTick(() => {
-    if (chatWindowRef.value) {
-      chatWindowRef.value.scrollTop = chatWindowRef.value.scrollHeight;
+    if (!chatWindowRef.value) {
+      return;
     }
+    chatWindowRef.value.scrollTop = chatWindowRef.value.scrollHeight;
   });
 }
 
-const sendAgentMessage = async () => {
-  const text = agentInput.value.trim();
-  if (!text || agentLoading.value) return;
+function focusChatInput() {
+  nextTick(() => {
+    chatInputRef.value?.focus();
+  });
+}
 
+function continueLatestTask() {
+  openWorkbenchDrawer();
+  if (latestUserMessage.value?.preview) {
+    agentInput.value = latestUserMessage.value.preview;
+  }
+  focusChatInput();
+}
+
+function openWorkbenchDrawer() {
+  isWorkbenchDrawerOpen.value = true;
+  focusChatInput();
+  scrollChatToBottom();
+}
+
+function closeWorkbenchDrawer() {
+  isWorkbenchDrawerOpen.value = false;
+}
+
+function toggleWorkbenchDrawer() {
+  if (isWorkbenchDrawerOpen.value) {
+    closeWorkbenchDrawer();
+    return;
+  }
+
+  openWorkbenchDrawer();
+}
+
+async function submitDialogMessage() {
+  const text = agentInput.value.trim();
+  if (!text || agentLoading.value) {
+    return;
+  }
+
+  agentError.value = '';
   const now = new Date();
   agentMessages.value.push({
-    id: `${now.getTime()}`,
+    id: `${now.getTime()}-user`,
     sender: 'user',
     text,
+    preview: text,
     time: formatChatTime(now)
   });
   agentInput.value = '';
-  scrollToBottom();
+  scrollChatToBottom();
 
-  const agentRequest = {
-    messages: agentMessages.value
-      .filter(msg => msg.id !== 'welcome')
-      .map(msg => ({
-        role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: msg.text
-      }))
-  };
+  await sendAgentMessage();
+}
 
+async function sendAgentMessage() {
   agentLoading.value = true;
-  
+
   try {
     const token = localStorage.getItem('token') || '';
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = token;
+    if (token) {
+      headers.Authorization = token;
+    }
+
+    const agentRequest = {
+      messages: agentMessages.value
+        .filter((message) => message.id !== 'welcome')
+        .map((message) => ({
+          role: message.sender === 'user' ? 'user' : 'assistant',
+          content: message.text
+        })),
+      sessionId: agentSessionId.value || undefined,
+      userProfile: {
+        latitude: userLat.value ?? undefined,
+        longitude: userLng.value ?? undefined,
+        nearbyRadiusKm: nearbyRadius.value ?? undefined,
+        address: addr.value?.trim() || undefined
+      }
+    };
 
     const response = await fetch(AGENT_CHAT_API, {
       method: 'POST',
       headers,
       body: JSON.stringify(agentRequest)
     });
-    
-    let result = null;
-    try { result = await response.json(); } catch(_) { result = null; }
 
-    if (!response.ok || !result || result.code !== 200) {
-      throw new Error(result?.message || '服务响应异常');
+    let result: any = null;
+    try {
+      result = await response.json();
+    } catch {
+      result = null;
     }
 
-    const reply = result?.data?.reply?.trim() || '收到';
+    if (!response.ok || !result || result.code !== 200) {
+      throw new Error(result?.message || 'Service returned an unexpected response');
+    }
+
+    const finalAnswer = (result?.data?.finalAnswer ?? null) as AgentFinalAnswer | null;
+    const reply = result?.data?.reply?.trim() || finalAnswer?.answerText?.trim() || 'Received. Please provide more details if needed.';
+    const returnedSessionId = result?.data?.sessionId?.trim?.() || '';
+    if (returnedSessionId) {
+      agentSessionId.value = returnedSessionId;
+      sessionStorage.setItem(AGENT_SESSION_STORAGE_KEY, returnedSessionId);
+    }
+
     agentMessages.value.push({
-      id: `${Date.now()}`,
+      id: `${Date.now()}-agent`,
       sender: 'agent',
       text: reply,
-      time: formatChatTime()
+      preview: finalAnswer?.summary?.trim?.() || reply,
+      time: formatChatTime(),
+      cards: Array.isArray(finalAnswer?.cards) ? finalAnswer.cards : [],
+      answerType: finalAnswer?.answerType
     });
-
+    scrollChatToBottom();
   } catch (error: any) {
-    agentError.value = error.message || '网络错误';
-    setTimeout(() => { agentError.value = '' }, 3000);
+    agentError.value = error?.message || 'Network error. Please try again.';
+    setTimeout(() => {
+      agentError.value = '';
+    }, 3000);
   } finally {
     agentLoading.value = false;
-    scrollToBottom();
   }
-};
+}
 
-// --- Data Logic ---
-const FALLBACK_ITEM = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="100%" height="100%" fill="%23f4f5f7"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23999">暂无图片</text></svg>';
-const FALLBACK_AVATAR = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="12" fill="%23e0e0e0"/><text x="12" y="16" text-anchor="middle" fill="%23666" font-size="12" font-family="Arial">U</text></svg>';
+function summarizeText(text: string, maxLength = 60) {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return '';
+  }
 
-function getFirstImage(product) {
-  const imgs = product?.image_urls ?? product?.imageUrls;
-  if (!imgs) return FALLBACK_ITEM;
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
+}
+
+function formatChatTime(date = new Date()) {
+  return date.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function formatPrice(price: number | string) {
+  const amount = Number(price);
+  return Number.isFinite(amount) ? amount.toFixed(2) : '--';
+}
+
+function handleImageError(event: Event, fallback: string) {
+  const target = event.target as HTMLImageElement | null;
+  if (target) {
+    target.src = fallback;
+  }
+}
+function unwrapList(data: unknown): Product[] {
+  if (Array.isArray(data)) {
+    return data as Product[];
+  }
+
+  if (data && typeof data === 'object') {
+    const record = data as Record<string, unknown>;
+    for (const key of ['items', 'list', 'data', 'records', 'rows']) {
+      if (Array.isArray(record[key])) {
+        return record[key] as Product[];
+      }
+    }
+  }
+
+  return [];
+}
+
+function getFirstImage(product: Product) {
+  const imgs = product.image_urls ?? product.imageUrls;
+  if (!imgs) {
+    return FALLBACK_ITEM;
+  }
+
   let path = '';
-  if (Array.isArray(imgs)) path = imgs[0] || '';
-  else if (typeof imgs === 'string') {
+  if (Array.isArray(imgs)) {
+    path = imgs[0] || '';
+  } else if (typeof imgs === 'string') {
     const sanitized = imgs.trim().replace(/`/g, '');
     if (sanitized.startsWith('[')) {
       try {
         const parsed = JSON.parse(sanitized);
-        if (Array.isArray(parsed) && parsed.length > 0) path = parsed[0];
-      } catch (_) {
-        const m = sanitized.match(/(https?:\/\/[^"'\]\s]+|\/[\w\-\/\.]+)/);
-        if (m) path = m[1];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          path = parsed[0];
+        }
+      } catch {
+        const match = sanitized.match(/(https?:\/\/[^"'\]\s]+|\/[\w\-/.]+)/);
+        if (match) {
+          path = match[1];
+        }
       }
-    } else path = sanitized;
-  }
-  if (!path) return FALLBACK_ITEM;
-  if (path.startsWith('/')) return `${API_BASE}${path}`;
-  return path;
-}
-
-function getSellerAvatar(product) {
-  const avatar = product?.seller_avatar ?? product?.sellerAvatar;
-  if (!avatar) return FALLBACK_AVATAR;
-  if (avatar.startsWith('/')) return `${API_BASE}${avatar}`;
-  return avatar;
-}
-
-function unwrapList(data) {
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === 'object') {
-    for (const key of ['items', 'list', 'data', 'records', 'rows']) {
-      if (Array.isArray(data[key])) return data[key];
+    } else {
+      path = sanitized;
     }
   }
-  return [];
+
+  if (!path) {
+    return FALLBACK_ITEM;
+  }
+
+  return path.startsWith('/') ? `${API_BASE}${path}` : path;
 }
 
-function isDown(product) {
-  const rawStatus = (product.status ?? product['status']);
-  const stock = Number(product.stock_quantity ?? product.stockQuantity ?? 0);
-  let downByStatus = false;
-  if (rawStatus != null) {
-    const s = String(rawStatus).trim();
-    if (['下架', '已下架', 'inactive', '2'].includes(s)) downByStatus = true;
+function getSellerAvatar(product: Product) {
+  const avatar = product.seller_avatar ?? product.sellerAvatar;
+  if (!avatar) {
+    return FALLBACK_AVATAR;
   }
+
+  return avatar.startsWith('/') ? `${API_BASE}${avatar}` : avatar;
+}
+
+function formatSellerId(id?: number | string) {
+  if (id == null) {
+    return '社区用户';
+  }
+
+  const text = String(id);
+  return text.length > 8 ? `${text.slice(0, 8)}...` : text;
+}
+
+function formatLocation(location?: string) {
+  return location || '同城';
+}
+
+function formatDistance(distance: number | string) {
+  const value = Number(distance);
+  if (!Number.isFinite(value)) {
+    return '';
+  }
+
+  return value < 1 ? `${Math.round(value * 1000)}m` : `${value.toFixed(1)}km`;
+}
+
+function isDown(product: Product) {
+  const rawStatus = product.status;
+  const stock = Number(product.stock_quantity ?? product.stockQuantity ?? 0);
+  const status = rawStatus == null ? '' : String(rawStatus).trim().toLowerCase();
+  const downByStatus = ['下架', '已下架', 'inactive', '2'].includes(status);
   return downByStatus || stock <= 0;
+}
+
+function goToMarketSearch() {
+  router.push({
+    name: 'CommunityMarketplaceFind',
+    query: {
+      ...route.query,
+      keyword: marketKeyword.value || undefined,
+      page: '1'
+    }
+  });
+}
+
+function navigateToDetail(product: Product) {
+  openProductDetailById(product.id);
+}
+
+function openProductDetailById(productId: string | number | null | undefined) {
+  if (productId == null || productId === '') {
+    return;
+  }
+  const query: Record<string, string> = {};
+  if (userLat.value != null && userLng.value != null) {
+    query.lat = String(userLat.value);
+    query.lng = String(userLng.value);
+  }
+
+  const url = router.resolve({
+    name: 'ProductDetail',
+    params: { id: productId },
+    query
+  }).href;
+
+  window.open(url, '_blank');
+}
+
+function canOpenAgentCard(card: AgentEntityCard) {
+  return card.entityType === 'product' && !!card.entityId;
+}
+
+function handleAgentCardClick(card: AgentEntityCard) {
+  if (!canOpenAgentCard(card)) {
+    return;
+  }
+  openProductDetailById(card.entityId);
+}
+
+function handleGlobalKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && isWorkbenchDrawerOpen.value) {
+    closeWorkbenchDrawer();
+  }
 }
 
 async function fetchProducts() {
   loading.value = true;
   errorMsg.value = '';
+
   try {
     const params = new URLSearchParams();
-    const keys = ['keyword','categoryId','subCategoryId','brand','priceMin','priceMax','minRating','sort','order'];
-    keys.forEach(k => { if(route.query[k]) params.set(k, String(route.query[k])); });
-    if (!params.has('page')) params.set('page', '1');
-    if (!params.has('size')) params.set('size', '20'); 
+    const keys = ['keyword', 'categoryId', 'subCategoryId', 'brand', 'priceMin', 'priceMax', 'minRating', 'sort', 'order'];
+    keys.forEach((key) => {
+      const value = route.query[key];
+      if (value) {
+        params.set(key, String(value));
+      }
+    });
 
-    let res;
+    if (marketKeyword.value && !params.has('keyword')) {
+      params.set('keyword', marketKeyword.value);
+    }
+
+    params.set('page', params.get('page') || '1');
+    params.set('size', params.get('size') || '12');
+
+    let response: Response;
     if (nearbyRadius.value && userLat.value != null && userLng.value != null) {
       params.set('lat', String(userLat.value));
       params.set('lng', String(userLng.value));
       params.set('radiusKm', String(nearbyRadius.value));
-      params.set('limit', '20');
-      res = await fetch(`${API_BASE}/api/products/nearby?${params.toString()}`);
+      params.set('limit', '12');
+      response = await fetch(`${API_BASE}/api/products/nearby?${params.toString()}`);
     } else {
-      res = await fetch(`${API_BASE}/api/products/getProducts?${params.toString()}`);
+      response = await fetch(`${API_BASE}/api/products/getProducts?${params.toString()}`);
     }
 
-    let list = [];
-    if (res.ok) {
-      const data = await res.json();
-      list = Array.isArray(data) ? data : unwrapList(data);
+    let list: Product[] = [];
+    if (response.ok) {
+      const data = await response.json();
+      list = unwrapList(data);
     } else {
-      const resAll = await fetch(`${API_BASE}/api/products/getAllProducts`);
-      if (resAll.ok) {
-        const allData = await resAll.json();
-        list = unwrapList(allData).slice(0, 20);
+      const fallbackResponse = await fetch(`${API_BASE}/api/products/getAllProducts`);
+      if (fallbackResponse.ok) {
+        list = unwrapList(await fallbackResponse.json()).slice(0, 12);
       }
     }
+
     products.value = list;
-  } catch (e) {
-    errorMsg.value = '无法加载商品数据';
+  } catch {
+    errorMsg.value = '无法加载资源内容，请稍后重试';
   } finally {
     loading.value = false;
   }
 }
 
-function doSearch() {
-  const q = { ...route.query, keyword: keyword.value || undefined, page: '1' };
-  router.push({ name: 'CommunityMarketplaceFind', query: q });
-}
-function searchTag(tag: string) {
-  keyword.value = tag;
-  doSearch();
-}
-
-function navigateToDetail(product) {
-  const q = {} as any;
-  if (userLat.value) { q.lat = userLat.value; q.lng = userLng.value; }
-  const url = router.resolve({ name: 'ProductDetail', params: { id: product.id }, query: q }).href;
-  window.open(url, '_blank');
+async function toggleNearby(radius: number) {
+  nearbyRadius.value = radius;
+  if (userLat.value == null || userLng.value == null) {
+    await locateByAddress();
+  }
+  await fetchProducts();
 }
 
-function formatDistance(d) {
-  const n = Number(d);
-  return Number.isFinite(n) ? (n < 1 ? `${Math.round(n*1000)}m` : `${n.toFixed(1)}km`) : '';
+async function clearNearby() {
+  nearbyRadius.value = null;
+  await fetchProducts();
 }
-function formatChatTime(d = new Date()) { return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); }
-function formatSellerId(id) { return id ? (id.length > 6 ? id.substring(0,6)+'...' : id) : '卖家'; }
-function formatLocation(loc) { return loc || '同城'; }
-
-async function toggleNearby(r) {
-  nearbyRadius.value = r;
-  if (!userLat.value) await locateByAddress();
-  fetchProducts();
-}
-function clearNearby() { nearbyRadius.value = null; fetchProducts(); }
 
 async function locateByAddress() {
   if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-      userLat.value = pos.coords.latitude;
-      userLng.value = pos.coords.longitude;
-      if (!nearbyRadius.value) nearbyRadius.value = 3;
-      fetchProducts();
-    }, () => {
-      if (addr.value && AMAP_KEY) {
-         fetch(`https://restapi.amap.com/v3/geocode/geo?key=${AMAP_KEY}&address=${encodeURIComponent(addr.value)}`)
-           .then(r=>r.json()).then(j=>{
-             const loc = j.geocodes?.[0]?.location?.split(',');
-             if(loc){ userLng.value=parseFloat(loc[0]); userLat.value=parseFloat(loc[1]); fetchProducts(); }
-           });
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        userLat.value = position.coords.latitude;
+        userLng.value = position.coords.longitude;
+        if (!nearbyRadius.value) {
+          nearbyRadius.value = 3;
+        }
+        fetchProducts();
+      },
+      async () => {
+        if (addr.value && AMAP_KEY) {
+          try {
+            const response = await fetch(
+              `https://restapi.amap.com/v3/geocode/geo?key=${AMAP_KEY}&address=${encodeURIComponent(addr.value)}`
+            );
+            const data = await response.json();
+            const location = data.geocodes?.[0]?.location?.split(',');
+            if (location) {
+              userLng.value = parseFloat(location[0]);
+              userLat.value = parseFloat(location[1]);
+              await fetchProducts();
+            }
+          } catch {
+            errorMsg.value = '定位失败，请检查地址后重试';
+          }
+        }
       }
-    });
+    );
   }
 }
 
 onMounted(() => {
-  nearbyRadius.value = 3;
-  locateByAddress();
   fetchProducts();
+  locateByAddress();
+  window.addEventListener('keydown', handleGlobalKeydown);
 });
-watch(() => route.query, fetchProducts, { deep: true });
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown);
+});
 </script>
 
 <style scoped>
-:root {
-  --primary: #ff7043;
-  --primary-dark: #e64a19;
-  --bg-page: #eff2f5;
-  --bg-card: #ffffff;
-  --text-main: #2c3e50;
-  --text-light: #95a5a6;
-  --border-color: #e6e8eb;
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
-}
-
 .nd-page {
-  background-color: var(--bg-page);
+  --page-bg: #0a1016;
+  --page-bg-soft: #121b26;
+  --panel-bg: rgba(18, 27, 38, 0.9);
+  --panel-bg-elevated: rgba(23, 34, 48, 0.96);
+  --panel-border: rgba(255, 255, 255, 0.14);
+  --panel-border-strong: rgba(255, 255, 255, 0.26);
+  --text-main: #ecf2f9;
+  --text-secondary: #b9c5d4;
+  --text-muted: #8f9fb2;
+  --brand-green: #1aa053;
+  --accent: #ff7043;
+  --accent-soft: rgba(255, 112, 67, 0.18);
+  --accent-border: rgba(255, 112, 67, 0.55);
+  --success-soft: rgba(26, 160, 83, 0.15);
+  --danger-soft: rgba(255, 112, 112, 0.16);
+  --surface-soft: rgba(255, 255, 255, 0.05);
+  --shadow-soft: 0 16px 30px rgba(0, 0, 0, 0.34);
+
   min-height: 100vh;
-  font-family: "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  background: var(--page-bg);
   color: var(--text-main);
+  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
-/* Removed full width hero .market-hero styles */
-
-.page-container {
-  margin: 20px auto 40px;
-  max-width: 1300px;
-  padding: 0 24px;
-  padding-top: 60px; /* Ensure space below fixed nav */
+.page-shell {
+  min-height: 100vh;
 }
 
-.market-layout {
-  display: flex;
-  gap: 24px;
-  align-items: flex-start;
-}
-
-/* --- Sidebar --- */
-.sidebar-wrapper {
-  flex: 0 0 340px;
-  position: sticky;
-  top: 90px;
-  height: fit-content;
-  z-index: 10;
-}
-
-.sidebar-wrapper::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 24px;
-  background: linear-gradient(180deg, #fff, #fff7f2);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.08);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.sidebar-sticky {
-  position: relative;
+.page-main {
+  width: min(1320px, calc(100vw - 110px));
+  margin: 0 auto;
+  padding: 88px 24px 54px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 24px;
-  z-index: 1;
 }
 
-/* Agent Chat Card */
-.agent-chat-card {
-  height: 520px;
+.workbench-fab {
+  position: fixed;
+  right: 92px;
+  bottom: 28px;
+  z-index: 1302;
+}
+
+.workbench-drawer-mask {
+  position: fixed;
+  inset: 70px 0 0;
+  background: rgba(4, 7, 10, 0.54);
+  z-index: 1300;
+}
+
+.drawer-fade-enter-active,
+.drawer-fade-leave-active {
+  transition: opacity 0.24s ease;
+}
+
+.drawer-fade-enter-from,
+.drawer-fade-leave-to {
+  opacity: 0;
+}
+
+.workbench-drawer {
+  position: fixed;
+  top: 70px;
+  right: 0;
+  height: calc(100vh - 70px);
+  width: min(920px, calc(100vw - 120px));
+  border-left: 1px solid var(--panel-border-strong);
+  background: rgba(13, 21, 30, 0.98);
+  box-shadow: -14px 0 30px rgba(0, 0, 0, 0.42);
+  transform: translateX(103%);
+  transition: transform 0.26s ease;
+  z-index: 1301;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-radius: 16px;
-  border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
 }
 
-.chat-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; background: #fff; }
-.header-left { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.header-left h3 { margin: 0; font-size: 16px; font-weight: 700; color: #333; }
-.status-tag { font-size: 12px; color: #00c853; background: #e8f5e9; padding: 2px 8px; border-radius: 10px; }
-.subtitle { margin: 0; font-size: 12px; color: #999; }
-.chat-window { flex: 1; background: #f9fafb; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; }
-.chat-messages { display: flex; flex-direction: column; gap: 16px; }
-.chat-row { display: flex; flex-direction: column; max-width: 85%; }
-.chat-row.agent { align-self: flex-start; align-items: flex-start; }
-.chat-row.user { align-self: flex-end; align-items: flex-end; }
-.chat-bubble { padding: 12px 16px; border-radius: 14px; font-size: 14px; line-height: 1.5; position: relative; word-wrap: break-word; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-.agent .chat-bubble { background: #ffffff; color: #333; border: 1px solid #e6e8eb; border-top-left-radius: 2px; }
-.user .chat-bubble { background: linear-gradient(135deg, #ff7043, #ff5722); color: #ffffff; border-top-right-radius: 2px; box-shadow: 0 4px 10px rgba(255, 87, 34, 0.2); }
-.chat-time { font-size: 11px; color: #bdc3c7; margin-top: 4px; padding: 0 4px; }
-.chat-empty { text-align: center; color: #999; margin-top: 40px; font-size: 13px; }
-.chat-input-area { padding: 12px 16px; background: #fff; border-top: 1px solid #f0f0f0; display: flex; gap: 10px; }
-.chat-input-area input { flex: 1; background: #f5f6fa; border: 1px solid transparent; border-radius: 20px; padding: 10px 16px; font-size: 14px; outline: none; transition: all 0.2s; }
-.chat-input-area input:focus { background: #f1f1f1; border-color: var(--primary); }
-.send-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--primary); color: #fff; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s; box-shadow: 0 10px 20px rgba(255, 112, 67, 0.35); }
-.send-btn .send-icon { width: 18px; height: 18px; display: block; }
-.send-btn:hover:not(:disabled) { transform: scale(1.05); }
-.send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.loading .dot { display: inline-block; width: 6px; height: 6px; background: #ccc; border-radius: 50%; margin: 0 2px; animation: bounce 1.4s infinite ease-in-out; }
-.loading .dot:nth-child(1) { animation-delay: -0.32s; }
-.loading .dot:nth-child(2) { animation-delay: -0.16s; }
-@keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
-.chat-error { color: #e74c3c; text-align: center; font-size: 12px; padding: 4px; }
-
-/* --- Main Content --- */
-.main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  width: 0;
+.workbench-drawer.open {
+  transform: translateX(0);
 }
 
-/* --- Option B: Content Header --- */
-.content-header {
-  position: relative;
-  height: 220px;
-  border-radius: 20px;
-  overflow: hidden;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+.drawer-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: 0 40px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--panel-border);
+  background: rgba(10, 16, 24, 0.96);
 }
 
-.header-bg {
+.drawer-header h3 {
+  margin: 8px 0 0;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.drawer-chat-card {
+  height: 100%;
+  min-height: calc(100vh - 180px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-left h4 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-main);
+}
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: var(--success-soft);
+  color: #8be0af;
+  font-size: 12px;
+}
+
+.chat-subtitle {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.chat-window {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+}
+
+.chat-empty {
+  border: 1px dashed var(--panel-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  padding: 20px 14px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 86%;
+}
+
+.chat-row.user {
+  margin-left: auto;
+  align-items: flex-end;
+}
+
+.chat-row.agent {
+  margin-right: auto;
+  align-items: flex-start;
+}
+
+.chat-bubble {
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat-row.user .chat-bubble {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.chat-time {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chat-card-list {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.chat-result-card {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.chat-result-card.clickable {
+  cursor: pointer;
+}
+
+.chat-result-card.clickable:hover {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 1px rgba(255, 112, 67, 0.18);
+}
+
+.chat-result-card-media {
+  width: 88px;
+  height: 88px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.chat-result-card-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.chat-result-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chat-result-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chat-result-card-head h5 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--text-main);
+}
+
+.chat-result-price {
+  flex-shrink: 0;
+  color: #ffc5b1;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.chat-result-subtitle,
+.chat-result-reason,
+.chat-result-meta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.chat-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chat-result-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chat-result-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: #ffc7b4;
+  font-size: 12px;
+}
+
+.chat-result-highlights {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.chat-bubble.loading {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  animation: typingPulse 1s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typingPulse {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.72);
+    opacity: 0.45;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.chat-error {
+  margin: 0 16px 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 112, 112, 0.45);
+  background: var(--danger-soft);
+  color: #ffc9c9;
+  font-size: 13px;
+}
+
+.chat-input-area {
+  border-top: 1px solid var(--panel-border);
+  padding: 12px 16px 14px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.chat-input-area input {
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.chat-input-area input::placeholder {
+  color: var(--text-muted);
+}
+
+.page-hero {
+  position: relative;
+  min-height: 286px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-soft);
+}
+
+.hero-bg {
   position: absolute;
   inset: 0;
-  z-index: 0;
-}
-.header-bg img { width: 100%; height: 100%; object-fit: cover; }
-.header-overlay {
-  position: absolute; inset: 0;
-  background: linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0.4) 100%);
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.header-content {
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 12, 18, 0.68);
+}
+
+.hero-inner {
   position: relative;
   z-index: 1;
-  width: 100%;
-  max-width: 600px;
+  min-height: 286px;
+  padding: 24px 28px;
+  display: grid;
+  grid-template-columns: 1.2fr 0.86fr;
+  gap: 22px;
+  align-items: end;
 }
 
-.text-group h2 {
-  font-size: 28px;
-  color: #333;
-  margin: 0 0 4px 0;
-  font-weight: 800;
+.hero-copy h1 {
+  margin: 10px 0 0;
+  font-size: 40px;
+  line-height: 1.14;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
 }
-.text-group p {
-  color: #666;
-  margin: 0 0 20px 0;
+
+.hero-kicker {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.hero-description {
+  margin: 14px 0 0;
+  max-width: 720px;
   font-size: 16px;
+  line-height: 1.65;
+  color: rgba(236, 242, 249, 0.9);
 }
 
-.hero-search-box {
+.hero-meta {
+  margin-top: 20px;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hero-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hero-side {
+  display: grid;
   gap: 10px;
 }
 
-.search-wrapper {
+.hero-metric {
   display: flex;
-  align-items: center;
-  background: #fff;
-  border: 2px solid var(--primary);
-  border-radius: 30px;
-  padding: 4px 4px 4px 20px;
-  box-shadow: 0 6px 16px rgba(255, 112, 67, 0.15);
-  transition: transform 0.2s;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(10, 16, 22, 0.6);
 }
-.search-wrapper:focus-within { transform: scale(1.02); }
 
-.search-icon { width: 20px; height: 20px; color: #999; margin-right: 10px; }
+.metric-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 7px;
+  background: var(--brand-green);
+  flex-shrink: 0;
+}
 
-.search-wrapper input {
-  flex: 1;
-  border: none;
-  outline: none;
+.hero-metric p,
+.hero-metric strong,
+.hero-metric small {
+  display: block;
+}
+
+.hero-metric p {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(236, 242, 249, 0.82);
+}
+
+.hero-metric strong {
+  margin-top: 3px;
   font-size: 15px;
-  color: #333;
+  line-height: 1.4;
+  color: #fff;
 }
 
-.search-btn {
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 24px;
-  padding: 10px 24px;
+.hero-metric small {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(236, 242, 249, 0.74);
+}
+
+.card-panel {
+  background: var(--panel-bg-elevated);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(6px);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand-green);
+}
+
+.section-top h2,
+.composer-header h2,
+.section-heading h2 {
+  margin: 10px 0 0;
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.section-subtitle,
+.composer-description,
+.note-card p,
+.showcase-card p,
+.quick-hint p,
+.overview-helper {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.meta-pill,
+.info-tag,
+.radius-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(236, 242, 249, 0.9);
+  font-size: 13px;
+}
+
+.composer-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.primary-btn,
+.ghost-btn,
+.text-btn,
+.quick-action,
+.category-chip,
+.template-card,
+.workbench-select,
+.task-input,
+.search-control input,
+.location-input input {
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.primary-btn,
+.ghost-btn,
+.text-btn,
+.quick-action,
+.category-chip,
+.radius-btn {
+  cursor: pointer;
+}
+
+.primary-btn,
+.ghost-btn,
+.quick-action {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
 }
-.search-btn:hover { background: var(--primary-dark); }
 
-.hot-tags {
-  font-size: 13px;
-  color: #888;
+.primary-btn {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #16120f;
+}
+
+.primary-btn:hover:not(:disabled) {
+  background: #ff885f;
+  border-color: #ff885f;
+}
+
+.primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ghost-btn,
+.quick-action,
+.category-chip,
+.radius-btn,
+.workbench-select,
+.search-control input,
+.location-input input,
+.task-input,
+.template-card,
+.note-card,
+.showcase-card,
+.market-card {
+  border: 1px solid var(--panel-border);
+  background: var(--surface-soft);
+}
+
+.ghost-btn,
+.text-btn {
+  color: rgba(236, 242, 249, 0.94);
+}
+
+.ghost-btn:hover,
+.quick-action:hover,
+.category-chip:hover,
+.radius-btn:hover,
+.template-card:hover,
+.text-btn:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.ghost-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.text-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ai-workbench {
+  display: grid;
+  grid-template-columns: 0.96fr 1.34fr;
+  gap: 20px;
+  padding: 20px;
+}
+
+.template-column,
+.composer-column {
   display: flex;
-  gap: 10px;
-  padding-left: 10px;
+  flex-direction: column;
+  gap: 16px;
 }
-.hot-tags a { color: #555; cursor: pointer; text-decoration: underline; }
-.hot-tags a:hover { color: var(--primary); }
 
-
-/* Recommendations */
-.card-panel {
-  background: var(--bg-card);
-  border-radius: 16px;
-  border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-.recommendations { padding: 24px; min-height: 400px; }
-
-.filter-bar {
+.section-top,
+.section-heading,
+.composer-header {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  border-bottom: 1px solid #f0f0f0;
-  padding-bottom: 16px;
+  gap: 16px;
 }
 
-.tabs span { font-size: 18px; font-weight: 700; color: #333; position: relative; padding-bottom: 8px; cursor: pointer; }
-.tabs span.active::after { content: ''; position: absolute; bottom: -17px; left: 0; width: 100%; height: 3px; background: var(--primary); border-radius: 2px; }
+.template-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 
-.location-filters { display: flex; gap: 16px; align-items: center; }
-.radius-btn { background: #fff; border: 1px solid #e0e0e0; padding: 5px 12px; border-radius: 16px; font-size: 12px; color: #666; cursor: pointer; transition: all 0.2s; }
-.radius-btn.active { background: #fff5f2; border-color: var(--primary); color: var(--primary); font-weight: 600; }
-.location-input { position: relative; display: flex; align-items: center; }
-.location-input input { width: 180px; padding: 6px 32px 6px 12px; border: 1px solid #e0e0e0; border-radius: 16px; font-size: 12px; outline: none; transition: border-color 0.2s; }
-.location-input input:focus { border-color: var(--primary); }
-.locate-icon-btn { position: absolute; right: 4px; background: none; border: none; color: var(--primary); cursor: pointer; padding: 4px; }
+.category-chip {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: rgba(236, 242, 249, 0.86);
+}
 
-/* Item Grid */
-.item-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
-.item-card { background: #fff; border: 1px solid #f0f0f0; border-radius: 10px; overflow: hidden; cursor: pointer; transition: all 0.3s ease; position: relative; }
-.item-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); border-color: #ffe0b2; }
-.image-container { position: relative; padding-top: 85%; background: #f9f9f9; }
-.image-container img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
-.status-badge.down { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.6); color: #fff; font-size: 10px; padding: 2px 4px; border-radius: 4px; backdrop-filter: blur(2px); }
-.card-content { padding: 10px; }
-.item-title { font-size: 13px; font-weight: 500; color: #2c3e50; margin: 0 0 6px 0; line-height: 1.4; height: 36px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.price-row { color: #e64a19; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.price-value { display: flex; align-items: baseline; gap: 1px; }
-.currency { font-size: 11px; margin-right: 1px; }
-.amount { font-size: 16px; }
-.meta-row { display: flex; justify-content: flex-start; align-items: center; font-size: 10px; color: #95a5a6; }
-.seller-info { display: flex; align-items: center; gap: 4px; }
-.seller-info img { width: 16px; height: 16px; border-radius: 50%; object-fit: cover; border: 1px solid #eee; }
-.location-tag { display: flex; align-items: center; gap: 4px; }
-.location-tag .dist { color: var(--primary); background: #fff3e0; padding: 0 2px 0; border-radius: 4px; }
-.state-box { grid-column: 1 / -1; padding: 60px 0; text-align: center; color: #b0b0b0; }
-.spinner { width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid var(--primary); border-radius: 50%; animation: spin 1s infinite linear; margin: 0 auto 15px; }
-@keyframes spin { 100% { transform: rotate(360deg); } }
-.chat-error { color: #e74c3c; text-align: center; font-size: 12px; padding: 4px; }
+.category-chip.active,
+.radius-btn.active,
+.template-card.active,
+.info-tag.muted {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: #ffc2ad;
+}
 
-@media (max-width: 1200px) {
-  .floating-toolbar-container { display: none; }
+.template-list,
+.template-side-notes,
+.task-overview,
+.showcase-grid,
+.market-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 16px;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.template-head,
+.showcase-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.template-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border-strong);
+  background: rgba(255, 255, 255, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: rgba(236, 242, 249, 0.95);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.template-icon::before {
+  content: 'AI';
+}
+
+.template-icon.tiny {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 10px;
+}
+
+.template-icon.icon-copy {
+  border-color: rgba(26, 160, 83, 0.42);
+  background: rgba(26, 160, 83, 0.2);
+}
+.template-icon.icon-copy::before {
+  content: 'Aa';
+}
+
+.template-icon.icon-campaign {
+  border-color: rgba(255, 112, 67, 0.48);
+  background: rgba(255, 112, 67, 0.2);
+}
+.template-icon.icon-campaign::before {
+  content: '策';
+}
+
+.template-icon.icon-visual {
+  border-color: rgba(114, 184, 255, 0.48);
+  background: rgba(114, 184, 255, 0.18);
+}
+.template-icon.icon-visual::before {
+  content: '图';
+}
+
+.template-icon.icon-ops {
+  border-color: rgba(255, 198, 82, 0.48);
+  background: rgba(255, 198, 82, 0.2);
+}
+.template-icon.icon-ops::before {
+  content: '运';
+}
+
+.template-icon.icon-data {
+  border-color: rgba(191, 155, 255, 0.48);
+  background: rgba(191, 155, 255, 0.2);
+}
+.template-icon.icon-data::before {
+  content: '数';
+}
+
+.template-title,
+.note-card h3,
+.showcase-card h3,
+.market-card-head h3,
+.quick-panel h3 {
+  font-size: 16px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.template-summary,
+.template-scenario,
+.note-label,
+.card-kicker,
+.overview-label,
+.field-label span,
+.result-head span,
+.market-meta,
+.seller-row {
+  font-size: 13px;
+  color: rgba(236, 242, 249, 0.82);
+}
+
+.template-summary,
+.template-scenario {
+  line-height: 1.6;
+}
+
+.template-side-notes {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.note-card {
+  padding: 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.note-label,
+.card-kicker {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+}
+
+.note-card h3,
+.showcase-card h3,
+.quick-panel h3 {
+  margin: 0;
+}
+
+.tag-row,
+.showcase-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.info-tag {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: #ffc5b1;
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+
+.composer-column {
+  padding: 4px;
+}
+
+.task-input {
+  width: 100%;
+  min-height: 220px;
+  padding: 16px;
+  border-radius: 10px;
+  resize: vertical;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-main);
+  background: rgba(8, 13, 19, 0.5);
+  outline: none;
+}
+
+.task-input::placeholder,
+.search-control input::placeholder,
+.location-input input::placeholder {
+  color: rgba(236, 242, 249, 0.45);
+}
+
+.parameter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workbench-select,
+.search-control input,
+.location-input input {
+  min-height: 40px;
+  width: 100%;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-main);
+  background: rgba(8, 13, 19, 0.5);
+  outline: none;
+}
+
+.inline-panel {
+  min-height: 104px;
+}
+
+.inline-state {
+  min-height: 104px;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.result-state {
+  background: var(--success-soft);
+  border-color: rgba(26, 160, 83, 0.36);
+}
+.error-state {
+  background: var(--danger-soft);
+  border-color: rgba(255, 112, 112, 0.42);
+  color: #ffd7d7;
+}
+
+.result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-overview {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.overview-card {
+  padding: 18px;
+  position: relative;
+}
+
+.overview-value {
+  display: block;
+  margin-top: 10px;
+  font-size: 17px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.overview-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--brand-green);
+}
+
+.content-section {
+  padding: 20px;
+}
+
+.market-section-priority {
+  border-color: rgba(26, 160, 83, 0.4);
+}
+
+.market-ai-cta {
+  margin-top: 4px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.market-ai-cta p {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(236, 242, 249, 0.86);
+}
+
+.showcase-layout {
+  display: grid;
+  grid-template-columns: 1.45fr 0.75fr;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.showcase-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.showcase-card,
+.quick-panel,
+.market-card {
+  padding: 16px;
+  border-radius: 10px;
+}
+
+.quick-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.quick-action-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.quick-action {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.quick-hint {
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: rgba(8, 13, 19, 0.5);
+}
+
+.quick-hint strong {
+  font-size: 14px;
+  color: var(--text-main);
+}
+
+.market-toolbar {
+  display: grid;
+  grid-template-columns: 1.3fr auto 1fr;
+  gap: 12px;
+  margin-top: 18px;
+  margin-bottom: 18px;
+}
+
+.search-control,
+.location-input {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.radius-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.radius-btn {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.section-state {
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--panel-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+}
+
+.market-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.market-card {
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.market-card:hover {
+  border-color: var(--accent-border);
+}
+
+.market-image {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: #111923;
+}
+
+.market-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.status-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 12px;
+}
+
+.market-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.market-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.market-card-head h3 {
+  margin: 0;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.market-price {
+  flex-shrink: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffc5b1;
+}
+
+.seller-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.seller-row img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--panel-border);
+}
+
+.market-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dist-tag {
+  color: #ffc8b5;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.task-input:focus,
+.workbench-select:focus,
+.search-control input:focus,
+.location-input input:focus,
+.chat-input-area input:focus,
+.category-chip:focus-visible,
+.template-card:focus-visible,
+.radius-btn:focus-visible,
+.primary-btn:focus-visible,
+.ghost-btn:focus-visible,
+.text-btn:focus-visible,
+.quick-action:focus-visible {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px rgba(255, 112, 67, 0.22);
+}
+
+@media (max-width: 1480px) {
+  .page-main {
+    width: calc(100vw - 72px);
+  }
+
+  .hero-copy h1 {
+    font-size: 34px;
+  }
+
+  .workbench-drawer {
+    width: calc(100vw - 96px);
+  }
+
+  .workbench-fab {
+    right: 84px;
+  }
+}
+
+@media (max-width: 1320px) {
+  .hero-inner {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .hero-side {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ai-workbench,
+  .showcase-layout,
+  .market-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .market-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workbench-drawer {
+    width: calc(100vw - 76px);
+  }
+
+  .workbench-drawer .task-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workbench-drawer .template-side-notes {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .section-top,
+  .composer-header,
+  .section-heading {
+    flex-direction: column;
+  }
+
+  .hero-copy h1 {
+    font-size: 36px;
+  }
+
+  .hero-side {
+    grid-template-columns: 1fr;
+  }
+
+  .template-side-notes,
+  .task-overview,
+  .showcase-grid,
+  .parameter-grid,
+  .market-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workbench-drawer {
+    width: 100vw;
+  }
+
+  .workbench-fab {
+    right: 20px;
+    bottom: 20px;
+  }
+
+  .market-ai-cta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chat-result-card {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-result-card-media {
+    width: 100%;
+    height: 160px;
+  }
 }
 </style>

@@ -3,7 +3,9 @@ package com.example.demo.demos.Agent.Pojo;
 import lombok.Data;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 前端调用智能助手接口时的请求载体。
@@ -18,6 +20,7 @@ public class AgentChatRequest {
     private String sessionId;
     /** 可选：用户 ID，用于记录 user_profile。 */
     private String userId;
+    private Map<String, Object> userProfile = new LinkedHashMap<String, Object>();
     /** 可选：是否返回调试追踪。 */
     private Boolean debug;
     /** 可选：是否从最近 checkpoint 恢复运行。 */

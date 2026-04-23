@@ -145,16 +145,16 @@ public class ProductsController {
             }
         }
         if (product.getSellerId() == null) {
-            return Resp.error("卖家信息缺失");
+            return Resp.error(400, "卖家信息缺失");
         }
         List<String> imageKeys = parseImageKeys(product.getImageUrls());
         if (imageKeys.isEmpty()) {
-            return Resp.error("商品图片不能为空");
+            return Resp.error(400, "商品图片不能为空");
         }
         try {
             product.setImageUrls(OBJECT_MAPPER.writeValueAsString(imageKeys));
         } catch (Exception e) {
-            return Resp.error("图片参数异常");
+            return Resp.error(400, "图片参数异常");
         }
         return productsService.addProduct(product);
     }

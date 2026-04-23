@@ -424,6 +424,12 @@ export function fetchGovernanceMetricsDaily(days = 7) {
   )
 }
 
+export function fetchGovernanceMetricsDailyDetail(date?: string) {
+  return request<Dictionary>(
+    `/api/admin/governance/metrics/daily/detail${toQuery({ date: date || undefined })}`,
+  )
+}
+
 export function fetchErrorAttributionTrend(days = 7) {
   return request<GovernanceErrorAttributionTrendItem[]>(
     `/api/admin/governance/metrics/error-attribution/trend${toQuery({ days })}`,
@@ -634,9 +640,15 @@ export function fetchReleaseRecord(id: number) {
   return request<GovernanceReleaseRecord>(`/api/admin/governance/release-records/${id}`)
 }
 
-export function fetchReleaseVerification(id: number, minEvalPassRate = 1) {
+export function fetchReleaseVerification(id: number, minEvalPassRate = 1, maxRunAgeHours = 24) {
   return request<Dictionary>(
-    `/api/admin/governance/release-records/${id}/verification${toQuery({ minEvalPassRate })}`,
+    `/api/admin/governance/release-records/${id}/verification${toQuery({ minEvalPassRate, maxRunAgeHours })}`,
+  )
+}
+
+export function fetchReleaseGovernanceSummary(id: number, minEvalPassRate = 1, maxRunAgeHours = 24) {
+  return request<Dictionary>(
+    `/api/admin/governance/release-records/${id}/governance-summary${toQuery({ minEvalPassRate, maxRunAgeHours })}`,
   )
 }
 
@@ -647,6 +659,7 @@ export function fetchReleasePreflight(
   evalCaseVersionId?: number | null,
   regressionSetId?: number | null,
   minEvalPassRate = 1,
+  maxRunAgeHours = 24,
 ) {
   return request<ReleasePreflightResult>(
     `/api/admin/governance/release/preflight${toQuery({
@@ -656,6 +669,7 @@ export function fetchReleasePreflight(
       evalCaseVersionId: evalCaseVersionId ?? undefined,
       regressionSetId: regressionSetId ?? undefined,
       minEvalPassRate,
+      maxRunAgeHours,
     })}`,
   )
 }
@@ -713,12 +727,14 @@ export function transitionRelease(
   targetStatus: string,
   grayConfigId?: number | null,
   minEvalPassRate = 1,
+  maxRunAgeHours = 24,
 ) {
   return request<Dictionary>(
     `/api/admin/governance/release-records/${releaseId}/transition${toQuery({
       targetStatus,
       grayConfigId: grayConfigId ?? undefined,
       minEvalPassRate,
+      maxRunAgeHours,
     })}`,
     { method: 'POST' },
   )

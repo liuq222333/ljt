@@ -1,0 +1,10 @@
+{
+    "messages":  [
+                     {
+                         "content":  "我想要买点水果，现在有什么水果在卖",
+                         "role":  "user"
+                     }
+                 ],
+    "userId":  "u-verify",
+    "sessionId":  "verify-fruit-query"
+}

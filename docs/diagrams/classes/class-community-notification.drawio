@@ -1,0 +1,94 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.6 Chrome/144.0.7559.236 Electron/40.8.4 Safari/537.36" version="29.6.6">
+  <diagram id="dd56a840" name="社区互动与通知模块类图">
+    <mxGraphModel dx="1505" dy="1082" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1400" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;用户（User）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String userId&lt;br/&gt;+String userName&lt;br/&gt;+String avatarKey&lt;hr size=&quot;1&quot;/&gt;+updateAvatar(): void" vertex="1">
+          <mxGeometry height="152" width="260" x="40" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;社区动态（CommunityFeed）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+Long id&lt;br/&gt;+Long userId&lt;br/&gt;+String content&lt;br/&gt;+String visibility&lt;br/&gt;+Integer likesCount&lt;br/&gt;+Integer commentsCount&lt;hr size=&quot;1&quot;/&gt;+publish(): void&lt;br/&gt;+like(userId): void&lt;br/&gt;+delete(): void" vertex="1">
+          <mxGeometry height="262" width="260" x="40" y="252" as="geometry" />
+        </mxCell>
+        <mxCell id="4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;动态评论（CommunityFeedComment）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+Long id&lt;br/&gt;+Long feedId&lt;br/&gt;+Long userId&lt;br/&gt;+String content&lt;br/&gt;+String status&lt;hr size=&quot;1&quot;/&gt;+publish(): void&lt;br/&gt;+delete(): void" vertex="1">
+          <mxGeometry height="218" width="260" x="40" y="554" as="geometry" />
+        </mxCell>
+        <mxCell id="5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;动态发布请求（CommunityFeedPostRequest）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+Long userId&lt;br/&gt;+String content&lt;br/&gt;+List~String~ images&lt;br/&gt;+String visibility&lt;hr size=&quot;1&quot;/&gt;+validate(): boolean" vertex="1">
+          <mxGeometry height="174" width="260" x="350" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;评论请求（CommunityFeedCommentRequest）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+Long userId&lt;br/&gt;+String content&lt;hr size=&quot;1&quot;/&gt;+validate(): boolean" vertex="1">
+          <mxGeometry height="130" width="260" x="350" y="274" as="geometry" />
+        </mxCell>
+        <mxCell id="7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;动态服务（CommunityFeedService）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;&amp;lt;&amp;lt;interface&amp;gt;&amp;gt;&lt;hr size=&quot;1&quot;/&gt;+createPost(request): CommunityFeed&lt;br/&gt;+listFeeds(visibility, page, size): List&lt;br/&gt;+addComment(feedId, userId, content): CommunityFeedComment&lt;br/&gt;+deleteFeed(feedId, userId): boolean" vertex="1">
+          <mxGeometry height="174" width="260" x="350" y="444" as="geometry" />
+        </mxCell>
+        <mxCell id="8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;动态控制器（CommunityFeedController）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;-communityFeedService: CommunityFeedService&lt;hr size=&quot;1&quot;/&gt;+createPost(request): ResponseEntity&lt;br/&gt;+listFeeds(visibility, page, size): ResponseEntity&lt;br/&gt;+addComment(id, request): ResponseEntity&lt;br/&gt;+deletePost(id, userId): ResponseEntity" vertex="1">
+          <mxGeometry height="250" width="260" x="660" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;通知（Notification）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+Long id&lt;br/&gt;+Long userId&lt;br/&gt;+String title&lt;br/&gt;+String type&lt;br/&gt;+Integer readStatus&lt;hr size=&quot;1&quot;/&gt;+markRead(): void&lt;br/&gt;+markAllRead(): void&lt;br/&gt;+isUnread(): boolean" vertex="1">
+          <mxGeometry height="240" width="260" x="660" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;通知消息（NotificationMessage）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;+String msgId&lt;br/&gt;+String title&lt;br/&gt;+String content&lt;br/&gt;+Long targetUserId&lt;br/&gt;+String targetType&lt;hr size=&quot;1&quot;/&gt;+buildPayload(): Map" vertex="1">
+          <mxGeometry height="196" width="260" x="660" y="680" as="geometry" />
+        </mxCell>
+        <mxCell id="11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;通知服务（NotificationService）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;&amp;lt;&amp;lt;interface&amp;gt;&amp;gt;&lt;hr size=&quot;1&quot;/&gt;+list(userId, readStatus): List&lt;br/&gt;+addNotification(notification): Resp&lt;br/&gt;+markRead(id, userId): Resp&lt;br/&gt;+markAllRead(userId): Resp&lt;br/&gt;+sendAsync(message): Resp" vertex="1">
+          <mxGeometry height="196" width="260" x="970" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="12" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;通知控制器（NotificationController）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;-notificationService: NotificationService&lt;hr size=&quot;1&quot;/&gt;+getNotifications(userId, readStatus): Resp&lt;br/&gt;+markRead(id, userId): Resp&lt;br/&gt;+markAllRead(userId): Resp&lt;br/&gt;+unreadCount(userId): Resp" vertex="1">
+          <mxGeometry height="184" width="260" x="970" y="296" as="geometry" />
+        </mxCell>
+        <mxCell id="13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;后台通知服务（AdminNotificationService）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;&amp;lt;&amp;lt;interface&amp;gt;&amp;gt;&lt;hr size=&quot;1&quot;/&gt;+addNotification(message): Resp" vertex="1">
+          <mxGeometry height="130" width="260" x="970" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="14" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f2937;fontColor=#111827;fontFamily=Microsoft YaHei;fontSize=13;align=left;verticalAlign=top;spacing=6;spacingLeft=10;spacingTop=10;shadow=0;" value="&lt;b&gt;后台通知控制器（AdminNotificationController）&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;-adminNotificationService: AdminNotificationService&lt;hr size=&quot;1&quot;/&gt;+add(message): Resp" vertex="1">
+          <mxGeometry height="160" width="260" x="1280" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="15" edge="1" parent="1" source="3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=block;endFill=1;" target="2" value="author">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="16" edge="1" parent="1" source="4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=block;endFill=1;" target="2" value="author">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="17" edge="1" parent="1" source="9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=block;endFill=1;" target="2" value="receiver">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="18" edge="1" parent="1" source="3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475569;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;startArrow=diamondThin;startFill=1;endArrow=none;startSize=14;" target="4" value="comments">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="19" edge="1" parent="1" source="8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="7" value="calls">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="20" edge="1" parent="1" source="8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="5" value="receives">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="21" edge="1" parent="1" source="8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="6" value="receives">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="22" edge="1" parent="1" source="7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="3" value="manages">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="23" edge="1" parent="1" source="7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="4" value="manages">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="24" edge="1" parent="1" source="12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="11" value="calls">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="25" edge="1" parent="1" source="11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="9" value="manages">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="26" edge="1" parent="1" source="11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="10" value="dispatches">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="27" edge="1" parent="1" source="14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="13" value="calls">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="28" edge="1" parent="1" source="14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="10" value="receives">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="29" edge="1" parent="1" source="13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;strokeColor=#64748b;fontColor=#334155;fontFamily=Microsoft YaHei;fontSize=12;endArrow=open;endFill=0;" target="10" value="publishes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

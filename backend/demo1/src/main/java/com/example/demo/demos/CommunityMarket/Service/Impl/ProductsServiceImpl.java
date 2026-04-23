@@ -117,7 +117,25 @@ public class ProductsServiceImpl implements ProductsService {
     @Override
     public Resp<Void> addProduct(Product product) {
         if (product.getSellerId() == null) {
-            return Resp.error("卖家信息缺失");
+            return Resp.error(400, "卖家信息缺失");
+        }
+        if (product.getCategoryId() == null) {
+            return Resp.error(400, "商品分类不能为空");
+        }
+        if (product.getTitle() == null || product.getTitle().trim().isEmpty()) {
+            return Resp.error(400, "商品名称不能为空");
+        }
+        if (product.getPrice() == null || product.getPrice().compareTo(java.math.BigDecimal.ZERO) < 0) {
+            return Resp.error(400, "商品价格不合法");
+        }
+        if (product.getStockQuantity() == null || product.getStockQuantity() < 0) {
+            return Resp.error(400, "商品库存不合法");
+        }
+        if (product.getLocation() == null || product.getLocation().trim().isEmpty()) {
+            return Resp.error(400, "商品地点不能为空");
+        }
+        if (product.getCondition() == null || product.getCondition().trim().isEmpty()) {
+            product.setCondition("全新");
         }
         if (product.getStatus() == null || product.getStatus().trim().isEmpty()) {
             product.setStatus("在售");
@@ -130,7 +148,7 @@ public class ProductsServiceImpl implements ProductsService {
         // 先插入商品，获取数据库生成的主键ID
         int rows = productsMapper.addProduct(product);
         if (rows <= 0) {
-            return Resp.error("添加商品失败");
+            return Resp.error(500, "添加商品失败");
         }
         // 发布商品的同时将商品信息添加到我的商品表
         UserProducts userProduct = new UserProducts();

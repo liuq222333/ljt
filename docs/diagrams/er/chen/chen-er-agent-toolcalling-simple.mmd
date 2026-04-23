@@ -1,0 +1,55 @@
+flowchart LR
+    subgraph G5["简化 Agent 搜索与工具调用 ER 图（Chen）"]
+        M[用户消息]
+        R[接口路由]
+        C[工具调用记录]
+        O[调用结果]
+        P1{"匹配接口"}
+        P2{"产生结果"}
+        M ---|N| P1
+        P1 ---|1| R
+        M ---|1| C
+        R ---|1| C
+        C ---|1| P2
+        P2 ---|1| O
+        M_ID((主键 编号))
+        M_CONTENT((消息内容))
+        M_INTENT((识别意图))
+        M_TIME((创建时间))
+        R_ID((主键 编号))
+        R_RES((资源名))
+        R_ACT((动作名))
+        R_DESC((接口描述))
+        R_EN((启用状态))
+        C_ID((主键 编号))
+        C_MSG((消息编号))
+        C_ROUTE((路由编号))
+        C_REASON((匹配依据))
+        C_PARAM((调用参数))
+        C_STATUS((调用状态))
+        O_ID((主键 编号))
+        O_CALL((调用记录编号))
+        O_SUM((结果摘要))
+        O_DATA((结果数据))
+        O_TIME((创建时间))
+        M --- M_ID
+        M --- M_CONTENT
+        M --- M_INTENT
+        M --- M_TIME
+        R --- R_ID
+        R --- R_RES
+        R --- R_ACT
+        R --- R_DESC
+        R --- R_EN
+        C --- C_ID
+        C --- C_MSG
+        C --- C_ROUTE
+        C --- C_REASON
+        C --- C_PARAM
+        C --- C_STATUS
+        O --- O_ID
+        O --- O_CALL
+        O --- O_SUM
+        O --- O_DATA
+        O --- O_TIME
+    end

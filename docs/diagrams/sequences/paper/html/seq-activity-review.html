@@ -1,0 +1,102 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>seq-activity-review</title>
+<style>
+  body { margin: 0; background: #ffffff; font-family: 'Microsoft YaHei', sans-serif; }
+  .page { width: 2200px; margin: 0 auto; padding: 28px 36px; box-sizing: border-box; background: #ffffff; }
+  .mermaid { max-width: 100%; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, securityLevel: 'loose' });
+</script>
+</head>
+<body>
+  <div class="page">
+    <div class="mermaid">
+%%{init: {
+  &#39;theme&#39;: &#39;base&#39;,
+  &#39;themeVariables&#39;: {
+    &#39;fontFamily&#39;: &#39;Microsoft YaHei&#39;,
+    &#39;fontSize&#39;: &#39;18px&#39;,
+    &#39;primaryColor&#39;: &#39;#ffffff&#39;,
+    &#39;primaryTextColor&#39;: &#39;#111827&#39;,
+    &#39;primaryBorderColor&#39;: &#39;#1f2937&#39;,
+    &#39;lineColor&#39;: &#39;#334155&#39;,
+    &#39;secondaryColor&#39;: &#39;#f8fafc&#39;,
+    &#39;tertiaryColor&#39;: &#39;#eef2ff&#39;,
+    &#39;actorBkg&#39;: &#39;#f8fafc&#39;,
+    &#39;actorBorder&#39;: &#39;#1f2937&#39;,
+    &#39;actorTextColor&#39;: &#39;#111827&#39;,
+    &#39;signalColor&#39;: &#39;#334155&#39;,
+    &#39;signalTextColor&#39;: &#39;#111827&#39;,
+    &#39;labelBoxBkgColor&#39;: &#39;#ffffff&#39;,
+    &#39;labelBoxBorderColor&#39;: &#39;#1f2937&#39;,
+    &#39;labelTextColor&#39;: &#39;#111827&#39;,
+    &#39;noteBkgColor&#39;: &#39;#fff7ed&#39;,
+    &#39;noteBorderColor&#39;: &#39;#c2410c&#39;,
+    &#39;noteTextColor&#39;: &#39;#7c2d12&#39;,
+    &#39;sequenceNumberColor&#39;: &#39;#111827&#39;
+  },
+  &#39;sequence&#39;: {
+    &#39;useMaxWidth&#39;: true,
+    &#39;mirrorActors&#39;: false,
+    &#39;diagramMarginX&#39;: 40,
+    &#39;diagramMarginY&#39;: 30,
+    &#39;actorMargin&#39;: 60,
+    &#39;messageMargin&#39;: 36,
+    &#39;noteMargin&#39;: 24,
+    &#39;boxMargin&#39;: 12,
+    &#39;width&#39;: 220,
+    &#39;height&#39;: 64
+  }
+}}%%
+sequenceDiagram
+    title 本地活动发布与管理员审核时序图
+    autonumber
+    actor 活动发起人
+    actor 管理员
+    participant 前端
+    participant LocalActEnrollmentController
+    participant LocalActivityService
+    participant AdminActivityController
+    participant AdminActivityService
+
+    note over 活动发起人,AdminActivityService: 本地活动发布到管理员审核
+
+    活动发起人-&gt;&gt;前端: 填写活动信息并提交
+    前端-&gt;&gt;LocalActEnrollmentController: POST /api/local-act/activities
+    LocalActEnrollmentController-&gt;&gt;LocalActivityService: createActivity(request)
+    LocalActivityService--&gt;&gt;LocalActEnrollmentController: LocalActCreateResponse
+    LocalActEnrollmentController--&gt;&gt;前端: 待审核活动已创建
+    前端--&gt;&gt;活动发起人: 提示提交成功，状态待审核
+
+    管理员-&gt;&gt;前端: 打开活动审核列表
+    前端-&gt;&gt;AdminActivityController: GET /api/admin/local-act/reviews
+    AdminActivityController-&gt;&gt;AdminActivityService: listReviews(status, keyword, page, size)
+    AdminActivityService--&gt;&gt;AdminActivityController: 待审核活动列表
+    AdminActivityController--&gt;&gt;前端: reviews
+
+    alt 审核通过
+        管理员-&gt;&gt;前端: 点击通过并填写备注
+        前端-&gt;&gt;AdminActivityController: POST /reviews/{id}/approve
+        AdminActivityController-&gt;&gt;AdminActivityService: approve(id, note)
+        AdminActivityService--&gt;&gt;AdminActivityController: activityId
+        AdminActivityController--&gt;&gt;前端: 审核通过
+        前端--&gt;&gt;活动发起人: 可在活动列表中查看
+    else 审核驳回
+        管理员-&gt;&gt;前端: 点击驳回并填写备注
+        前端-&gt;&gt;AdminActivityController: POST /reviews/{id}/reject
+        AdminActivityController-&gt;&gt;AdminActivityService: reject(id, note)
+        AdminActivityService--&gt;&gt;AdminActivityController: success
+        AdminActivityController--&gt;&gt;前端: 审核驳回
+        前端--&gt;&gt;活动发起人: 提示修改后重新提交
+    end
+
+    </div>
+  </div>
+</body>
+</html>
