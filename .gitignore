@@ -1,16 +1,134 @@
-# 密钥文件
-api key.txt
-*key*.txt
-*secret*
+# ==============================
+# Secrets and local environment
+# ==============================
 .env
-.env.local
-
-# 常见配置文件
+.env.*
+!.env.example
+!.env.template
+*.local
+*.secret
+*secret*
+*key*.txt
+api key.txt
 config.ini
 secrets.json
 credentials.json
 
-# 编译输出
-__pycache__/
-*.pyc
+# Keep shared Spring config if it is intentionally part of the project.
+# Put private machine-only overrides in application-*.local.* instead.
+application-*.local.yml
+application-*.local.yaml
+application-*.local.properties
+application-local.yml
+application-local.yaml
+application-local.properties
+
+# ==============================
+# Node / Vue / Vite
+# ==============================
 node_modules/
+dist/
+dist-ssr/
+.vite/
+.nuxt/
+.output/
+.cache/
+.parcel-cache/
+coverage/
+*.tsbuildinfo
+.eslintcache
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ==============================
+# Java / Maven / Spring Boot
+# ==============================
+target/
+build/
+out/
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar.tmp
+.m2/
+
+*.class
+*.jar
+*.war
+*.ear
+
+# Allow rare source folders literally named target/build.
+!**/src/main/**/target/
+!**/src/test/**/target/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# ==============================
+# Python
+# ==============================
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+ENV/
+pip-wheel-metadata/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.tox/
+.nox/
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# ==============================
+# Logs, runtime files, temp files
+# ==============================
+logs/
+*.log
+*.out
+*.err
+*.pid
+*.tmp
+*.temp
+tmp/
+temp/
+/tmp*
+/temp*
+
+# ==============================
+# IDE, OS and local AI assistant state
+# ==============================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+.idea/
+*.iml
+*.iws
+*.ipr
+
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+
+.claude/
+.codex/
+.superpowers/
+.trae/
+
+# ==============================
+# Test / browser artifacts
+# ==============================
+playwright-report/
+test-results/
+cypress/videos/
+cypress/screenshots/
+__screenshots__/
