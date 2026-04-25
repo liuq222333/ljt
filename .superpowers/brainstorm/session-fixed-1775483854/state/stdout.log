@@ -1,8 +1,0 @@
-{"type":"server-started","port":59677,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:59677","screen_dir":"D:\\code\\aaaaljt\\.superpowers\\brainstorm\\session-fixed-1775483854\\content","state_dir":"D:\\code\\aaaaljt\\.superpowers\\brainstorm\\session-fixed-1775483854\\state"}
-{"type":"screen-added","file":"D:\\code\\aaaaljt\\.superpowers\\brainstorm\\session-fixed-1775483854\\content\\admin-layout-2.html"}
-{"source":"user-event","type":"click","text":"首页 / 总览页\n    \n      \n        \n          AAALJT Admin","choice":"home-layout","id":null,"timestamp":1775484065578}
-{"source":"user-event","type":"click","text":"业务内页 / 管理页\n    \n      \n        \n          Navigation","choice":"inner-layout","id":null,"timestamp":1775484066263}
-{"source":"user-event","type":"click","text":"首页 / 总览页\n    \n      \n        \n          AAALJT Admin","choice":"home-layout","id":null,"timestamp":1775484066907}
-{"source":"user-event","type":"click","text":"业务内页 / 管理页\n    \n      \n        \n          Navigation","choice":"inner-layout","id":null,"timestamp":1775484067152}
-{"type":"screen-added","file":"D:\\code\\aaaaljt\\.superpowers\\brainstorm\\session-fixed-1775483854\\content\\waiting-2.html"}
-{"type":"server-stopped","reason":"idle timeout"}
