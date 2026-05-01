@@ -47,4 +47,66 @@
                  e.waitlist_rank
         ORDER BY a.start_at DESC
     </select>
+
+    <select id="findLatestEnrollment" resultType="com.example.demo.demos.LocalActive.DTO.LocalActEnrollmentActionRecord">
+        SELECT id, status, waitlist_rank
+        FROM local_activity_enrollment
+        WHERE activity_id = #{activityId}
+          AND user_id = #{userId}
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <select id="countConfirmed" resultType="int">
+        SELECT COUNT(*)
+        FROM local_activity_enrollment
+        WHERE activity_id = #{activityId}
+          AND status IN ('confirmed', 'checked_in', 'completed')
+    </select>
+
+    <select id="countWaitlist" resultType="int">
+        SELECT COUNT(*)
+        FROM local_activity_enrollment
+        WHERE activity_id = #{activityId}
+          AND status = 'waitlist'
+    </select>
+
+    <insert id="insertEnrollment">
+        INSERT INTO local_activity_enrollment
+        (activity_id, user_id, status, waitlist_rank, created_at, updated_at)
+        VALUES
+        (#{activityId}, #{userId}, #{status}, #{waitlistRank}, NOW(), NOW())
+    </insert>
+
+    <update id="updateEnrollmentStatus">
+        UPDATE local_activity_enrollment
+        SET status = #{status},
+            waitlist_rank = #{waitlistRank},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="findById" resultType="com.example.demo.demos.LocalActive.DTO.LocalActEnrollmentActionRecord">
+        SELECT id, status, waitlist_rank
+        FROM local_activity_enrollment
+        WHERE id = #{id}
+    </select>
+
+    <select id="findFirstWaitlist" resultType="com.example.demo.demos.LocalActive.DTO.LocalActEnrollmentActionRecord">
+        SELECT id, status, waitlist_rank
+        FROM local_activity_enrollment
+        WHERE activity_id = #{activityId}
+          AND status = 'waitlist'
+        ORDER BY waitlist_rank ASC, id ASC
+        LIMIT 1
+    </select>
+
+    <update id="decrementWaitlistRanksAfter">
+        UPDATE local_activity_enrollment
+        SET waitlist_rank = waitlist_rank - 1,
+            updated_at = NOW()
+        WHERE activity_id = #{activityId}
+          AND status = 'waitlist'
+          AND waitlist_rank &gt; #{waitlistRank}
+    </update>
 </mapper>

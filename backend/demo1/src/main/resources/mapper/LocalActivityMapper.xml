@@ -43,4 +43,56 @@
                start_at, end_at, reminder_minutes, review_note, address, latitude, longitude, cover_url
         FROM local_activity
     </select>
+
+    <select id="findDetailById" resultType="com.example.demo.demos.LocalActive.DTO.LocalActivityDetail">
+        SELECT a.id,
+               a.organizer_user_id,
+               u.username AS organizer,
+               a.title,
+               a.subtitle,
+               a.category_code AS category,
+               a.description,
+               COALESCE(a.location_text, a.address) AS location,
+               a.latitude,
+               a.longitude,
+               a.address,
+               a.cover_url,
+               a.capacity,
+               COALESCE(en.reserved, 0) AS reserved,
+               a.fee_type,
+               a.fee_amount,
+               a.allow_waitlist,
+               a.require_checkin,
+               a.status,
+               a.start_at,
+               a.end_at,
+               a.reminder_minutes,
+               a.review_note
+        FROM local_activity a
+                 LEFT JOIN users u ON u.user_id = a.organizer_user_id
+                 LEFT JOIN (
+                     SELECT activity_id, COUNT(*) AS reserved
+                     FROM local_activity_enrollment
+                     WHERE status IN ('confirmed', 'checked_in', 'completed')
+                     GROUP BY activity_id
+                 ) en ON en.activity_id = a.id
+        WHERE a.id = #{id}
+    </select>
+
+    <select id="listTags" resultType="java.lang.String">
+        SELECT tag
+        FROM local_activity_tag
+        WHERE activity_id = #{activityId}
+        ORDER BY tag
+    </select>
+
+    <select id="findUserEnrollmentStatus" resultType="java.lang.String">
+        SELECT e.status
+        FROM local_activity_enrollment e
+                 JOIN users u ON u.user_id = e.user_id
+        WHERE e.activity_id = #{activityId}
+          AND u.username = #{username}
+        ORDER BY e.id DESC
+        LIMIT 1
+    </select>
 </mapper>
