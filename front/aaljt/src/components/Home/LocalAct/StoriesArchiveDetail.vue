@@ -1,11 +1,19 @@
 <template>
   <dhstyle />
   <div class="lsd-page" v-if="story">
+    <button class="back-btn" @click="goBack">
+      <i class="fas fa-arrow-left"></i>
+      返回故事列表
+    </button>
     <header class="hero">
-      <div>
-        <p class="eyebrow">活动故事 · {{ story.visibility || '公开' }}</p>
-        <h1>{{ story.title }}</h1>
-        <p class="meta">{{ story.author }} · {{ story.createdAt }}</p>
+      <p class="eyebrow">活动故事 · {{ story.visibility || '公开' }}</p>
+      <h1>{{ story.title }}</h1>
+      <div class="author-line">
+        <span class="author-avatar">{{ (story.author || '邻')[0] }}</span>
+        <div>
+          <strong>{{ story.author }}</strong>
+          <span>{{ story.createdAt }}</span>
+        </div>
       </div>
     </header>
     <main class="content">
@@ -19,7 +27,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import dhstyle from '../../dhstyle/dhstyle.vue';
 
 type StoryDetail = {
@@ -35,7 +43,12 @@ type StoryDetail = {
 
 const API_BASE = (import.meta as any)?.env?.VITE_API_BASE ?? 'http://localhost:8080';
 const route = useRoute();
+const router = useRouter();
 const story = ref<StoryDetail | null>(null);
+
+const goBack = () => {
+  router.push('/local-act/stories');
+};
 
 const fetchDetail = async () => {
   const id = route.params.id;
@@ -56,56 +69,123 @@ onMounted(fetchDetail);
 
 <style scoped>
 :global(body) {
-  background: #f5f6f8;
+  background: #fafbfc;
 }
+
 .lsd-page {
-  padding-top: 80px;
-  color: #111827;
+  max-width: 800px;
+  margin: 0 auto;
+  color: #0f172a;
 }
-.hero {
-  margin: 32px 48px 0;
-}
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
   font-size: 13px;
-  color: #7c3aed;
-}
-.meta {
-  color: #6b7280;
-  margin-top: 8px;
-}
-.content {
-  margin: 16px 48px 60px;
-  background: #fff;
-  border-radius: 18px;
-  padding: 20px;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
-}
-.cover {
-  width: 100%;
-  max-height: 360px;
-  object-fit: cover;
-  border-radius: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
   margin-bottom: 16px;
 }
-.summary {
+
+.back-btn i {
+  font-size: 11px;
+}
+
+.back-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.hero {
+  margin: 0 0 24px;
+  padding: 0 8px;
+}
+
+.author-line {
+  margin-top: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.author-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #fff1ea;
+  color: #ff6b2c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
   font-weight: 600;
-  color: #374151;
-  margin-bottom: 12px;
 }
+
+.author-line strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.author-line span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+.content {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 32px;
+}
+
+.cover {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  border-radius: 14px;
+  margin-bottom: 24px;
+  display: block;
+}
+
+.summary {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.65;
+  color: #334155;
+  margin: 0 0 18px;
+  padding: 18px 22px;
+  border-radius: 12px;
+  background: #fff5ef;
+  border-left: 3px solid #ff6b2c;
+}
+
 .body {
-  color: #4b5563;
-  line-height: 1.6;
+  color: #334155;
+  font-size: 15px;
+  line-height: 1.85;
 }
+
 .empty {
-  padding: 40px;
+  padding: 80px 24px;
   text-align: center;
-  color: #6b7280;
+  color: #94a3b8;
+  font-size: 14px;
 }
+
 @media (max-width: 800px) {
-  .hero, .content {
-    margin: 16px;
+  .content {
+    padding: 22px;
   }
 }
 </style>

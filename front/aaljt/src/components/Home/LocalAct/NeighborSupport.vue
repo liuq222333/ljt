@@ -2,37 +2,74 @@
   <dhstyle />
   <div class="lns-page">
     <section class="hero">
-      <div>
+      <div class="hero-text">
         <p class="eyebrow">邻里互助中心</p>
         <h1>发布或认领互助任务，让温暖在社区流动</h1>
         <p class="subtitle">
           支持看护、陪诊、跑腿、维修等多种互助场景。可设置时间段、紧急程度与积分奖励，系统会自动匹配合适的志愿者。
         </p>
+        <div class="hero-actions">
+          <button class="primary" @click="openDialog">
+            <i class="fas fa-plus"></i>
+            发起互助
+          </button>
+          <button class="ghost" @click="scrollToTasks">浏览任务</button>
+        </div>
       </div>
-      <button class="primary" @click="openDialog">发起互助</button>
+      <div class="hero-stats">
+        <div class="stat">
+          <strong>{{ tasks.length || 12 }}</strong>
+          <span>正在进行</span>
+        </div>
+        <div class="stat">
+          <strong>{{ openCount }}</strong>
+          <span>等待认领</span>
+        </div>
+        <div class="stat">
+          <strong>{{ urgentCount }}</strong>
+          <span>紧急任务</span>
+        </div>
+      </div>
     </section>
 
-    <section class="tasks">
-      <article v-for="task in tasks" :key="task.id" class="card">
+    <div class="filter-tabs">
+      <button
+        v-for="tab in tabs"
+        :key="tab.value"
+        :class="['filter-tab', { active: currentTab === tab.value }]"
+        @click="currentTab = tab.value"
+      >
+        {{ tab.label }}
+        <span class="count">{{ countBy(tab.value) }}</span>
+      </button>
+    </div>
+
+    <section class="tasks" id="tasks-list">
+      <article v-for="task in displayedTasks" :key="task.id" class="card">
         <header>
-          <div>
-            <h3>{{ task.title }}</h3>
-            <p>{{ task.category }} · {{ formatTimeRange(task) }}</p>
-          </div>
+          <span class="category-pill">{{ task.category }}</span>
           <span class="badge" :class="priorityClass(task.priority)">{{ priorityLabel(task.priority) }}</span>
         </header>
-        <p>{{ task.description }}</p>
+        <h3>{{ task.title }}</h3>
+        <p class="task-desc">{{ task.description }}</p>
         <div class="meta">
-          <span><i class="fas fa-map-marker-alt"></i>{{ task.location || '位置待定' }}</span>
-          <span><i class="fas fa-user-friends"></i>需求人数：{{ task.volunteerSlots }}</span>
-          <span v-if="task.rewardPoints && task.rewardPoints > 0"><i class="fas fa-gift"></i>奖励：{{ task.rewardPoints }} 分</span>
+          <span><i class="far fa-clock"></i>{{ formatTimeRange(task) }}</span>
+          <span><i class="fas fa-location-dot"></i>{{ task.location || '位置待定' }}</span>
+          <span><i class="far fa-user"></i>需 {{ task.volunteerSlots }} 人</span>
+          <span v-if="task.rewardPoints && task.rewardPoints > 0" class="reward"><i class="fas fa-gift"></i>{{ task.rewardPoints }} 积分</span>
         </div>
         <footer>
-          <span>发布人：{{ task.owner || '社区用户' }}</span>
+          <div class="owner">
+            <span class="owner-avatar">{{ (task.owner || '社')[0] }}</span>
+            <span>{{ task.owner || '社区用户' }}</span>
+          </div>
           <button class="ghost" @click="openDetail(task)">查看详情</button>
         </footer>
       </article>
-      <p v-if="!tasks.length" class="empty">暂无互助任务，成为第一个发布的人吧。</p>
+      <p v-if="!displayedTasks.length" class="empty">
+        <i class="far fa-folder-open"></i>
+        暂无互助任务，成为第一个发布的人吧。
+      </p>
     </section>
 
     <div v-if="showDialog" class="modal-mask">
@@ -128,7 +165,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import dhstyle from '../../dhstyle/dhstyle.vue';
 
 type Task = {
@@ -155,6 +192,36 @@ const detailTask = ref<Task | null>(null);
 const submitting = ref(false);
 const submitMessage = ref('');
 const submitType = ref<'success' | 'error' | ''>('');
+const currentTab = ref<'all' | 'urgent' | 'open' | 'reward'>('all');
+
+const tabs: Array<{ label: string; value: 'all' | 'urgent' | 'open' | 'reward' }> = [
+  { label: '全部任务', value: 'all' },
+  { label: '紧急', value: 'urgent' },
+  { label: '可认领', value: 'open' },
+  { label: '有积分', value: 'reward' }
+];
+
+const openCount = computed(() => tasks.value.filter((t) => t.status === 'OPEN' || !t.status).length);
+const urgentCount = computed(() => tasks.value.filter((t) => (t.priority || '').toUpperCase() === 'HIGH').length);
+
+const countBy = (value: 'all' | 'urgent' | 'open' | 'reward') => {
+  if (value === 'all') return tasks.value.length;
+  if (value === 'urgent') return urgentCount.value;
+  if (value === 'open') return openCount.value;
+  return tasks.value.filter((t) => t.rewardPoints && t.rewardPoints > 0).length;
+};
+
+const displayedTasks = computed(() => {
+  const list = tasks.value;
+  if (currentTab.value === 'urgent') return list.filter((t) => (t.priority || '').toUpperCase() === 'HIGH');
+  if (currentTab.value === 'open') return list.filter((t) => t.status === 'OPEN' || !t.status);
+  if (currentTab.value === 'reward') return list.filter((t) => t.rewardPoints && t.rewardPoints > 0);
+  return list;
+});
+
+const scrollToTasks = () => {
+  document.getElementById('tasks-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
 
 const form = reactive({
   title: '',
@@ -292,207 +359,450 @@ const formatTimeRange = (task: Task) => {
 
 <style scoped>
 :global(body) {
-  background: #f5f6f8;
+  background: #fafbfc;
 }
 
 .lns-page {
-  padding-top: 80px;
-  color: #111827;
+  color: #0f172a;
 }
 
 .hero {
-  margin: 48px;
-  padding: 32px;
-  border-radius: 28px;
-  background: linear-gradient(120deg, #361146, #9333ea);
-  color: #fff;
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+  gap: 32px;
   align-items: center;
 }
 
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.75);
+.hero-text {
+  max-width: 600px;
 }
 
-.primary {
+.subtitle {
+  margin: 0;
+  max-width: 540px;
+}
+
+.hero-actions {
+  margin-top: 22px;
+  display: flex;
+  gap: 10px;
+}
+
+.hero-actions .primary i {
+  margin-right: 6px;
+  font-size: 11px;
+}
+
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stat {
+  padding: 18px 14px;
+  border-radius: 16px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.stat strong {
+  display: block;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+  color: #ff6b2c;
+  letter-spacing: -0.02em;
+}
+
+.stat span {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.filter-tabs {
+  max-width: 1280px;
+  margin: 0 auto 20px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.filter-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-tab {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
   border: none;
   border-radius: 999px;
-  padding: 12px 26px;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
+  background: #ffffff;
+  color: #475569;
+  font-size: 13.5px;
+  font-weight: 500;
   cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.filter-tab:hover {
+  background: #f1f5f9;
+}
+
+.filter-tab.active {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.filter-tab .count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: #64748b;
+  font-size: 11px;
   font-weight: 600;
 }
 
+.filter-tab.active .count {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
 .tasks {
-  margin: 0 48px 60px;
+  max-width: 1280px;
+  margin: 0 auto 60px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
 }
 
 .card {
-  background: #fff;
-  border-radius: 22px;
-  padding: 20px;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 22px;
+  background: #ffffff;
+  border-radius: 16px;
+  cursor: default;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 16px 36px rgba(15, 23, 42, 0.08);
 }
 
 .card header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
+}
+
+.category-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(117, 99, 255, 0.08);
+  color: #7563ff;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.card h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.task-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #64748b;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .meta {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-  color: #6b7280;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 12.5px;
+  color: #94a3b8;
+}
+
+.meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .meta i {
-  margin-right: 6px;
+  width: 12px;
+  text-align: center;
+  font-size: 11px;
+  color: #cbd5e1;
+}
+
+.meta .reward {
+  color: #ff6b2c;
+}
+
+.meta .reward i {
+  color: #ff6b2c;
 }
 
 .badge {
-  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
   border-radius: 999px;
-  font-size: 12px;
-  color: #fff;
+  font-size: 11.5px;
+  font-weight: 500;
 }
 
 .badge.high {
-  background: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
 }
 
 .badge.medium {
-  background: #f97316;
+  background: rgba(255, 107, 44, 0.1);
+  color: #ff6b2c;
 }
 
 .badge.low {
-  background: #10b981;
+  background: rgba(56, 185, 130, 0.1);
+  color: #1aa053;
 }
 
-.ghost {
-  border: 1px solid #d3d9e5;
-  background: transparent;
-  border-radius: 999px;
-  padding: 8px 16px;
-  cursor: pointer;
+.card footer {
+  margin-top: 4px;
+  padding-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #f1f5f9;
+}
+
+.owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.owner-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff1ea;
+  color: #ff6b2c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .empty {
   grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 64px 24px;
   text-align: center;
-  color: #6b7280;
+  color: #94a3b8;
+  font-size: 14px;
+  background: #ffffff;
+  border-radius: 16px;
+}
+
+.empty i {
+  font-size: 32px;
+  color: #cbd5e1;
 }
 
 .modal-mask {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(15, 23, 42, 0.32);
+  backdrop-filter: blur(8px);
   display: grid;
   place-items: center;
   z-index: 2000;
 }
 
 .modal {
-  background: #fff;
+  background: #ffffff;
   border-radius: 20px;
   width: min(720px, 92vw);
-  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.16);
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-.modal-header,
-.modal-footer {
-  padding: 16px 20px;
+.modal-header {
+  padding: 22px 26px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #eef2f7;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
 }
 
 .modal-footer {
-  border-top: 1px solid #eef2f7;
-  border-bottom: none;
+  padding: 18px 26px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  background: #fafbfc;
 }
 
 .modal-body {
-  padding: 16px 20px 8px;
+  padding: 8px 26px 22px;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
 .close {
+  width: 32px;
+  height: 32px;
   border: none;
-  background: transparent;
-  font-size: 22px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  font-size: 18px;
+  color: #64748b;
   cursor: pointer;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+  gap: 14px;
+  margin-bottom: 14px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
-  color: #4b5563;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.field > span {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
 }
 
 .field input,
 .field select,
 .field textarea {
-  border: 1px solid #dfe3eb;
-  border-radius: 10px;
-  padding: 10px 12px;
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 0 14px;
+  height: 42px;
+  background: #f8fafc;
   font-size: 14px;
+  color: #0f172a;
+  outline: none;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.field textarea {
+  height: auto;
+  min-height: 96px;
+  padding: 12px 14px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(255, 107, 44, 0.12);
 }
 
 .muted {
-  color: #6b7280;
+  color: #94a3b8;
+  font-size: 13px;
   margin: 4px 0 12px;
 }
 
 .meta.detail {
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  font-size: 13px;
+  color: #475569;
+  margin-top: 10px;
 }
 
 .submit-msg {
-  margin-top: 10px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
   font-size: 13px;
 }
 
 .submit-msg.success {
-  color: #0f9d58;
+  background: rgba(56, 185, 130, 0.08);
+  color: #1aa053;
 }
 
 .submit-msg.error {
-  color: #d93025;
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
 }
 
-@media (max-width: 800px) {
+@media (max-width: 900px) {
   .hero {
-    flex-direction: column;
-    align-items: flex-start;
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .hero-actions {
+    flex-wrap: wrap;
   }
 }
 </style>

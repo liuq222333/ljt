@@ -44,6 +44,30 @@ public class ApiRoute {
     @TableField("body_schema")
     private String bodySchema;
 
+    @TableField("intent_types")
+    private String intentTypes;
+
+    @TableField("trigger_keywords")
+    private String triggerKeywords;
+
+    @TableField("trigger_examples")
+    private String triggerExamples;
+
+    @TableField("entity_type")
+    private String entityType;
+
+    @TableField("safety_level")
+    private String safetyLevel;
+
+    @TableField("require_authorization")
+    private Integer requireAuthorization;
+
+    @TableField("presentation_hint")
+    private String presentationHint;
+
+    @TableField("match_priority")
+    private Integer matchPriority;
+
     @TableField("created_at")
     private LocalDateTime createdAt;
 

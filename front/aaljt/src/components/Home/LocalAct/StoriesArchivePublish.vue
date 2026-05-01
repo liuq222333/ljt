@@ -2,46 +2,56 @@
   <dhstyle />
   <div class="lsp-page">
     <section class="hero">
-      <div>
-        <p class="eyebrow">发布故事</p>
-        <h1>把你的活动瞬间分享给邻里</h1>
-        <p class="subtitle">上传封面、摘要和正文，可选择公开或社区可见。</p>
-      </div>
+      <p class="eyebrow">发布故事</p>
+      <h1>把你的活动瞬间分享给邻里</h1>
+      <p class="subtitle">上传封面、摘要和正文，可选择公开或社区可见。一段真实的记录，会激发下一次的参与。</p>
     </section>
 
     <form class="card" @submit.prevent="submit">
-      <label class="field">
-        <span>标题 *</span>
-        <input v-model="form.title" type="text" placeholder="如：夜跑团的首次5km" />
-      </label>
-      <label class="field">
-        <span>封面图 URL</span>
-        <input v-model="form.coverUrl" type="url" placeholder="https://example.com/cover.jpg" />
-      </label>
-      <label class="field">
-        <span>摘要</span>
-        <textarea v-model="form.summary" rows="3" placeholder="一句话概括故事亮点"></textarea>
-      </label>
-      <label class="field">
-        <span>关联活动ID（可选）</span>
-        <input v-model.number="form.activityId" type="number" min="1" placeholder="活动ID" />
-      </label>
-      <label class="field">
-        <span>正文 *</span>
-        <textarea v-model="form.content" rows="8" placeholder="详细描述发生了什么、收获和感受"></textarea>
-      </label>
-      <label class="field">
-        <span>可见性</span>
-        <select v-model="form.visibility">
-          <option value="PUBLIC">公开</option>
-          <option value="COMMUNITY">社区可见</option>
-          <option value="PRIVATE">仅自己</option>
-        </select>
-      </label>
+      <div class="form-section">
+        <h3>基础信息</h3>
+        <div class="form-grid">
+          <label class="field full">
+            <span>标题 <em>*</em></span>
+            <input v-model="form.title" type="text" placeholder="如：夜跑团的首次5km" />
+          </label>
+          <label class="field full">
+            <span>封面图 URL</span>
+            <input v-model="form.coverUrl" type="url" placeholder="https://example.com/cover.jpg" />
+          </label>
+          <label class="field">
+            <span>关联活动ID</span>
+            <input v-model.number="form.activityId" type="number" min="1" placeholder="可选" />
+          </label>
+          <label class="field">
+            <span>可见性</span>
+            <select v-model="form.visibility">
+              <option value="PUBLIC">公开</option>
+              <option value="COMMUNITY">社区可见</option>
+              <option value="PRIVATE">仅自己</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h3>故事内容</h3>
+        <label class="field">
+          <span>摘要</span>
+          <textarea v-model="form.summary" rows="3" placeholder="一句话概括故事亮点"></textarea>
+        </label>
+        <label class="field">
+          <span>正文 <em>*</em></span>
+          <textarea v-model="form.content" rows="10" placeholder="详细描述发生了什么、收获和感受"></textarea>
+        </label>
+      </div>
 
       <div class="actions">
         <button class="ghost" type="button" @click="reset" :disabled="loading">重置</button>
-        <button class="primary" type="submit" :disabled="loading">{{ loading ? '提交中...' : '发布' }}</button>
+        <button class="primary" type="submit" :disabled="loading">
+          <i class="fas fa-paper-plane"></i>
+          {{ loading ? '提交中...' : '发布故事' }}
+        </button>
       </div>
       <p v-if="message" :class="['msg', messageType]">{{ message }}</p>
     </form>
@@ -123,68 +133,200 @@ const submit = async () => {
 
 <style scoped>
 :global(body) {
-  background: #f5f6f8;
+  background: #fafbfc;
 }
+
 .lsp-page {
-  padding-top: 80px;
-  color: #111827;
   max-width: 900px;
-  margin: 0 auto 60px;
+  margin: 0 auto;
+  color: #0f172a;
 }
+
 .hero {
-  margin: 32px 0 16px;
+  margin: 0 0 28px;
+  padding: 0 8px;
 }
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-size: 13px;
-  color: #7c3aed;
-}
+
 .subtitle {
-  color: #6b7280;
+  margin: 14px 0 0;
+  max-width: 560px;
+  font-size: 14px;
+  line-height: 1.65;
+  color: #64748b;
 }
+
 .card {
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
-  padding: 20px;
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 32px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 28px;
 }
+
+.form-section h3 {
+  margin: 0 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -0.005em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.form-section h3::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: #ff6b2c;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
+
+.field.full {
+  grid-column: 1 / -1;
+}
+
+.field span {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.field span em {
+  margin-left: 2px;
+  color: #ff6b2c;
+  font-style: normal;
+}
+
 .field input,
-.field textarea,
 .field select {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 10px 12px;
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 12px;
+  background: #f8fafc;
   font-size: 14px;
+  color: #0f172a;
+  outline: none;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
 }
+
+.field textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 12px;
+  background: #f8fafc;
+  font-size: 14px;
+  color: #0f172a;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.65;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(255, 107, 44, 0.12);
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: #94a3b8;
+}
+
 .actions {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
-  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
 }
+
 .primary,
 .ghost {
   border: none;
-  padding: 10px 16px;
-  border-radius: 8px;
+  height: 42px;
+  padding: 0 22px;
+  border-radius: 999px;
   cursor: pointer;
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.18s ease, transform 0.2s ease;
 }
-.primary { background: linear-gradient(120deg, #2563eb, #1d4ed8); color: #fff; }
-.primary:disabled { opacity: 0.6; cursor: not-allowed; }
-.ghost { background: #f3f4f6; color: #111827; }
+
+.primary i {
+  font-size: 12px;
+}
+
+.primary {
+  background: #ff6b2c;
+  color: #ffffff;
+}
+
+.primary:hover:not(:disabled) {
+  background: #f25a1b;
+  transform: translateY(-1px);
+}
+
+.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ghost {
+  background: #f8fafc;
+  color: #475569;
+}
+
+.ghost:hover:not(:disabled) {
+  background: #eef2f6;
+}
+
 .msg {
-  font-size: 14px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
 }
-.msg.success { color: #15803d; }
-.msg.error { color: #dc2626; }
+
+.msg.success {
+  background: rgba(56, 185, 130, 0.08);
+  color: #1aa053;
+}
+
+.msg.error {
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
+}
+
+@media (max-width: 720px) {
+  .card {
+    padding: 22px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

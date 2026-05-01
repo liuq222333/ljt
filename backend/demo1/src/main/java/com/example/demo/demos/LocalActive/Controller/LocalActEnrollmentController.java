@@ -2,6 +2,8 @@ package com.example.demo.demos.LocalActive.Controller;
 
 import com.example.demo.demos.LocalActive.DTO.LocalActCreateRequest;
 import com.example.demo.demos.LocalActive.DTO.LocalActCreateResponse;
+import com.example.demo.demos.LocalActive.DTO.LocalActEnrollmentActionRequest;
+import com.example.demo.demos.LocalActive.DTO.LocalActEnrollmentActionResponse;
 import com.example.demo.demos.LocalActive.DTO.LocalActEnrollmentListResponse;
 import com.example.demo.demos.LocalActive.DTO.LocalActEnrollmentQuery;
 import com.example.demo.demos.LocalActive.DTO.LocalActScheduleTemplateRequest;
@@ -18,6 +20,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -71,6 +74,30 @@ public class LocalActEnrollmentController {
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "size", defaultValue = "10") int size) {
         return Resp.success(activityService.listActivities(status, page, size));
+    }
+
+    @Operation(summary = "查询活动详情")
+    @GetMapping("/activities/{id}")
+    public Resp<com.example.demo.demos.LocalActive.DTO.LocalActivityDetail> getActivityDetail(
+            @PathVariable("id") Long id,
+            @RequestParam(value = "username", required = false) String username) {
+        return Resp.success(activityService.getActivityDetail(id, username));
+    }
+
+    @Operation(summary = "报名活动")
+    @PostMapping("/activities/{id}/enroll")
+    public Resp<LocalActEnrollmentActionResponse> enrollActivity(
+            @PathVariable("id") Long id,
+            @RequestBody LocalActEnrollmentActionRequest request) {
+        return Resp.success(enrollmentService.enroll(id, request));
+    }
+
+    @Operation(summary = "取消活动报名")
+    @PostMapping("/activities/{id}/cancel-enrollment")
+    public Resp<LocalActEnrollmentActionResponse> cancelEnrollment(
+            @PathVariable("id") Long id,
+            @RequestBody LocalActEnrollmentActionRequest request) {
+        return Resp.success(enrollmentService.cancelEnrollment(id, request));
     }
 
     @Operation(summary = "附近活动查询（使用 RediSearch）")

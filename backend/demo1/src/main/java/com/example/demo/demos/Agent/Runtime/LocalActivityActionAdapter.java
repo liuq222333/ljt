@@ -33,7 +33,10 @@ public class LocalActivityActionAdapter {
             "附近", "周边", "离我近", "周围"
     );
     private static final List<String> CREATE_KEYWORDS = Arrays.asList(
-            "创建", "发布", "发起", "组织", "新增", "办"
+            "创建", "发布", "发起", "组织", "新增", "举办"
+    );
+    private static final List<String> LEARNING_INTENT_KEYWORDS = Arrays.asList(
+            "了解", "想知道", "怎么", "如何", "怎么办", "怎么样", "教程", "流程", "规则"
     );
     private static final List<String> CONFIRM_KEYWORDS = Arrays.asList(
             "确认", "确认执行", "执行", "提交", "可以创建", "可以发布", "开始创建"
@@ -59,7 +62,7 @@ public class LocalActivityActionAdapter {
             "(?:活动名称|标题|名称)\\s*(?:是|为|:|：)?\\s*([^,，。；;\\n]+)"
     );
     private static final Pattern CREATE_INLINE_TITLE_PATTERN = Pattern.compile(
-            "(?:创建|发布|发起|组织|新增|办)(?:一个|一场|个|场)?\\s*([^,，。；;\\n]+?)(?:活动)?(?:[,，。；;\\n]|$)"
+            "(?:创建|发布|发起|组织|新增|举办)(?:一个|一场|个|场)?\\s*([^,，。；;\\n]+?)(?:活动)?(?:[,，。；;\\n]|$)"
     );
     private static final Pattern CATEGORY_PATTERN = Pattern.compile(
             "(?:分类|类型|活动类型)\\s*(?:是|为|:|：)?\\s*([^,，。；;\\n]+)"
@@ -71,13 +74,13 @@ public class LocalActivityActionAdapter {
             "((?:0?[1-9]|1[0-2])月(?:0?[1-9]|[12]\\d|3[01])日)"
     );
     private static final Pattern TIME_RANGE_PATTERN = Pattern.compile(
-            "(\\d{1,2})(?::|点)(\\d{2})?\\s*(?:开始)?\\s*(?:到|至|-|~)\\s*(\\d{1,2})(?::|点)(\\d{2})?"
+            "(?:(上午|早上|中午|下午|晚上)\\s*)?(\\d{1,2})(?::|点)(\\d{2})?\\s*(?:开始)?\\s*(?:到|至|-|~)\\s*(?:(上午|早上|中午|下午|晚上)\\s*)?(\\d{1,2})(?::|点)(\\d{2})?"
     );
     private static final Pattern TIME_START_PATTERN = Pattern.compile(
-            "(?:开始时间|开始)\\s*(?:是|为|:|：)?\\s*(\\d{1,2})(?::|点)(\\d{2})?"
+            "(?:开始时间|开始)\\s*(?:是|为|:|：)?\\s*(?:(上午|早上|中午|下午|晚上)\\s*)?(\\d{1,2})(?::|点)(\\d{2})?"
     );
     private static final Pattern TIME_END_PATTERN = Pattern.compile(
-            "(?:结束时间|结束)\\s*(?:是|为|:|：)?\\s*(\\d{1,2})(?::|点)(\\d{2})?"
+            "(?:结束时间|结束)\\s*(?:是|为|:|：)?\\s*(?:(上午|早上|中午|下午|晚上)\\s*)?(\\d{1,2})(?::|点)(\\d{2})?"
     );
     private static final Pattern LOCATION_PATTERN = Pattern.compile(
             "(?:地点|位置|地址)\\s*(?:是|为|:|：)?\\s*([^,，。；;\\n]+)"
@@ -228,24 +231,18 @@ public class LocalActivityActionAdapter {
             if ("create".equalsIgnoreCase(pendingAction.getAction())) {
                 return ActivityMode.CREATE;
             }
-            if ("nearby".equalsIgnoreCase(pendingAction.getAction())) {
-                return ActivityMode.NEARBY;
-            }
-            if ("list".equalsIgnoreCase(pendingAction.getAction())) {
-                return ActivityMode.LIST;
-            }
+            return ActivityMode.NONE;
         }
         if (looksLikeCreateActivity(text)) {
             return ActivityMode.CREATE;
         }
-        if (!looksLikeActivityQuery(text, parsedIntent)) {
-            return ActivityMode.NONE;
-        }
-        return containsAny(text, NEARBY_KEYWORDS) ? ActivityMode.NEARBY : ActivityMode.LIST;
+        return ActivityMode.NONE;
     }
 
     private boolean looksLikeCreateActivity(String text) {
-        return containsAny(text, CREATE_KEYWORDS) && containsAny(text, ACTIVITY_KEYWORDS);
+        return !looksLikeQuestionOrLearningIntent(text)
+                && containsAny(text, CREATE_KEYWORDS)
+                && containsAny(text, ACTIVITY_KEYWORDS);
     }
 
     private boolean looksLikeActivityQuery(String text, ParsedIntent parsedIntent) {
@@ -377,6 +374,12 @@ public class LocalActivityActionAdapter {
                 .replace("帮我", "")
                 .replace("请帮我", "")
                 .trim();
+        cleaned = cleaned.replaceAll("(?:20\\d{2}[-/]\\d{1,2}[-/]\\d{1,2}|\\d{1,2}\\s*月\\s*\\d{1,2}\\s*日)", "");
+        cleaned = cleaned.replaceAll("(?:(上午|早上|中午|下午|晚上)\\s*)?\\d{1,2}(?::\\d{2}|点)?\\s*(?:到|至|-|~)\\s*(?:(上午|早上|中午|下午|晚上)\\s*)?\\d{1,2}(?::\\d{2}|点)?", "");
+        cleaned = cleaned.replaceAll("^(?:的|在|于|\\s)+", "").trim();
+        if (cleaned.length() > 30 && cleaned.contains("的")) {
+            cleaned = cleaned.substring(cleaned.lastIndexOf("的") + 1).trim();
+        }
         if ("活动".equals(cleaned)) {
             return null;
         }
@@ -490,22 +493,34 @@ public class LocalActivityActionAdapter {
     private TimeRange extractTimeRange(String text) {
         Matcher matcher = TIME_RANGE_PATTERN.matcher(text);
         if (matcher.find()) {
-            return new TimeRange(formatTime(matcher.group(1), matcher.group(2)), formatTime(matcher.group(3), matcher.group(4)));
+            String startPeriod = matcher.group(1);
+            String endPeriod = StringUtils.hasText(matcher.group(4)) ? matcher.group(4) : startPeriod;
+            return new TimeRange(
+                    formatTime(startPeriod, matcher.group(2), matcher.group(3)),
+                    formatTime(endPeriod, matcher.group(5), matcher.group(6))
+            );
         }
         Matcher startMatcher = TIME_START_PATTERN.matcher(text);
         Matcher endMatcher = TIME_END_PATTERN.matcher(text);
         if (startMatcher.find() && endMatcher.find()) {
             return new TimeRange(
-                    formatTime(startMatcher.group(1), startMatcher.group(2)),
-                    formatTime(endMatcher.group(1), endMatcher.group(2))
+                    formatTime(startMatcher.group(1), startMatcher.group(2), startMatcher.group(3)),
+                    formatTime(endMatcher.group(1), endMatcher.group(2), endMatcher.group(3))
             );
         }
         return null;
     }
 
-    private String formatTime(String hourText, String minuteText) {
+    private String formatTime(String period, String hourText, String minuteText) {
         int hour = Integer.parseInt(hourText);
         int minute = StringUtils.hasText(minuteText) ? Integer.parseInt(minuteText) : 0;
+        if (StringUtils.hasText(period)) {
+            if (("下午".equals(period) || "晚上".equals(period)) && hour < 12) {
+                hour += 12;
+            } else if ("中午".equals(period) && hour < 11) {
+                hour += 12;
+            }
+        }
         return String.format(Locale.ROOT, "%02d:%02d", hour, minute);
     }
 
@@ -889,6 +904,21 @@ public class LocalActivityActionAdapter {
             }
         }
         return false;
+    }
+
+    private boolean looksLikeQuestionOrLearningIntent(String text) {
+        if (!StringUtils.hasText(text)) {
+            return false;
+        }
+        String normalized = text.trim();
+        if (containsAny(normalized, LEARNING_INTENT_KEYWORDS)) {
+            return true;
+        }
+        return normalized.endsWith("吗")
+                || normalized.endsWith("吗?")
+                || normalized.endsWith("吗？")
+                || normalized.endsWith("?")
+                || normalized.endsWith("？");
     }
 
     private enum ActivityMode {

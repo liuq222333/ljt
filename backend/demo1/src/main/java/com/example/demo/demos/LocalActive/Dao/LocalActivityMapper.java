@@ -1,5 +1,6 @@
 package com.example.demo.demos.LocalActive.Dao;
 
+import com.example.demo.demos.LocalActive.DTO.LocalActivityDetail;
 import com.example.demo.demos.LocalActive.Pojo.LocalActivity;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -17,4 +18,11 @@ public interface LocalActivityMapper {
                                        @Param("offset") int offset);
 
     List<LocalActivity> listAll();
+
+    LocalActivityDetail findDetailById(@Param("id") Long id);
+
+    List<String> listTags(@Param("activityId") Long activityId);
+
+    String findUserEnrollmentStatus(@Param("activityId") Long activityId,
+                                    @Param("username") String username);
 }

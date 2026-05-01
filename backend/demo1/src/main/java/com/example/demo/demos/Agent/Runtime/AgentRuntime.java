@@ -52,9 +52,6 @@ public class AgentRuntime {
 
     private static final Logger log = LoggerFactory.getLogger(AgentRuntime.class);
 
-    private static final List<String> CHITCHAT_KEYWORDS = java.util.Arrays.asList(
-            "你好", "您好", "hello", "hi", "hey", "谢谢", "感谢", "再见", "拜拜", "晚安", "早安", "嗨"
-    );
     private static final List<String> SEARCH_HINT_KEYWORDS = java.util.Arrays.asList(
             "买", "想买", "找", "搜索", "推荐", "看看", "哪些", "什么", "有没有", "在卖", "出售"
     );
@@ -104,6 +101,9 @@ public class AgentRuntime {
     private final KnowledgeSearchService knowledgeSearchService;
     private final ProductsService productsService;
     private final ProductQueryExpansionService productQueryExpansionService;
+    private final LlmChitchatComposer llmChitchatComposer;
+    private final LlmFusionComposer llmFusionComposer;
+    private final ApiRouteExecutionService apiRouteExecutionService;
 
     public AgentRuntime(AgentCheckpointStore agentCheckpointStore,
                         QueryParserService queryParserService,
@@ -118,7 +118,10 @@ public class AgentRuntime {
                         ProductSearchSnapshotMapper productSearchSnapshotMapper,
                         KnowledgeSearchService knowledgeSearchService,
                         ProductsService productsService,
-                        ProductQueryExpansionService productQueryExpansionService) {
+                        ProductQueryExpansionService productQueryExpansionService,
+                        LlmChitchatComposer llmChitchatComposer,
+                        LlmFusionComposer llmFusionComposer,
+                        ApiRouteExecutionService apiRouteExecutionService) {
         this.agentCheckpointStore = agentCheckpointStore;
         this.queryParserService = queryParserService;
         this.agentRouterPythonProperties = agentRouterPythonProperties;
@@ -133,6 +136,9 @@ public class AgentRuntime {
         this.knowledgeSearchService = knowledgeSearchService;
         this.productsService = productsService;
         this.productQueryExpansionService = productQueryExpansionService;
+        this.llmChitchatComposer = llmChitchatComposer;
+        this.llmFusionComposer = llmFusionComposer;
+        this.apiRouteExecutionService = apiRouteExecutionService;
     }
 
     public SessionState run(AgentChatRequest request, String authorization) {
@@ -156,7 +162,7 @@ public class AgentRuntime {
         } else if (shouldRunRealtime(parsedIntent, latestMessage, state.getSessionContext())) {
             finalAnswer = traceRealtimeFlow(request, latestMessage, parsedIntent, state, executionMeta, debugTrace);
         } else {
-            finalAnswer = traceStructuredFlow(request, latestMessage, parsedIntent, state, executionMeta, debugTrace);
+            finalAnswer = traceStructuredFlow(request, latestMessage, parsedIntent, authorization, state, executionMeta, debugTrace);
         }
 
         executionMeta.setDurationMs(System.currentTimeMillis() - runtimeStart);
@@ -180,7 +186,8 @@ public class AgentRuntime {
                 latestMessage,
                 parsedIntent,
                 request,
-                authorization
+                authorization,
+                state.getSessionContext()
         );
         if (!reviewResult.isHandled()) {
             nodeTrace.setOutputSummary("none");
@@ -257,12 +264,13 @@ public class AgentRuntime {
     private FinalAnswer traceStructuredFlow(AgentChatRequest request,
                                             AgentChatMessage latestMessage,
                                             ParsedIntent parsedIntent,
+                                            String authorization,
                                             SessionState state,
                                             SessionState.ExecutionMeta executionMeta,
                                             FinalAnswer.DebugTrace debugTrace) {
         RuntimeRequest normalized = traceNormalizeParams(request, latestMessage, parsedIntent, state, executionMeta, debugTrace);
         RuntimePlan plan = traceRouteTools(parsedIntent, normalized, state, executionMeta, debugTrace);
-        RuntimeExecution execution = traceExecute(request, parsedIntent, normalized, plan, state, executionMeta, debugTrace);
+        RuntimeExecution execution = traceExecute(request, parsedIntent, normalized, plan, authorization, state, executionMeta, debugTrace);
         return traceComposeResponse(latestMessage, parsedIntent, normalized, plan, execution, state, executionMeta, debugTrace);
     }
 
@@ -320,15 +328,28 @@ public class AgentRuntime {
                                           ParsedIntent parsedIntent,
                                           RuntimeRequest normalized,
                                           RuntimePlan plan,
+                                          String authorization,
                                           SessionState state,
                                           SessionState.ExecutionMeta executionMeta,
                                           FinalAnswer.DebugTrace debugTrace) {
         long start = System.currentTimeMillis();
         FinalAnswer.NodeTrace nodeTrace = createNodeTrace("execute", start);
-        RuntimeExecution execution = executePlan(request, parsedIntent, normalized, plan, state, executionMeta);
+        RuntimeExecution execution = executePlan(request, parsedIntent, normalized, plan, authorization, state, executionMeta);
         executionMeta.getCompletedNodes().add("execute");
         state.getIntermediateData().put("searchHitCount", execution.searchTotal);
+        state.getIntermediateData().put("routeSearchHitCount", execution.routeSearchTotal);
         state.getIntermediateData().put("knowledgeHitCount", execution.knowledgeResponse.getHitCount());
+        if (execution.routeMatchResult != null) {
+            RouteMatchResult routeMatch = execution.routeMatchResult;
+            state.getIntermediateData().put("matchedRouteId",
+                    routeMatch.getRoute() == null ? null : routeMatch.getRoute().getId());
+            state.getIntermediateData().put("matchedRouteResource",
+                    routeMatch.getRoute() == null ? null : routeMatch.getRoute().getResource());
+            state.getIntermediateData().put("matchedRouteAction",
+                    routeMatch.getRoute() == null ? null : routeMatch.getRoute().getAction());
+            state.getIntermediateData().put("matchScore", routeMatch.getScore());
+            state.getIntermediateData().put("matchReason", routeMatch.getScoreReasons());
+        }
         if (execution.degraded) {
             executionMeta.setDegraded(true);
             if (!StringUtils.hasText(executionMeta.getErrorCode())) {
@@ -356,15 +377,30 @@ public class AgentRuntime {
         FinalAnswer.NodeTrace nodeTrace = createNodeTrace("compose_response", start);
         FinalAnswer finalAnswer;
         if (shouldComposeChitchat(parsedIntent, latestMessage)) {
-            finalAnswer = runtimeAnswerComposer.buildChitchatAnswer(latestMessage, parsedIntent);
+            FinalAnswer llmChitchat = llmChitchatComposer == null ? null
+                    : llmChitchatComposer.compose(latestMessage, parsedIntent);
+            finalAnswer = llmChitchat != null
+                    ? llmChitchat
+                    : runtimeAnswerComposer.buildChitchatAnswer(latestMessage, parsedIntent);
         } else if (plan.requiresClarification) {
             finalAnswer = runtimeAnswerComposer.buildRoutingClarificationAnswer(plan.clarificationPrompt, parsedIntent);
+        } else if (execution.requireRouteClarification) {
+            finalAnswer = runtimeAnswerComposer.buildRoutingClarificationAnswer(execution.routeClarificationPrompt, parsedIntent);
         } else if (execution.requireRealtimeClarification) {
             finalAnswer = runtimeAnswerComposer.buildRealtimeClarification(parsedIntent);
         } else {
-            FinalAnswer pythonFinalAnswer = tryPythonComposeResponse(parsedIntent, normalized, execution, state, executionMeta);
-            if (pythonFinalAnswer != null) {
+            FinalAnswer routeDataAnswer = execution.routeData == null ? null
+                    : runtimeAnswerComposer.buildRouteDataAnswer(execution.routeData, latestMessage, parsedIntent);
+            FinalAnswer pythonFinalAnswer = routeDataAnswer != null ? null
+                    : tryPythonComposeResponse(parsedIntent, normalized, execution, state, executionMeta);
+            FinalAnswer llmFusionAnswer = pythonFinalAnswer != null ? null
+                    : tryLlmFusionCompose(latestMessage, parsedIntent, normalized, execution);
+            if (routeDataAnswer != null) {
+                finalAnswer = routeDataAnswer;
+            } else if (pythonFinalAnswer != null) {
                 finalAnswer = pythonFinalAnswer;
+            } else if (llmFusionAnswer != null) {
+                finalAnswer = llmFusionAnswer;
             } else if (execution.searchTotal > 0 && execution.realtimeResponse != null) {
             finalAnswer = runtimeAnswerComposer.buildSearchRealtimeAnswer(
                     execution.searchResults,
@@ -408,7 +444,18 @@ public class AgentRuntime {
         finalAnswer.getComposerMeta().getMetadata().put("routePlanSource", plan.planSource);
         finalAnswer.getComposerMeta().getMetadata().put("routeRoutingReason", plan.routingReason);
         finalAnswer.getComposerMeta().getMetadata().put("searchTotal", execution.searchTotal);
+        finalAnswer.getComposerMeta().getMetadata().put("routeSearchTotal", execution.routeSearchTotal);
         finalAnswer.getComposerMeta().getMetadata().put("knowledgeHitCount", execution.knowledgeResponse.getHitCount());
+        if (execution.routeMatchResult != null) {
+            finalAnswer.getComposerMeta().getMetadata().put("matchedRouteId",
+                    execution.routeMatchResult.getRoute() == null ? null : execution.routeMatchResult.getRoute().getId());
+            finalAnswer.getComposerMeta().getMetadata().put("matchedRouteResource",
+                    execution.routeMatchResult.getRoute() == null ? null : execution.routeMatchResult.getRoute().getResource());
+            finalAnswer.getComposerMeta().getMetadata().put("matchedRouteAction",
+                    execution.routeMatchResult.getRoute() == null ? null : execution.routeMatchResult.getRoute().getAction());
+            finalAnswer.getComposerMeta().getMetadata().put("matchScore", execution.routeMatchResult.getScore());
+            finalAnswer.getComposerMeta().getMetadata().put("matchReason", execution.routeMatchResult.getScoreReasons());
+        }
         nodeTrace.setInputSummary(plan.planCode);
         nodeTrace.setOutputSummary(finalAnswer.getAnswerType().getCode());
         finishNodeTrace(debugTrace, nodeTrace);
@@ -416,22 +463,7 @@ public class AgentRuntime {
     }
 
     private boolean shouldComposeChitchat(ParsedIntent parsedIntent, AgentChatMessage latestMessage) {
-        if (parsedIntent != null && parsedIntent.getTaskType() == TaskType.CHITCHAT) {
-            return true;
-        }
-        if (latestMessage == null || !StringUtils.hasText(latestMessage.getContent())) {
-            return false;
-        }
-        String text = latestMessage.getContent().trim().toLowerCase();
-        if (text.length() > 8) {
-            return false;
-        }
-        for (String keyword : CHITCHAT_KEYWORDS) {
-            if (text.contains(keyword.toLowerCase())) {
-                return true;
-            }
-        }
-        return false;
+        return parsedIntent != null && parsedIntent.getTaskType() == TaskType.CHITCHAT;
     }
 
     private RuntimeRequest normalizeRequest(AgentChatMessage latestMessage,
@@ -739,6 +771,36 @@ public class AgentRuntime {
         }
     }
 
+    /**
+     * 在 Python composer 不可用 / 返回 null 后，优先尝试用 Java DeepSeekClient 直连综合三层数据生成回复。
+     * 若开关关闭、LLM 失败或没有可融合数据，返回 null，后续走模板兜底。
+     */
+    private FinalAnswer tryLlmFusionCompose(AgentChatMessage latestMessage,
+                                             ParsedIntent parsedIntent,
+                                             RuntimeRequest normalized,
+                                             RuntimeExecution execution) {
+        if (llmFusionComposer == null) {
+            return null;
+        }
+        boolean hasSearch = execution != null && execution.searchTotal > 0;
+        boolean hasKnowledge = execution != null
+                && execution.knowledgeResponse != null
+                && execution.knowledgeResponse.getHitCount() > 0;
+        if (!hasSearch && !hasKnowledge) {
+            return null;
+        }
+        LlmFusionComposer.LlmFusionContext ctx = new LlmFusionComposer.LlmFusionContext();
+        ctx.latestMessage = latestMessage;
+        ctx.parsedIntent = parsedIntent;
+        ctx.productQuery = normalized == null ? null : normalized.productQuery;
+        ctx.searchResults = execution.searchResults;
+        ctx.searchTotal = execution.searchTotal;
+        ctx.realtimeResponse = execution.realtimeResponse;
+        ctx.knowledgeResponse = execution.knowledgeResponse;
+        ctx.degradeReason = execution.degradeReason;
+        return llmFusionComposer.compose(ctx);
+    }
+
     private String resolveComposeErrorMessage(SessionState state, RuntimeExecution execution) {
         if (state != null) {
             Object realtimeError = state.getIntermediateData().get("realtimeError");
@@ -761,19 +823,60 @@ public class AgentRuntime {
                                          ParsedIntent parsedIntent,
                                          RuntimeRequest normalized,
                                          RuntimePlan plan,
+                                         String authorization,
                                          SessionState state,
                                          SessionState.ExecutionMeta executionMeta) {
         RuntimeExecution execution = new RuntimeExecution();
         if (plan.runSearch) {
+            boolean productSearchAllowed = true;
             try {
-                SearchBundle searchBundle = executeSearch(normalized);
-                execution.searchResults.addAll(searchBundle.items);
-                execution.searchTotal = searchBundle.total;
+                RouteExecutionResult routeResult = apiRouteExecutionService == null
+                        ? null
+                        : apiRouteExecutionService.executeReadRoute(request, latestMessage(request), parsedIntent, authorization);
+                if (routeResult != null) {
+                    applyRouteExecutionResult(routeResult, execution, state);
+                    if (routeResult.isRequiresClarification()) {
+                        productSearchAllowed = false;
+                    } else if (routeResult.isMatched() && routeResult.isProductInternal()) {
+                        productSearchAllowed = true;
+                    } else if (routeResult.isMatched()) {
+                        productSearchAllowed = false;
+                    } else if (shouldSkipProductSearchFallback(parsedIntent, latestMessage(request))) {
+                        productSearchAllowed = false;
+                        execution.degraded = true;
+                        execution.degradeReason = "route_unmatched";
+                    }
+                } else if (shouldSkipProductSearchFallback(parsedIntent, latestMessage(request))) {
+                    productSearchAllowed = false;
+                    execution.degraded = true;
+                    execution.degradeReason = "route_unmatched";
+                }
             } catch (RuntimeException ex) {
+                if (shouldSkipProductSearchFallback(parsedIntent, latestMessage(request))) {
+                    productSearchAllowed = false;
+                }
                 execution.degraded = true;
-                execution.degradeReason = "search_unavailable";
+                execution.degradeReason = "route_matcher_unavailable";
                 executionMeta.setFailedNode("execute");
-                state.getIntermediateData().put("searchError", ex.getMessage());
+                state.getIntermediateData().put("routeMatcherError", ex.getMessage());
+            }
+
+            if (execution.requireRouteClarification) {
+                syncSessionContext(state.getSessionContext(), parsedIntent, normalized, execution);
+                return execution;
+            }
+
+            if (productSearchAllowed) {
+                try {
+                    SearchBundle searchBundle = executeSearch(normalized);
+                    execution.searchResults.addAll(searchBundle.items);
+                    execution.searchTotal = searchBundle.total;
+                } catch (RuntimeException ex) {
+                    execution.degraded = true;
+                    execution.degradeReason = "search_unavailable";
+                    executionMeta.setFailedNode("execute");
+                    state.getIntermediateData().put("searchError", ex.getMessage());
+                }
             }
         }
         if (plan.runKnowledge) {
@@ -827,6 +930,86 @@ public class AgentRuntime {
         }
         syncSessionContext(state.getSessionContext(), parsedIntent, normalized, execution);
         return execution;
+    }
+
+    private void applyRouteExecutionResult(RouteExecutionResult routeResult,
+                                           RuntimeExecution execution,
+                                           SessionState state) {
+        if (routeResult == null || execution == null) {
+            return;
+        }
+        execution.routeMatchResult = routeResult.getMatchResult();
+        if (routeResult.isRequiresClarification()) {
+            execution.requireRouteClarification = true;
+            execution.routeClarificationPrompt = routeResult.getClarificationPrompt();
+            execution.degraded = true;
+            execution.degradeReason = firstNonBlank(routeResult.getDegradeReason(), "route_requires_clarification");
+        }
+        if (routeResult.getRouteData() != null) {
+            execution.routeData = routeResult.getRouteData();
+            execution.routeSearchTotal = routeResult.getRouteData().getTotal();
+            if (state != null) {
+                state.getIntermediateData().put("routeEntityType", routeResult.getRouteData().getEntityType());
+                state.getIntermediateData().put("routeSourceResource", routeResult.getRouteData().getSourceResource());
+                state.getIntermediateData().put("routeSourceAction", routeResult.getRouteData().getSourceAction());
+            }
+        }
+        if (routeResult.isMatched() && !routeResult.isSuccess() && !routeResult.isRequiresClarification()) {
+            execution.degraded = true;
+            execution.degradeReason = firstNonBlank(routeResult.getDegradeReason(), "route_invocation_failed");
+        }
+    }
+
+    private boolean shouldSkipProductSearchFallback(ParsedIntent parsedIntent, AgentChatMessage latestMessage) {
+        String entity = resolveSearchEntityHint(parsedIntent, latestMessage);
+        return "event".equalsIgnoreCase(entity) || "store".equalsIgnoreCase(entity);
+    }
+
+    private String resolveSearchEntityHint(ParsedIntent parsedIntent, AgentChatMessage latestMessage) {
+        CandidateSlots slots = parsedIntent == null ? null : parsedIntent.getCandidateSlots();
+        if (slots != null && StringUtils.hasText(slots.getEntityType())) {
+            return normalizeEntityName(slots.getEntityType());
+        }
+        String text = latestMessage == null ? null : latestMessage.getContent();
+        if (StringUtils.hasText(text)) {
+            if (text.contains("活动") || text.contains("报名") || text.contains("名额")) {
+                return "event";
+            }
+            if (text.contains("门店") || text.contains("店铺") || text.contains("商家") || text.contains("营业")) {
+                return "store";
+            }
+        }
+        TaskType taskType = parsedIntent == null ? null : parsedIntent.getTaskType();
+        if (taskType == TaskType.EVENT_SEARCH) {
+            return "event";
+        }
+        if (taskType == TaskType.STORE_SEARCH) {
+            return "store";
+        }
+        if (taskType == TaskType.PRODUCT_SEARCH
+                || taskType == TaskType.MIXED_SEARCH_KNOWLEDGE
+                || taskType == TaskType.MIXED_SEARCH_REALTIME
+                || taskType == TaskType.REALTIME_QUERY) {
+            return "product";
+        }
+        return null;
+    }
+
+    private String normalizeEntityName(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if ("activity".equals(normalized) || "local_activity".equals(normalized)) {
+            return "event";
+        }
+        if ("shop".equals(normalized) || "merchant".equals(normalized)) {
+            return "store";
+        }
+        if ("goods".equals(normalized)) {
+            return "product";
+        }
+        return normalized;
     }
 
     private FinalAnswer traceRealtimeFlow(AgentChatRequest request,
@@ -1398,7 +1581,15 @@ public class AgentRuntime {
         if (parsedIntent != null
                 && parsedIntent.getCandidateSlots() != null
                 && StringUtils.hasText(parsedIntent.getCandidateSlots().getEntityType())) {
-            return parsedIntent.getCandidateSlots().getEntityType();
+            return parsedIntent.getCandidateSlots().getEntityType().trim().toLowerCase(Locale.ROOT);
+        }
+        if (parsedIntent != null && parsedIntent.getTaskType() != null) {
+            if (parsedIntent.getTaskType() == TaskType.EVENT_SEARCH) {
+                return "event";
+            }
+            if (parsedIntent.getTaskType() == TaskType.STORE_SEARCH) {
+                return "store";
+            }
         }
         return "product";
     }
@@ -1735,15 +1926,21 @@ public class AgentRuntime {
     private static final class RuntimeExecution {
         private final List<ProductSearchSnapshot> searchResults = new ArrayList<ProductSearchSnapshot>();
         private long searchTotal;
+        private NormalizedRouteData routeData;
+        private RouteMatchResult routeMatchResult;
+        private long routeSearchTotal;
         private KnowledgeRetrievalResponse knowledgeResponse = new KnowledgeRetrievalResponse();
         private RealtimeQueryResponse realtimeResponse;
         private final List<Long> realtimeEntityIds = new ArrayList<Long>();
         private boolean requireRealtimeClarification;
+        private boolean requireRouteClarification;
+        private String routeClarificationPrompt;
         private boolean degraded;
         private String degradeReason;
 
         private String describe() {
             return "searchTotal=" + searchTotal
+                    + ", routeSearchTotal=" + routeSearchTotal
                     + ", knowledgeHits=" + (knowledgeResponse == null ? 0 : knowledgeResponse.getHitCount())
                     + ", realtimeStatus=" + (realtimeResponse == null || realtimeResponse.getRealtimeStatus() == null ? null : realtimeResponse.getRealtimeStatus().getCode())
                     + ", degraded=" + degraded;

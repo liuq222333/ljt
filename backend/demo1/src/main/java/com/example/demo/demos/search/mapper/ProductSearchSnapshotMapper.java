@@ -40,6 +40,16 @@ public interface ProductSearchSnapshotMapper {
     @Select("SELECT * FROM product_search_snapshot WHERE product_id = #{productId}")
     ProductSearchSnapshot selectByProductId(@Param("productId") Long productId);
 
+    @Select({
+            "<script>",
+            "SELECT * FROM product_search_snapshot WHERE product_id IN",
+            "<foreach collection='productIds' item='productId' open='(' separator=',' close=')'>",
+            "#{productId}",
+            "</foreach>",
+            "</script>"
+    })
+    List<ProductSearchSnapshot> selectByProductIds(@Param("productIds") List<Long> productIds);
+
     @Select("SELECT * FROM product_search_snapshot WHERE searchable_status = 'searchable' ORDER BY recommend_score DESC LIMIT #{limit}")
     List<ProductSearchSnapshot> selectTopSearchable(@Param("limit") int limit);
 

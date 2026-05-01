@@ -66,6 +66,16 @@ public interface ProductsMapper {
 
     Product getProductById(@Param("id") Long id);
 
+    @Select({
+            "<script>",
+            "SELECT * FROM products WHERE id IN",
+            "<foreach collection='ids' item='id' open='(' separator=',' close=')'>",
+            "#{id}",
+            "</foreach>",
+            "</script>"
+    })
+    List<Product> selectByIds(@Param("ids") List<Long> ids);
+
     ProductAndSellerQueryDTO getProductAndSellerById(Integer id);
 
     List<ProductImages> getProductImage(Integer id);

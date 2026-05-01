@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,10 +44,7 @@ class LocalActivityActionAdapterTest {
     }
 
     @Test
-    void reviewShouldExecuteListRouteForActivityListQuery() {
-        when(apiRouteService.listEnabledRoutes("local_activity", "READ")).thenReturn(routes());
-        when(backendApiProxyService.invoke(any(), eq(null))).thenReturn(successResult(listItem("社区羽毛球", "幸福广场", "PUBLISHED")));
-
+    void reviewShouldIgnoreListReadQuery() {
         ActionIntentReviewService.ActionReviewResult result = adapter.review(
                 "s1",
                 message("当前有哪些活动"),
@@ -56,22 +54,12 @@ class LocalActivityActionAdapterTest {
                 null
         );
 
-        assertTrue(result.isHandled());
-        assertEquals(ActionIntentReviewService.ActionOutcome.EXECUTED, result.getOutcome());
-        assertEquals("list", result.getPendingAction().getAction());
-        assertTrue(String.valueOf(((Map<?, ?>) result.getInvocationResult().getData()).get("message")).contains("当前有 1 个活动"));
-
-        ArgumentCaptor<BackendApiProxyService.InvocationRequest> captor = ArgumentCaptor.forClass(BackendApiProxyService.InvocationRequest.class);
-        verify(backendApiProxyService).invoke(captor.capture(), eq(null));
-        assertEquals("local_activity", captor.getValue().getResource());
-        assertEquals("list", captor.getValue().getAction());
-        assertEquals("PUBLISHED", captor.getValue().getParams().get("status"));
+        assertEquals(false, result.isHandled());
+        verify(backendApiProxyService, never()).invoke(any(), eq(null));
     }
 
     @Test
-    void reviewShouldAskForCoordinatesWhenNearbyQueryHasNoLocation() {
-        when(apiRouteService.listEnabledRoutes("local_activity", "READ")).thenReturn(routes());
-
+    void reviewShouldIgnoreNearbyReadQuery() {
         ActionIntentReviewService.ActionReviewResult result = adapter.review(
                 "s2",
                 message("我附近有什么活动"),
@@ -81,17 +69,12 @@ class LocalActivityActionAdapterTest {
                 null
         );
 
-        assertTrue(result.isHandled());
-        assertEquals(ActionIntentReviewService.ActionOutcome.NEED_CLARIFICATION, result.getOutcome());
-        assertEquals("nearby", result.getPendingAction().getAction());
-        assertTrue(result.getPendingAction().getMissingFields().contains("当前位置坐标"));
+        assertEquals(false, result.isHandled());
+        verify(backendApiProxyService, never()).invoke(any(), eq(null));
     }
 
     @Test
-    void reviewShouldUseUserProfileCoordinatesForNearbyQuery() {
-        when(apiRouteService.listEnabledRoutes("local_activity", "READ")).thenReturn(routes());
-        when(backendApiProxyService.invoke(any(), eq(null))).thenReturn(successNearbyResult());
-
+    void reviewShouldIgnoreNearbyReadQueryEvenWhenUserProfileHasCoordinates() {
         AgentChatRequest request = new AgentChatRequest();
         request.getUserProfile().put("latitude", 35.1D);
         request.getUserProfile().put("longitude", 118.6D);
@@ -105,17 +88,12 @@ class LocalActivityActionAdapterTest {
                 null
         );
 
-        assertTrue(result.isHandled());
-        assertEquals(ActionIntentReviewService.ActionOutcome.EXECUTED, result.getOutcome());
-        assertEquals("nearby", result.getPendingAction().getAction());
-        assertTrue(String.valueOf(((Map<?, ?>) result.getInvocationResult().getData()).get("message")).contains("你附近找到 1 个活动"));
+        assertEquals(false, result.isHandled());
+        verify(backendApiProxyService, never()).invoke(any(), eq(null));
     }
 
     @Test
-    void reviewShouldFallbackToReadableActivityLabelWhenTitleIsPlaceholder() {
-        when(apiRouteService.listEnabledRoutes("local_activity", "READ")).thenReturn(routes());
-        when(backendApiProxyService.invoke(any(), eq(null))).thenReturn(successResult(placeholderListItem()));
-
+    void reviewShouldIgnoreListReadQueryWhenTitleWouldNeedFallback() {
         ActionIntentReviewService.ActionReviewResult result = adapter.review(
                 "s4",
                 message("当前有哪些活动"),
@@ -125,9 +103,23 @@ class LocalActivityActionAdapterTest {
                 null
         );
 
-        assertTrue(result.isHandled());
-        assertEquals(ActionIntentReviewService.ActionOutcome.EXECUTED, result.getOutcome());
-        assertTrue(String.valueOf(((Map<?, ?>) result.getInvocationResult().getData()).get("message")).contains("活动#26"));
+        assertEquals(false, result.isHandled());
+        verify(backendApiProxyService, never()).invoke(any(), eq(null));
+    }
+
+    @Test
+    void reviewShouldIgnoreActivityTextWithOfficeWord() {
+        ActionIntentReviewService.ActionReviewResult result = adapter.review(
+                "s4-office",
+                message("办公室活动通知怎么写"),
+                null,
+                new AgentChatRequest(),
+                null,
+                null
+        );
+
+        assertEquals(false, result.isHandled());
+        verify(backendApiProxyService, never()).invoke(any(), eq(null));
     }
 
     @Test
@@ -190,6 +182,29 @@ class LocalActivityActionAdapterTest {
         ArgumentCaptor<BackendApiProxyService.InvocationRequest> captor = ArgumentCaptor.forClass(BackendApiProxyService.InvocationRequest.class);
         verify(backendApiProxyService, times(1)).invoke(captor.capture(), eq(null));
         assertEquals("2026-04-20", ((Map<?, ?>) captor.getValue().getPayload()).get("date"));
+    }
+
+    @Test
+    void reviewShouldParseAfternoonTimeAndCleanActivityTitle() {
+        when(apiRouteService.listEnabledRoutes("local_activity", "CREATE")).thenReturn(createRoutes());
+
+        AgentChatRequest request = new AgentChatRequest();
+        request.getUserProfile().put("username", "alice");
+
+        ActionIntentReviewService.ActionReviewResult result = adapter.review(
+                "s7",
+                message("创建一个5月1日下午2点到4点的羽毛球活动，地点是体育馆，描述社区羽毛球交流赛"),
+                null,
+                request,
+                null,
+                null
+        );
+
+        assertEquals(ActionIntentReviewService.ActionOutcome.NEED_CONFIRMATION, result.getOutcome());
+        assertEquals("羽毛球", result.getPendingAction().getPayload().get("title"));
+        assertTrue(String.valueOf(result.getPendingAction().getPayload().get("date")).endsWith("-05-01"));
+        assertEquals("14:00", result.getPendingAction().getPayload().get("timeStart"));
+        assertEquals("16:00", result.getPendingAction().getPayload().get("timeEnd"));
     }
 
     private AgentChatMessage message(String content) {

@@ -2,35 +2,68 @@
   <dhstyle />
   <div class="lst-page">
     <section class="hero">
-      <div>
+      <div class="hero-text">
         <p class="eyebrow">固定日程</p>
         <h1>创建循环活动，让邻里每周都能见面</h1>
         <p class="subtitle">
           适用于夜跑、公益课堂、兴趣社团等需要周期举办的活动。设置一次，系统将自动生成日程、提醒和报名表单。
         </p>
+        <div class="hero-actions">
+          <button class="primary" @click="openDialog">
+            <i class="fas fa-plus"></i>
+            新建模板
+          </button>
+        </div>
       </div>
-      <button class="primary" @click="openDialog">新建日程模板</button>
+      <div class="hero-illustration">
+        <div class="calendar-mini">
+          <div class="cm-head">
+            <span>本周固定日程</span>
+            <strong>{{ templates.length }}</strong>
+          </div>
+          <div class="cm-grid">
+            <span v-for="d in ['一', '二', '三', '四', '五', '六', '日']" :key="d" class="cm-day">{{ d }}</span>
+            <span
+              v-for="i in 7"
+              :key="`slot-${i}`"
+              :class="['cm-slot', { active: hasTemplateOn(i) }]"
+            ></span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="content">
       <aside class="sidebar">
-        <h3>模板分类</h3>
+        <p class="sidebar-label">模板分类</p>
         <ul>
-          <li v-for="cat in categories" :key="cat" :class="{ active: cat === currentCategory }">
-            {{ cat }}
+          <li
+            v-for="cat in categories"
+            :key="cat"
+            :class="{ active: cat === currentCategory }"
+            @click="currentCategory = cat"
+          >
+            <span>{{ cat }}</span>
+            <span class="cat-count">{{ cat === '全部模板' ? templates.length : Math.max(1, Math.floor(templates.length / 2)) }}</span>
           </li>
         </ul>
+        <div class="sidebar-tip">
+          <i class="far fa-lightbulb"></i>
+          <p>循环活动建议设置 1440 分钟提醒,让邻里提前一天准备。</p>
+        </div>
       </aside>
+
       <div class="templates">
         <article v-for="template in templates" :key="template.id" class="card">
-          <header>
-            <h3>{{ template.title }}</h3>
-            <span>{{ template.frequency }}</span>
-          </header>
+          <div class="card-head">
+            <span class="card-icon"><i class="far fa-calendar-check"></i></span>
+            <span class="freq-pill">{{ template.frequency }}</span>
+          </div>
+          <h3>{{ template.title }}</h3>
           <p>{{ template.summary }}</p>
           <div class="meta">
-            <span>地点：{{ template.location }}</span>
-            <span>负责人：{{ template.owner }}</span>
+            <span><i class="fas fa-location-dot"></i>{{ template.location }}</span>
+            <span><i class="far fa-user"></i>{{ template.owner }}</span>
           </div>
           <div class="actions">
             <button class="ghost">预览设置</button>
@@ -187,6 +220,8 @@ const submitting = ref(false);
 const submitMessage = ref('');
 const submitType = ref<'success' | 'error' | ''>('');
 
+const hasTemplateOn = (dayIndex: number) => [1, 3, 6].includes(dayIndex);
+
 const openDialog = () => {
   submitMessage.value = '';
   submitType.value = '';
@@ -269,55 +304,116 @@ const onCreateTemplate = async () => {
 
 <style scoped>
 :global(body) {
-  background: #f4f6f8;
+  background: #fafbfc;
 }
 
 .lst-page {
-  padding-top: 80px;
-  color: #111827;
+  color: #0f172a;
 }
 
 .hero {
-  margin: 48px;
-  padding: 32px;
-  border-radius: 28px;
-  background: linear-gradient(120deg, #0a301a, #1aa053);
-  color: #fff;
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+  gap: 32px;
   align-items: center;
 }
 
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.8);
+.subtitle {
+  margin: 0;
+  max-width: 540px;
 }
 
-.primary {
-  border: none;
-  border-radius: 999px;
-  padding: 12px 28px;
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  cursor: pointer;
+.hero-actions {
+  margin-top: 22px;
+  display: flex;
+  gap: 10px;
+}
+
+.hero-actions .primary i {
+  margin-right: 6px;
+  font-size: 11px;
+}
+
+.hero-illustration {
+  display: flex;
+  justify-content: center;
+}
+
+.calendar-mini {
+  width: 100%;
+  max-width: 280px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.cm-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 14px;
+}
+
+.cm-head span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.cm-head strong {
+  font-size: 22px;
   font-weight: 600;
+  color: #ff6b2c;
+  letter-spacing: -0.02em;
+}
+
+.cm-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.cm-day {
+  font-size: 11px;
+  color: #94a3b8;
+  text-align: center;
+  font-weight: 500;
+}
+
+.cm-slot {
+  height: 28px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.cm-slot.active {
+  background: rgba(255, 107, 44, 0.16);
+  box-shadow: inset 0 0 0 2px #ff6b2c;
 }
 
 .content {
-  margin: 0 48px 60px;
+  max-width: 1280px;
+  margin: 0 auto 60px;
   display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 20px;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
 }
 
 .sidebar {
-  background: #fff;
-  border-radius: 22px;
-  padding: 20px;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  position: sticky;
+  top: 96px;
+  padding: 22px;
+  background: #ffffff;
+  border-radius: 18px;
+}
+
+.sidebar-label {
+  margin: 0 0 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
 }
 
 .sidebar ul {
@@ -326,153 +422,314 @@ const onCreateTemplate = async () => {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
 }
 
 .sidebar li {
-  padding: 8px 12px;
-  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 10px;
   cursor: pointer;
-  color: #4b5563;
+  font-size: 13.5px;
+  color: #475569;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.sidebar li:hover {
+  background: #f8fafc;
 }
 
 .sidebar li.active {
-  background: rgba(26, 160, 83, 0.12);
-  color: #1aa053;
+  background: rgba(255, 107, 44, 0.08);
+  color: #f25a1b;
+  font-weight: 500;
+}
+
+.cat-count {
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.sidebar li.active .cat-count {
+  color: #ff6b2c;
+}
+
+.sidebar-tip {
+  margin-top: 22px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  display: flex;
+  gap: 10px;
+}
+
+.sidebar-tip i {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #ff6b2c;
+}
+
+.sidebar-tip p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #64748b;
 }
 
 .templates {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
 }
 
 .card {
-  background: #fff;
-  border-radius: 22px;
-  padding: 20px;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 22px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
 }
 
-.card header {
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 16px 36px rgba(15, 23, 42, 0.08);
+}
+
+.card-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 4px;
+}
+
+.card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 107, 44, 0.1);
+  color: #ff6b2c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.freq-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.card h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.card > p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #64748b;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .meta {
-  font-size: 13px;
-  color: #6b7280;
+  font-size: 12.5px;
+  color: #94a3b8;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meta i {
+  width: 12px;
+  text-align: center;
+  font-size: 11px;
+  color: #cbd5e1;
 }
 
 .actions {
   display: flex;
   gap: 10px;
   margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
 }
 
 .ghost {
+  border: none;
   border-radius: 999px;
-  border: 1px solid #d4dae5;
-  background: transparent;
-  color: #1f2933;
-  padding: 8px 16px;
+  background: #f8fafc;
+  color: #475569;
+  padding: 0 16px;
+  height: 34px;
   cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.18s ease;
+}
+
+.ghost:hover {
+  background: #eef2f6;
 }
 
 .modal-mask {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(15, 23, 42, 0.32);
+  backdrop-filter: blur(8px);
   display: grid;
   place-items: center;
   z-index: 2000;
 }
 
 .modal {
-  background: #fff;
+  background: #ffffff;
   border-radius: 20px;
   width: min(720px, 92vw);
-  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.16);
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-.modal-header,
-.modal-footer {
-  padding: 16px 20px;
+.modal-header {
+  padding: 22px 26px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #eef2f7;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
 }
 
 .modal-footer {
-  border-top: 1px solid #eef2f7;
-  border-bottom: none;
+  padding: 18px 26px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  background: #fafbfc;
 }
 
 .modal-body {
-  padding: 16px 20px 4px;
+  padding: 8px 26px 22px;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
 .close {
+  width: 32px;
+  height: 32px;
   border: none;
-  background: transparent;
-  font-size: 22px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  font-size: 18px;
+  color: #64748b;
   cursor: pointer;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
+  gap: 14px;
+  margin-bottom: 14px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
-  color: #4b5563;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.field span {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
 }
 
 .field input,
 .field select {
-  border: 1px solid #dfe3eb;
-  border-radius: 10px;
-  padding: 10px 12px;
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 0 14px;
+  height: 42px;
+  background: #f8fafc;
   font-size: 14px;
+  color: #0f172a;
+  outline: none;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.field input:focus,
+.field select:focus {
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(255, 107, 44, 0.12);
 }
 
 .submit-msg {
-  margin-top: 10px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
   font-size: 13px;
 }
 
 .submit-msg.success {
-  color: #0f9d58;
+  background: rgba(56, 185, 130, 0.08);
+  color: #1aa053;
 }
 
 .submit-msg.error {
-  color: #d93025;
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
 }
 
 @media (max-width: 900px) {
+  .hero,
   .content {
     grid-template-columns: 1fr;
   }
-  .hero {
-    flex-direction: column;
-    align-items: flex-start;
+
+  .sidebar {
+    position: static;
   }
 }
 </style>

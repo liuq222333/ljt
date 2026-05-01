@@ -5,6 +5,7 @@ import com.example.demo.demos.common.error.BizException;
 import com.example.demo.demos.common.error.ErrorCode;
 import com.example.demo.demos.common.ratelimit.UserRateLimiter;
 import com.example.demo.demos.realtime.config.RealtimeQueryProperties;
+import com.example.demo.demos.realtime.config.RealtimeToolRegistryProperties;
 import com.example.demo.demos.realtime.model.RealtimeQueryRequest;
 import com.example.demo.demos.realtime.model.RealtimeQueryResponse;
 import com.example.demo.demos.realtime.model.RealtimeResultItem;
@@ -18,6 +19,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,8 +30,9 @@ public class RealtimeQueryOrchestratorService {
 
     private final RealtimeQueryProperties properties;
     private final RealtimeGatewayClient realtimeGatewayClient;
-    private final ProductRealtimeFallbackService productRealtimeFallbackService;
+    private final RealtimeFallbackRegistry fallbackRegistry;
     private final UserRateLimiter userRateLimiter;
+    private final RealtimeToolRegistryProperties toolRegistryProperties;
     private final Map<String, CachedRealtimeResponse> cache = new ConcurrentHashMap<String, CachedRealtimeResponse>();
     private final Object circuitLock = new Object();
     private final AtomicLong totalRequests = new AtomicLong();
@@ -47,21 +50,24 @@ public class RealtimeQueryOrchestratorService {
 
     public RealtimeQueryOrchestratorService(RealtimeQueryProperties properties,
                                             RealtimeGatewayClient realtimeGatewayClient,
-                                            ProductRealtimeFallbackService productRealtimeFallbackService,
-                                            UserRateLimiter userRateLimiter) {
+                                            RealtimeFallbackRegistry fallbackRegistry,
+                                            UserRateLimiter userRateLimiter,
+                                            RealtimeToolRegistryProperties toolRegistryProperties) {
         this.properties = properties;
         this.realtimeGatewayClient = realtimeGatewayClient;
-        this.productRealtimeFallbackService = productRealtimeFallbackService;
+        this.fallbackRegistry = fallbackRegistry;
         this.userRateLimiter = userRateLimiter;
+        this.toolRegistryProperties = toolRegistryProperties;
     }
 
     public RealtimeQueryResponse query(RealtimeQueryRequest request) {
         totalRequests.incrementAndGet();
         validateRequest(request);
-        List<Long> normalizedIds = normalizeIds(request.getEntityIds());
-        request.setEntityIds(normalizedIds);
-        String cacheKey = buildCacheKey(request);
-        if (!request.isForceRefresh()) {
+        RealtimeQueryRequest effectiveRequest = copyRequest(request);
+        List<Long> normalizedIds = normalizeIds(effectiveRequest.getEntityIds());
+        effectiveRequest.setEntityIds(normalizedIds);
+        String cacheKey = buildCacheKey(effectiveRequest);
+        if (!effectiveRequest.isForceRefresh()) {
             RealtimeQueryResponse cached = getCached(cacheKey);
             if (cached != null) {
                 cacheHitCount.incrementAndGet();
@@ -69,9 +75,9 @@ public class RealtimeQueryOrchestratorService {
                 return cached;
             }
         }
-        if (StringUtils.hasText(request.getUserId())) {
+        if (StringUtils.hasText(effectiveRequest.getUserId())) {
             try {
-                userRateLimiter.checkLimit(request.getUserId());
+                userRateLimiter.checkLimit(effectiveRequest.getUserId());
             } catch (BizException ex) {
                 rateLimitedCount.incrementAndGet();
                 throw ex;
@@ -81,15 +87,15 @@ public class RealtimeQueryOrchestratorService {
         long start = System.currentTimeMillis();
         RealtimeQueryResponse result;
         if (!properties.isGatewayEnabled()) {
-            result = productRealtimeFallbackService.query(request, normalizedIds, "gateway_disabled");
+            result = fallbackRegistry.query(effectiveRequest, normalizedIds, "gateway_disabled");
         } else {
-            result = queryWithGateway(request, normalizedIds);
+            result = queryWithGateway(effectiveRequest, normalizedIds);
         }
         result.getQueryMeta().put("cacheHit", false);
         result.getQueryMeta().put("latencyMs", System.currentTimeMillis() - start);
         result.getQueryMeta().put("maxCandidates", properties.getMaxCandidates());
         if (shouldCache(result)) {
-            putCache(cacheKey, result);
+            putCache(cacheKey, result, cacheTtlSecondsFor(result));
         }
         return result;
     }
@@ -101,6 +107,8 @@ public class RealtimeQueryOrchestratorService {
         result.put("mockGatewayEnabled", properties.isMockGatewayEnabled());
         result.put("cacheSize", cache.size());
         result.put("cacheTtlSeconds", properties.getCacheTtlSeconds());
+        result.put("partialCacheTtlSeconds", properties.getPartialCacheTtlSeconds());
+        result.put("degradedCacheTtlSeconds", properties.getDegradedCacheTtlSeconds());
         result.put("maxCandidates", properties.getMaxCandidates());
         result.put("metrics", buildMetrics());
         result.put("circuit", buildCircuitStatus());
@@ -149,7 +157,7 @@ public class RealtimeQueryOrchestratorService {
             result.put("reason", "gateway_disabled");
             return result;
         }
-        RealtimeQueryRequest effectiveRequest = request == null ? new RealtimeQueryRequest() : request;
+        RealtimeQueryRequest effectiveRequest = request == null ? new RealtimeQueryRequest() : copyRequest(request);
         if (!StringUtils.hasText(effectiveRequest.getEntityType())) {
             effectiveRequest.setEntityType("product");
         }
@@ -186,7 +194,7 @@ public class RealtimeQueryOrchestratorService {
     private RealtimeQueryResponse queryWithGateway(RealtimeQueryRequest request, List<Long> normalizedIds) {
         if (isCircuitOpen()) {
             fallbackResponseCount.incrementAndGet();
-            RealtimeQueryResponse fallback = productRealtimeFallbackService.query(request, normalizedIds, "circuit_open");
+            RealtimeQueryResponse fallback = fallbackRegistry.query(request, normalizedIds, "circuit_open");
             fallback.getQueryMeta().put("gatewaySkipped", true);
             fallback.getQueryMeta().put("circuit", buildCircuitStatus());
             return fallback;
@@ -198,14 +206,14 @@ public class RealtimeQueryOrchestratorService {
         } catch (BizException ex) {
             recordGatewayFailure(codeToReason(ex.getCode()));
             fallbackResponseCount.incrementAndGet();
-            RealtimeQueryResponse fallback = productRealtimeFallbackService.query(request, normalizedIds, codeToReason(ex.getCode()));
+            RealtimeQueryResponse fallback = fallbackRegistry.query(request, normalizedIds, codeToReason(ex.getCode()));
             fallback.getQueryMeta().put("circuit", buildCircuitStatus());
             return fallback;
         }
         if (gatewayResponse == null) {
             recordGatewayFailure("gateway_null_response");
             fallbackResponseCount.incrementAndGet();
-            RealtimeQueryResponse fallback = productRealtimeFallbackService.query(request, normalizedIds, "gateway_null_response");
+            RealtimeQueryResponse fallback = fallbackRegistry.query(request, normalizedIds, "gateway_null_response");
             fallback.getQueryMeta().put("circuit", buildCircuitStatus());
             return fallback;
         }
@@ -220,7 +228,7 @@ public class RealtimeQueryOrchestratorService {
                 || gatewayStatus == RealtimeStatus.DEGRADED) {
             recordGatewayFailure("gateway_status_" + gatewayStatus.getCode());
             fallbackResponseCount.incrementAndGet();
-            RealtimeQueryResponse fallback = productRealtimeFallbackService.query(request, normalizedIds, gatewayStatus.getCode());
+            RealtimeQueryResponse fallback = fallbackRegistry.query(request, normalizedIds, gatewayStatus.getCode());
             fallback.getQueryMeta().put("circuit", buildCircuitStatus());
             return fallback;
         }
@@ -234,7 +242,7 @@ public class RealtimeQueryOrchestratorService {
         if (missingIds.isEmpty() && gatewayStatus == RealtimeStatus.SUCCESS) {
             return gatewayResponse;
         }
-        RealtimeQueryResponse fallbackResponse = productRealtimeFallbackService.query(
+        RealtimeQueryResponse fallbackResponse = fallbackRegistry.query(
                 request,
                 missingIds.isEmpty() ? normalizedIds : missingIds,
                 gatewayStatus.getCode()
@@ -247,6 +255,12 @@ public class RealtimeQueryOrchestratorService {
                                         RealtimeQueryResponse fallbackResponse,
                                         List<Long> normalizedIds) {
         Map<String, RealtimeResultItem> merged = new LinkedHashMap<String, RealtimeResultItem>();
+        RealtimeStatus gatewayStatus = gatewayResponse.getRealtimeStatus() == null
+                ? RealtimeStatus.FAILED
+                : gatewayResponse.getRealtimeStatus();
+        RealtimeStatus fallbackStatus = fallbackResponse.getRealtimeStatus() == null
+                ? RealtimeStatus.FAILED
+                : fallbackResponse.getRealtimeStatus();
         for (RealtimeResultItem item : gatewayResponse.getItems()) {
             merged.put(item.getEntityId(), item);
         }
@@ -258,18 +272,28 @@ public class RealtimeQueryOrchestratorService {
         RealtimeQueryResponse result = new RealtimeQueryResponse();
         result.setItems(new ArrayList<RealtimeResultItem>(merged.values()));
         result.setPartialFailedIds(findMissingIds(result, normalizedIds));
-        if (gatewayResponse.getRealtimeStatus() == RealtimeStatus.SUCCESS && result.getPartialFailedIds().isEmpty()) {
+        boolean fallbackUsed = !fallbackResponse.getItems().isEmpty();
+        boolean gatewayHasItems = !gatewayResponse.getItems().isEmpty();
+        boolean hasAnyItems = !result.getItems().isEmpty();
+        if (!result.getPartialFailedIds().isEmpty()) {
+            result.setRealtimeStatus(hasAnyItems ? RealtimeStatus.PARTIAL_SUCCESS : RealtimeStatus.FAILED);
+        } else if (gatewayStatus == RealtimeStatus.SUCCESS && !fallbackUsed) {
             result.setRealtimeStatus(RealtimeStatus.SUCCESS);
-        } else if (!gatewayResponse.getItems().isEmpty() && !fallbackResponse.getItems().isEmpty()) {
+        } else if (gatewayHasItems && fallbackUsed) {
             result.setRealtimeStatus(RealtimeStatus.PARTIAL_SUCCESS);
-        } else if (!fallbackResponse.getItems().isEmpty()) {
+        } else if (fallbackUsed) {
             result.setRealtimeStatus(RealtimeStatus.DEGRADED);
         } else {
-            result.setRealtimeStatus(gatewayResponse.getRealtimeStatus());
+            result.setRealtimeStatus(gatewayStatus);
         }
-        result.getQueryMeta().put("gatewayStatus", gatewayResponse.getRealtimeStatus().getCode());
-        result.getQueryMeta().put("fallbackUsed", !fallbackResponse.getItems().isEmpty());
-        result.getQueryMeta().put("fallbackStatus", fallbackResponse.getRealtimeStatus().getCode());
+        if (result.getRealtimeStatus() == RealtimeStatus.SUCCESS && !result.getPartialFailedIds().isEmpty()) {
+            result.setRealtimeStatus(hasAnyItems ? RealtimeStatus.PARTIAL_SUCCESS : RealtimeStatus.FAILED);
+        }
+        result.getQueryMeta().put("gatewayStatus", gatewayStatus.getCode());
+        result.getQueryMeta().put("fallbackUsed", fallbackUsed);
+        result.getQueryMeta().put("mergedFromFallback", fallbackUsed);
+        result.getQueryMeta().put("complete", result.getPartialFailedIds().isEmpty());
+        result.getQueryMeta().put("fallbackStatus", fallbackStatus.getCode());
         result.getQueryMeta().put("gatewayMeta", gatewayResponse.getQueryMeta());
         result.getQueryMeta().put("fallbackMeta", fallbackResponse.getQueryMeta());
         result.getQueryMeta().put("circuit", buildCircuitStatus());
@@ -286,9 +310,31 @@ public class RealtimeQueryOrchestratorService {
         if (!StringUtils.hasText(request.getEntityType())) {
             throw new BizException(ErrorCode.REALTIME_RESPONSE_ERROR, "entityType 不能为空");
         }
+        if (!toolRegistryProperties.isRealtimeEnabled(request.getEntityType())) {
+            throw new BizException(
+                    ErrorCode.REALTIME_UNAVAILABLE,
+                    normalizeEntityType(request.getEntityType()) + " 实时查询未启用"
+            );
+        }
         if (CollectionUtils.isEmpty(request.getEntityIds())) {
             throw new BizException(ErrorCode.REALTIME_RESPONSE_ERROR, "entityIds 不能为空");
         }
+    }
+
+    private RealtimeQueryRequest copyRequest(RealtimeQueryRequest source) {
+        RealtimeQueryRequest target = new RealtimeQueryRequest();
+        target.setEntityType(source.getEntityType());
+        target.setEntityIds(source.getEntityIds() == null
+                ? new ArrayList<Long>()
+                : new ArrayList<Long>(source.getEntityIds()));
+        target.setQueryType(source.getQueryType());
+        target.setDate(source.getDate());
+        target.setTimeSlot(source.getTimeSlot());
+        target.setTraceId(source.getTraceId());
+        target.setTimeoutMs(source.getTimeoutMs());
+        target.setUserId(source.getUserId());
+        target.setForceRefresh(source.isForceRefresh());
+        return target;
     }
 
     private List<Long> normalizeIds(List<Long> rawIds) {
@@ -306,14 +352,22 @@ public class RealtimeQueryOrchestratorService {
 
     private String buildCacheKey(RealtimeQueryRequest request) {
         StringBuilder builder = new StringBuilder();
-        builder.append(request.getEntityType()).append('|')
+        builder.append(normalizeEntityType(request.getEntityType())).append('|')
                 .append(request.getQueryType()).append('|')
                 .append(request.getDate()).append('|')
                 .append(request.getTimeSlot()).append('|');
-        for (Long entityId : request.getEntityIds()) {
+        List<Long> sortedIds = new ArrayList<Long>(request.getEntityIds());
+        Collections.sort(sortedIds);
+        for (Long entityId : sortedIds) {
             builder.append(entityId).append(',');
         }
         return builder.toString();
+    }
+
+    private String normalizeEntityType(String entityType) {
+        return StringUtils.hasText(entityType)
+                ? entityType.trim().toLowerCase(Locale.ROOT)
+                : "";
     }
 
     private RealtimeQueryResponse getCached(String cacheKey) {
@@ -328,15 +382,31 @@ public class RealtimeQueryOrchestratorService {
         return cloneResponse(cached.response);
     }
 
-    private void putCache(String cacheKey, RealtimeQueryResponse response) {
+    private void putCache(String cacheKey, RealtimeQueryResponse response, int ttlSeconds) {
         cache.put(cacheKey, new CachedRealtimeResponse(
                 cloneResponse(response),
-                Instant.now().toEpochMilli() + properties.getCacheTtlSeconds() * 1000L
+                Instant.now().toEpochMilli() + Math.max(1, ttlSeconds) * 1000L
         ));
     }
 
     private boolean shouldCache(RealtimeQueryResponse response) {
-        return response != null && response.getRealtimeStatus() == RealtimeStatus.SUCCESS;
+        return cacheTtlSecondsFor(response) > 0;
+    }
+
+    private int cacheTtlSecondsFor(RealtimeQueryResponse response) {
+        if (response == null || response.getRealtimeStatus() == null) {
+            return 0;
+        }
+        if (response.getRealtimeStatus() == RealtimeStatus.SUCCESS) {
+            return Math.max(0, properties.getCacheTtlSeconds());
+        }
+        if (response.getRealtimeStatus() == RealtimeStatus.PARTIAL_SUCCESS) {
+            return Math.max(0, properties.getPartialCacheTtlSeconds());
+        }
+        if (response.getRealtimeStatus() == RealtimeStatus.DEGRADED) {
+            return Math.max(0, properties.getDegradedCacheTtlSeconds());
+        }
+        return 0;
     }
 
     private boolean coversAllIds(RealtimeQueryResponse response, List<Long> normalizedIds) {

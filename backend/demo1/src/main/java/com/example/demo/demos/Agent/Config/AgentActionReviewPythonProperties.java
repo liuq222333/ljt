@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "agent.action-review.python")
 public class AgentActionReviewPythonProperties {
 
-    private boolean enabled = false;
+    private boolean enabled = true;
     private String baseUrl = "http://127.0.0.1:9001";
     private String reviewPath = "/review_action";
     private long connectTimeoutMs = 200L;

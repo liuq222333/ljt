@@ -241,7 +241,12 @@ async function submitPost() {
 
     if (response.status === 200) {
       ElMessage.success('发布成功');
-      emit('publish', { ...response.data, images: uploads.value.map(i => i.key) });
+      emit('publish', {
+        ...response.data,
+        images: Array.isArray(response.data?.images)
+          ? response.data.images
+          : uploads.value.map(i => i.url || i.key)
+      });
       emit('close');
     } else {
       ElMessage.error('发布失败');

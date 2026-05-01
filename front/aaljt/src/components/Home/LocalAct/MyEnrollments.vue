@@ -3,64 +3,69 @@
   <div class="lae-page">
     <section class="lae-hero card">
       <div>
-        <p class="eyebrow">????</p>
-        <h1>???????</h1>
-        <p class="subtitle">??????????????????????????</p>
+        <p class="eyebrow">我的参与</p>
+        <h1>统一管理我的活动报名</h1>
+        <p class="subtitle">查看即将参加、待审核和候补中的活动，也可以导出报名记录。</p>
       </div>
       <div class="hero-actions">
-        <button class="btn btn-light" @click="exportEnrollments">????</button>
-        <button class="btn btn-primary" @click="goToPublish">????</button>
+        <button class="btn btn-light" @click="exportEnrollments">导出记录</button>
+        <button class="btn btn-primary" @click="goToPublish">发布活动</button>
       </div>
     </section>
 
     <section class="stats-row">
       <article class="stat-card" v-for="stat in statsCards" :key="stat.key">
-        <p class="label">{{ stat.label }}</p>
-        <strong>{{ stat.value }}</strong>
-        <span>{{ stat.desc }}</span>
+        <span class="stat-icon" :class="`stat-${stat.key}`">
+          <i :class="['fas', stat.icon || 'fa-calendar']"></i>
+        </span>
+        <div class="stat-text">
+          <p class="label">{{ stat.label }}</p>
+          <strong>{{ stat.value }}</strong>
+          <span>{{ stat.desc }}</span>
+        </div>
       </article>
     </section>
 
     <section class="content-layout">
       <aside class="filters card">
-        <h3>????</h3>
+        <h3>筛选</h3>
         <label>
-          ??
+          状态
           <select v-model="filters.status">
-            <option value="">????</option>
-            <option value="confirmed">???</option>
-            <option value="pending">???</option>
-            <option value="waitlist">???</option>
+            <option value="">全部状态</option>
+            <option value="confirmed">已确认</option>
+            <option value="pending">待审核</option>
+            <option value="waitlist">候补中</option>
           </select>
         </label>
         <label>
-          ??
+          时间
           <select v-model="filters.period">
-            <option value="upcoming">????</option>
-            <option value="past">????</option>
+            <option value="upcoming">即将开始</option>
+            <option value="past">历史活动</option>
           </select>
         </label>
         <label>
-          ???
-          <input v-model="filters.keyword" type="text" placeholder="??? / ?? / ???" />
+          关键词
+          <input v-model="filters.keyword" type="text" placeholder="活动 / 地点 / 组织者" />
         </label>
-        <button class="btn btn-light full" @click="refreshList">????</button>
+        <button class="btn btn-light full" @click="refreshList">刷新列表</button>
       </aside>
 
       <div class="records card">
         <header class="records-header">
           <div>
-            <h2>????</h2>
-            <p>??? {{ filtered.length }} ?</p>
+            <h2>报名记录</h2>
+            <p>共 {{ filtered.length }} 条</p>
           </div>
         </header>
 
         <p v-if="infoMsg" class="info-msg">{{ infoMsg }}</p>
 
         <div class="records-list">
-          <div v-if="loading" class="record empty">????????...</div>
+          <div v-if="loading" class="record empty">正在加载报名记录...</div>
           <div v-else-if="errorMsg" class="record empty error">{{ errorMsg }}</div>
-          <div v-else-if="!filtered.length" class="record empty">???????????</div>
+          <div v-else-if="!filtered.length" class="record empty">暂无匹配的报名记录。</div>
 
           <article v-else v-for="item in filtered" :key="item.id" class="record">
             <div class="record-main">
@@ -69,22 +74,29 @@
                 <span class="status" :class="item.status">{{ statusLabel(item.status) }}</span>
               </div>
               <h3>{{ item.title }}</h3>
-              <p class="meta">{{ item.location }} ? {{ item.organizer }}</p>
+              <p class="meta">{{ item.location }} · {{ item.organizer }}</p>
               <div class="tags" v-if="item.tags.length">
                 <span v-for="tag in item.tags" :key="tag">{{ tag }}</span>
               </div>
-              <p class="reminder">???{{ item.reminder }}</p>
+              <p class="reminder">提醒：{{ item.reminder }}</p>
             </div>
             <div class="record-actions">
-              <button class="btn btn-light sm" @click="goToDetail(item.id)">????</button>
+              <button class="btn btn-light sm" @click="goToDetail(item.activityId)">查看详情</button>
               <button
                 v-if="item.status === 'pending'"
                 class="btn btn-light sm"
                 @click="remindReview(item)"
               >
-                ???
+                催审核
               </button>
-              <button v-else class="btn btn-primary sm" @click="cancelEnrollment(item)">????</button>
+              <button
+                v-if="canCancel(item)"
+                class="btn btn-primary sm"
+                @click="cancelEnrollment(item)"
+                :disabled="cancelingId === item.id"
+              >
+                {{ cancelingId === item.id ? '取消中...' : '取消报名' }}
+              </button>
             </div>
           </article>
         </div>
@@ -96,12 +108,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { cancelLocalActivityEnrollment } from '@/api/localAct';
 import dhstyle from '../../dhstyle/dhstyle.vue';
 
-type Status = 'confirmed' | 'pending' | 'waitlist';
+type Status = 'confirmed' | 'pending' | 'waitlist' | 'cancelled' | 'checked_in' | 'completed';
 
 type Enrollment = {
   id: number;
+  activityId: number;
   title: string;
   date: string;
   location: string;
@@ -119,6 +133,7 @@ type Filters = {
 
 type ApiEnrollmentItem = {
   id: number;
+  activityId: number;
   title: string;
   location: string;
   organizer: string;
@@ -144,13 +159,14 @@ const router = useRouter();
 const username = ref(localStorage.getItem('username') || '');
 
 const statsCards = ref([
-  { key: 'upcoming', label: '????', value: 0, desc: '????' },
-  { key: 'participated', label: '????', value: 0, desc: '????' },
-  { key: 'hours', label: '????', value: 0, desc: '????' }
+  { key: 'upcoming', label: '即将开始', value: 0, desc: '已报名活动', icon: 'fa-calendar-day' },
+  { key: 'participated', label: '累计参与', value: 0, desc: '历史参与记录', icon: 'fa-clock-rotate-left' },
+  { key: 'hours', label: '志愿时长', value: 0, desc: '累计服务小时', icon: 'fa-hand-holding-heart' }
 ]);
 
 const enrollments = ref<Enrollment[]>([]);
 const loading = ref(false);
+const cancelingId = ref<number | null>(null);
 const errorMsg = ref('');
 const infoMsg = ref('');
 
@@ -161,9 +177,9 @@ const filters = ref<Filters>({
 });
 
 const formatDate = (iso?: string) => {
-  if (!iso) return '????';
+  if (!iso) return '待定';
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '????';
+  if (Number.isNaN(date.getTime())) return '待定';
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const day = date.getDate().toString().padStart(2, '0');
   return `${month}/${day}`;
@@ -171,15 +187,15 @@ const formatDate = (iso?: string) => {
 
 const updateStats = (stats?: ApiStats) => {
   statsCards.value = [
-    { key: 'upcoming', label: '????', value: stats?.upcomingCount ?? 0, desc: '????' },
-    { key: 'participated', label: '????', value: stats?.totalParticipated ?? 0, desc: '????' },
-    { key: 'hours', label: '????', value: stats?.volunteerHours ?? 0, desc: '????' }
+    { key: 'upcoming', label: '即将开始', value: stats?.upcomingCount ?? 0, desc: '已报名活动', icon: 'fa-calendar-day' },
+    { key: 'participated', label: '累计参与', value: stats?.totalParticipated ?? 0, desc: '历史参与记录', icon: 'fa-clock-rotate-left' },
+    { key: 'hours', label: '志愿时长', value: stats?.volunteerHours ?? 0, desc: '累计服务小时', icon: 'fa-hand-holding-heart' }
   ];
 };
 
 const fetchEnrollments = async () => {
   if (!username.value) {
-    errorMsg.value = '???????????';
+    errorMsg.value = '请先登录后查看报名记录';
     enrollments.value = [];
     updateStats();
     return;
@@ -203,6 +219,7 @@ const fetchEnrollments = async () => {
     enrollments.value =
       data.items?.map((item) => ({
         id: item.id,
+        activityId: item.activityId,
         title: item.title,
         location: item.location,
         organizer: item.organizer,
@@ -212,7 +229,7 @@ const fetchEnrollments = async () => {
         date: formatDate(item.startAt)
       })) ?? [];
   } catch (error) {
-    errorMsg.value = error instanceof Error ? error.message : '????????';
+    errorMsg.value = error instanceof Error ? error.message : '加载报名记录失败';
   } finally {
     loading.value = false;
   }
@@ -231,9 +248,13 @@ watch(
 const filtered = computed(() => enrollments.value);
 
 const statusLabel = (status: Status) => {
-  if (status === 'confirmed') return '???';
-  if (status === 'pending') return '???';
-  return '???';
+  if (status === 'confirmed') return '已确认';
+  if (status === 'pending') return '待审核';
+  if (status === 'waitlist') return '候补中';
+  if (status === 'checked_in') return '已签到';
+  if (status === 'completed') return '已完成';
+  if (status === 'cancelled') return '已取消';
+  return status;
 };
 
 const goToPublish = () => {
@@ -250,21 +271,39 @@ const refreshList = () => {
 };
 
 const remindReview = (item: Enrollment) => {
-  infoMsg.value = `???????????${item.title}?`;
+  infoMsg.value = `已提醒组织者尽快审核「${item.title}」。`;
 };
 
-const cancelEnrollment = (item: Enrollment) => {
-  infoMsg.value = `????${item.title}??????????`;
+const canCancel = (item: Enrollment) =>
+  ['confirmed', 'pending', 'waitlist'].includes(item.status);
+
+const cancelEnrollment = async (item: Enrollment) => {
+  if (!username.value) {
+    errorMsg.value = '请先登录后再取消报名';
+    return;
+  }
+  cancelingId.value = item.id;
+  errorMsg.value = '';
+  infoMsg.value = '';
+  try {
+    await cancelLocalActivityEnrollment(item.activityId, username.value, '用户主动取消');
+    infoMsg.value = `已取消「${item.title}」的报名。`;
+    await fetchEnrollments();
+  } catch (error) {
+    errorMsg.value = error instanceof Error ? error.message : '取消报名失败';
+  } finally {
+    cancelingId.value = null;
+  }
 };
 
 const exportEnrollments = () => {
   if (!filtered.value.length) {
-    errorMsg.value = '????????????';
+    errorMsg.value = '当前没有可导出的报名记录';
     return;
   }
 
   const csv = [
-    ['??', '??', '??', '??'].join(','),
+    ['活动', '日期', '地点', '状态'].join(','),
     ...filtered.value.map((item) => [item.title, item.date, item.location, statusLabel(item.status)].join(','))
   ].join('\\n');
 
@@ -279,315 +318,383 @@ const exportEnrollments = () => {
 
 <style scoped>
 :global(body) {
-  background: #f5f6f8;
+  background: #fafbfc;
 }
 
 .lae-page {
-  padding: 76px 40px 36px;
-  color: #1f2937;
-  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
-}
-
-.card {
-  background: #ffffff;
-  border: 1px solid #e3e9f2;
-  border-radius: 12px;
+  color: #0f172a;
 }
 
 .lae-hero {
-  padding: 18px 20px;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 20px;
-}
-
-.eyebrow {
-  margin: 0;
-  font-size: 12px;
-  color: #667085;
-  letter-spacing: 0.08em;
-}
-
-.lae-hero h1 {
-  margin: 8px 0 6px;
-  font-size: 28px;
-  color: #1f2937;
+  gap: 24px;
 }
 
 .subtitle {
-  margin: 0;
+  margin: 14px 0 0;
+  max-width: 540px;
   font-size: 14px;
-  color: #4b5563;
-  line-height: 1.6;
+  line-height: 1.65;
+  color: #64748b;
 }
 
 .hero-actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .stats-row {
-  margin-top: 12px;
+  max-width: 1280px;
+  margin: 0 auto 24px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 18px;
 }
 
 .stat-card {
-  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 24px;
   background: #ffffff;
-  border: 1px solid #e3e9f2;
+  border-radius: 16px;
+}
+
+.stat-icon {
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.stat-icon.stat-upcoming {
+  background: rgba(255, 107, 44, 0.1);
+  color: #ff6b2c;
+}
+
+.stat-icon.stat-participated {
+  background: rgba(78, 142, 247, 0.1);
+  color: #4e8ef7;
+}
+
+.stat-icon.stat-hours {
+  background: rgba(56, 185, 130, 0.1);
+  color: #38b982;
+}
+
+.stat-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
 .stat-card .label {
-  margin: 0;
+  margin: 0 0 6px;
   font-size: 12px;
-  color: #667085;
+  font-weight: 500;
+  color: #94a3b8;
 }
 
 .stat-card strong {
-  font-size: 28px;
-  color: #2f6ea5;
-  line-height: 1.2;
+  font-size: 26px;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  line-height: 1;
 }
 
-.stat-card span {
+.stat-card span:last-child {
+  margin-top: 6px;
   font-size: 12px;
-  color: #667085;
+  color: #94a3b8;
 }
 
 .content-layout {
-  margin-top: 12px;
+  max-width: 1280px;
+  margin: 0 auto 60px;
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
 }
 
 .filters {
-  padding: 14px;
-  height: fit-content;
+  position: sticky;
+  top: 96px;
+  padding: 24px;
+  background: #ffffff;
+  border-radius: 18px;
 }
 
 .filters h3 {
-  margin: 0 0 10px;
-  font-size: 14px;
-  color: #1f2937;
+  margin: 0 0 18px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
 }
 
 .filters label {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  margin-bottom: 10px;
-  font-size: 13px;
-  color: #4b5563;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #475569;
 }
 
 .filters input,
 .filters select {
-  border: 1px solid #d9e0ea;
-  border-radius: 8px;
-  padding: 8px 10px;
+  border: none;
+  height: 38px;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #f8fafc;
   font-size: 13px;
-  color: #1f2937;
+  color: #0f172a;
+  outline: none;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.filters input:focus,
+.filters select:focus {
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(255, 107, 44, 0.12);
 }
 
 .records {
-  padding: 14px;
+  padding: 28px;
+  background: #ffffff;
+  border-radius: 18px;
 }
 
 .records-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+  align-items: baseline;
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .records-header h2 {
   margin: 0;
-  font-size: 16px;
-  color: #1f2937;
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
 }
 
 .records-header p {
-  margin: 2px 0 0;
+  margin: 0;
   font-size: 13px;
-  color: #667085;
+  color: #94a3b8;
 }
 
 .info-msg {
-  margin: 0 0 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #edf5fc;
-  border: 1px solid #cfe0f2;
-  font-size: 12px;
-  color: #2f6ea5;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(78, 142, 247, 0.08);
+  font-size: 13px;
+  color: #2563eb;
 }
 
 .records-list {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .record {
-  border: 1px solid #e5ebf3;
-  border-radius: 10px;
-  background: #ffffff;
-  padding: 10px 12px;
+  padding: 18px 0;
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.record:last-child {
+  border-bottom: none;
 }
 
 .record.empty {
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  color: #667085;
-  font-size: 13px;
+  padding: 56px 24px;
+  color: #94a3b8;
+  font-size: 13.5px;
+  border-bottom: none;
+  background: #f8fafc;
+  border-radius: 14px;
 }
 
 .record.empty.error {
-  color: #cf4f4f;
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.04);
 }
 
 .record-main {
   min-width: 0;
+  flex: 1;
 }
 
 .record-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 
 .date {
   margin: 0;
   font-size: 12px;
-  color: #2f6ea5;
+  font-weight: 500;
+  color: #ff6b2c;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 107, 44, 0.08);
 }
 
 .record h3 {
-  margin: 4px 0 2px;
-  font-size: 16px;
-  color: #1f2937;
+  margin: 4px 0 6px;
+  font-size: 15.5px;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -0.005em;
 }
 
 .meta,
 .reminder {
   margin: 0;
-  font-size: 13px;
-  color: #667085;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.reminder {
+  margin-top: 8px;
+  color: #94a3b8;
 }
 
 .tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin: 7px 0;
+  margin: 8px 0 0;
 }
 
 .tags span {
   display: inline-flex;
   align-items: center;
-  border: 1px solid #dce4ef;
+  border: none;
   border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 12px;
-  color: #475467;
-  background: #f8fafd;
+  padding: 0 10px;
+  height: 22px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #475569;
+  background: #f1f5f9;
 }
 
 .record-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .status {
   display: inline-flex;
   align-items: center;
   height: 22px;
-  padding: 0 8px;
+  padding: 0 10px;
   border-radius: 999px;
-  font-size: 12px;
-  border: 1px solid;
+  font-size: 11.5px;
+  font-weight: 500;
+  border: none;
 }
 
 .status.confirmed {
-  color: #2f855a;
-  border-color: #b9e2cc;
-  background: #f2fbf6;
+  color: #1aa053;
+  background: rgba(56, 185, 130, 0.1);
 }
 
 .status.pending {
-  color: #c56e10;
-  border-color: #f2d9b3;
-  background: #fdf8ef;
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.1);
 }
 
 .status.waitlist {
-  color: #2f6ea5;
-  border-color: #cfe0f2;
-  background: #f1f7fd;
+  color: #4e8ef7;
+  background: rgba(78, 142, 247, 0.1);
 }
 
 .btn {
   height: 34px;
-  padding: 0 14px;
-  border-radius: 8px;
-  border: 1px solid #d2dae8;
-  background: #ffffff;
-  color: #334155;
-  font-size: 13px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: none;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 500;
   cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
 }
 
 .btn:hover {
-  background: #f6f8fc;
-  border-color: #c3cddd;
+  background: #eef2f6;
+  color: #0f172a;
 }
 
 .btn-primary {
-  background: #8cb4db;
-  border-color: #8cb4db;
+  background: #ff6b2c;
   color: #ffffff;
 }
 
 .btn-primary:hover {
-  background: #7ea7cf;
-  border-color: #7ea7cf;
+  background: #f25a1b;
+  color: #ffffff;
 }
 
 .btn.sm {
   height: 30px;
-  padding: 0 12px;
+  padding: 0 14px;
   font-size: 12px;
 }
 
 .btn.full {
   width: 100%;
+  margin-top: 8px;
 }
 
-@media (max-width: 1200px) {
-  .lae-page {
-    padding: 72px 20px 30px;
-  }
-
+@media (max-width: 1024px) {
   .content-layout {
     grid-template-columns: 1fr;
   }
 
   .filters {
+    position: static;
     order: 2;
   }
 }
 
 @media (max-width: 900px) {
+  .lae-hero {
+    flex-direction: column;
+  }
+
   .stats-row {
     grid-template-columns: 1fr;
   }
@@ -598,6 +705,7 @@ const exportEnrollments = () => {
 
   .record-actions {
     justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 </style>

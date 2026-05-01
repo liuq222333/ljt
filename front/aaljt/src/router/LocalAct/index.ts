@@ -12,6 +12,11 @@ const localActRoutes: RouteRecordRaw[] = [
     component: () => import('../../components/Home/LocalAct/PublishActivity.vue')
   },
   {
+    path: '/local-act/list',
+    name: 'LocalActList',
+    component: () => import('../../components/Home/LocalAct/ActivityList.vue')
+  },
+  {
     path: '/local-act/recurring',
     name: 'LocalActRecurring',
     component: () => import('../../components/Home/LocalAct/ScheduleTemplates.vue')
@@ -32,11 +37,6 @@ const localActRoutes: RouteRecordRaw[] = [
     component: () => import('../../components/Home/LocalAct/MapView.vue')
   },
   {
-    path: '/local-act/:id',
-    name: 'LocalActDetail',
-    component: () => import('../../components/Home/LocalAct/ActivityDetail.vue')
-  },
-  {
     path: '/local-act/my-enrollments',
     name: 'LocalActEnrollments',
     component: () => import('../../components/Home/LocalAct/MyEnrollments.vue')
@@ -47,9 +47,19 @@ const localActRoutes: RouteRecordRaw[] = [
     component: () => import('../../components/Home/LocalAct/StoriesArchive.vue')
   },
   {
+    path: '/local-act/stories/publish',
+    name: 'LocalActStoryPublish',
+    component: () => import('../../components/Home/LocalAct/StoriesArchivePublish.vue')
+  },
+  {
     path: '/local-act/stories/:id',
     name: 'LocalActStoryDetail',
     component: () => import('../../components/Home/LocalAct/StoriesArchiveDetail.vue')
+  },
+  {
+    path: '/local-act/:id',
+    name: 'LocalActDetail',
+    component: () => import('../../components/Home/LocalAct/ActivityDetail.vue')
   }
 ];
 

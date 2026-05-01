@@ -6,6 +6,7 @@ import com.example.demo.demos.Agent.Pojo.AgentChatMessage;
 import com.example.demo.demos.Agent.Pojo.ParsedIntent;
 import com.example.demo.demos.Agent.Python.PythonQueryParserClient;
 import com.example.demo.demos.Agent.Python.PythonSidecarException;
+import com.example.demo.demos.Agent.Service.llm.DeepSeekClient;
 import com.example.demo.demos.common.enums.TaskType;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -104,9 +105,9 @@ class QueryParserServiceTest {
 
     private QueryParserService newService(QueryParserPythonProperties pythonProperties,
                                           DeepSeekProperties deepSeekProperties) {
+        DeepSeekClient deepSeekClient = new DeepSeekClient(new RestTemplateBuilder(), deepSeekProperties);
         return new QueryParserService(
-                new RestTemplateBuilder(),
-                deepSeekProperties,
+                deepSeekClient,
                 pythonProperties,
                 pythonQueryParserClient,
                 ruleFallbackParser

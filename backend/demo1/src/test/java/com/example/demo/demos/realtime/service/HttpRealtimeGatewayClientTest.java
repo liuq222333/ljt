@@ -8,6 +8,7 @@ import com.example.demo.demos.realtime.model.RealtimeQueryRequest;
 import com.example.demo.demos.realtime.model.RealtimeQueryResponse;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,7 +53,9 @@ class HttpRealtimeGatewayClientTest {
         assertEquals(1, response.getItems().size());
         assertEquals("123", response.getItems().get(0).getEntityId());
         assertEquals(Boolean.TRUE, response.getQueryMeta().get("gatewayEnabled"));
-        assertTrue(server.takeRequest().getPath().contains("/query"));
+        RecordedRequest recordedRequest = server.takeRequest();
+        assertTrue(recordedRequest.getPath().contains("/query"));
+        assertEquals("trace-1", recordedRequest.getHeader("X-Trace-Id"));
     }
 
     @Test

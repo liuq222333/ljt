@@ -1,0 +1,34 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: ljt-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9002:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin12345
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: ljt-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 admin admin12345; do
+        sleep 2;
+      done;
+      mc mb -p local/community-feed;
+      mc mb -p local/community-marketplace;
+      mc anonymous set download local/community-feed;
+      mc anonymous set download local/community-marketplace;
+      exit 0;
+      "
+
+volumes:
+  minio_data:

@@ -2,6 +2,7 @@ package com.example.demo.demos.LocalActive.Service.Impl;
 
 import com.example.demo.demos.LocalActive.DTO.LocalActCreateRequest;
 import com.example.demo.demos.LocalActive.DTO.LocalActCreateResponse;
+import com.example.demo.demos.LocalActive.DTO.LocalActivityDetail;
 import com.example.demo.demos.LocalActive.Dao.LocalActivityMapper;
 import com.example.demo.demos.LocalActive.Pojo.LocalActivity;
 import com.example.demo.demos.LocalActive.Service.LocalActivityService;
@@ -139,5 +140,21 @@ public class LocalActivityServiceImpl implements LocalActivityService {
         int limit = Math.max(1, size);
         int offset = Math.max(0, (Math.max(1, page) - 1) * limit);
         return activityMapper.listActivities(StringUtils.hasText(status) ? status : null, limit, offset);
+    }
+
+    @Override
+    public LocalActivityDetail getActivityDetail(Long id, String username) {
+        if (id == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "缺少活动ID");
+        }
+        LocalActivityDetail detail = activityMapper.findDetailById(id);
+        if (detail == null) {
+            throw new ResponseStatusException(NOT_FOUND, "活动不存在");
+        }
+        detail.setTags(activityMapper.listTags(id));
+        if (StringUtils.hasText(username)) {
+            detail.setEnrollmentStatus(activityMapper.findUserEnrollmentStatus(id, username));
+        }
+        return detail;
     }
 }

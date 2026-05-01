@@ -40,6 +40,10 @@ public class ActionIntentReviewService {
     private static final Pattern PRODUCT_ID_PATTERN = Pattern.compile(
             "(?i)(?:product(?:\\s*id)?|item(?:\\s*id)?|\\u5546\\u54c1(?:\\s*(?:id|\\u7f16\\u53f7))?|id|#)\\s*[:\\uff1a#]?\\s*(\\d{1,18})"
     );
+    private static final Pattern PRODUCT_ID_SHORT_PATTERN = Pattern.compile(
+            "(?:^|[^\\d])(\\d{1,18})\\s*(?:\\u53f7|#)?\\s*\\u5546\\u54c1"
+    );
+    private static final Pattern ENTITY_ID_VALUE_PATTERN = Pattern.compile("(\\d{1,18})");
     private static final Pattern CREATE_TITLE_PATTERN = Pattern.compile(
             "(?:\\u5546\\u54c1\\u540d(?:\\u79f0|\\u5b57)?|\\u6807\\u9898|\\u540d\\u4e3a|\\u53eb)\\s*(?:\\u662f|\\u4e3a|\\uff1a|:)?\\s*([^,\\uff0c.\\u3002;\\uff1b\\n]+)"
     );
@@ -48,6 +52,9 @@ public class ActionIntentReviewService {
     );
     private static final Pattern PRICE_LABEL_PATTERN = Pattern.compile(
             "(?:\\u4ef7\\u683c|\\u552e\\u4ef7)\\s*(?:\\u6539\\u6210|\\u6539\\u4e3a|\\u8c03\\u6574\\u4e3a|\\u8bbe\\u4e3a|\\u8bbe\\u7f6e\\u4e3a|\\u662f|\\u4e3a|\\uff1a|:)?\\s*(\\d+(?:\\.\\d+)?)"
+    );
+    private static final Pattern PRICE_ACTION_PATTERN = Pattern.compile(
+            "(?:\\u6539\\u4ef7|\\u8c03\\u4ef7)\\s*(?:\\u4e3a|\\u5230|\\u6210|\\uff1a|:)?\\s*(\\d+(?:\\.\\d+)?)"
     );
     private static final Pattern PRICE_CURRENCY_PATTERN = Pattern.compile(
             "(?:\\u6539\\u6210|\\u6539\\u4e3a|\\u8c03\\u6574\\u4e3a|\\u8bbe\\u4e3a|\\u8bbe\\u7f6e\\u4e3a)?\\s*(\\d+(?:\\.\\d+)?)\\s*(?:\\u5143|\\u5757|\\uffe5)"
@@ -75,6 +82,8 @@ public class ActionIntentReviewService {
             "(?:\\u5206\\u7c7b|\\u7c7b\\u76ee)\\s*(?:\\u662f|\\u4e3a|\\uff1a|:)?\\s*([^,\\uff0c.\\u3002;\\uff1b\\n]+)"
     );
     private static final Pattern URL_PATTERN = Pattern.compile("https?://[^\\s,\\uff0c]+");
+    private static final Pattern NUMBER_ONLY_PATTERN = Pattern.compile("^\\s*(\\d+(?:\\.\\d+)?)\\s*$");
+    private static final Pattern INTEGER_ONLY_PATTERN = Pattern.compile("^\\s*(\\d+)\\s*$");
 
     private static final List<String> CREATE_KEYWORDS = Arrays.asList(
             "\u53d1\u5e03", "\u4e0a\u67b6", "\u521b\u5efa", "\u65b0\u589e"
@@ -99,6 +108,20 @@ public class ActionIntentReviewService {
     );
     private static final List<String> PRODUCT_HINT_KEYWORDS = Arrays.asList(
             "\u5546\u54c1", "\u8d27", "\u5356", "\u53d1\u5e03", "\u4e0a\u67b6", "\u4e0b\u67b6"
+    );
+    private static final List<String> LEARNING_INTENT_KEYWORDS = Arrays.asList(
+            "\u4e86\u89e3", "\u60f3\u77e5\u9053", "\u77e5\u9053\u4e00\u4e0b", "\u600e\u4e48", "\u5982\u4f55", "\u600e\u6837",
+            "\u6559\u7a0b", "\u6d41\u7a0b", "\u89c4\u5219", "\u4ec0\u4e48\u610f\u601d"
+    );
+    private static final List<String> QUESTION_MARKERS = Arrays.asList(
+            "\u5417", "\u5417?", "\u5417\uff1f", "\u5462", "\u5462?", "\u5462\uff1f", "?", "\uff1f"
+    );
+    private static final List<String> REQUEST_COMMAND_PREFIXES = Arrays.asList(
+            "\u5e2e\u6211", "\u8bf7", "\u6211\u8981", "\u6211\u60f3", "\u7ed9\u6211", "\u9ebb\u70e6"
+    );
+    private static final List<String> REFERENCE_KEYWORDS = Arrays.asList(
+            "\u8fd9\u4e2a", "\u90a3\u4e2a", "\u5b83", "\u8be5\u5546\u54c1", "\u4e0a\u4e00\u4e2a", "\u521a\u624d\u90a3\u4e2a",
+            "\u521a\u624d\u7684", "\u521a\u624d", "\u9009\u4e2d\u7684", "\u7b2c\u4e00\u4e2a", "\u7b2c\u4e8c\u4e2a", "\u7b2c1\u4e2a", "\u7b2c2\u4e2a"
     );
 
     private final ApiRouteService apiRouteService;
@@ -141,6 +164,15 @@ public class ActionIntentReviewService {
                                      ParsedIntent parsedIntent,
                                      AgentChatRequest request,
                                      String authorization) {
+        return review(sessionId, latestMessage, parsedIntent, request, authorization, null);
+    }
+
+    public ActionReviewResult review(String sessionId,
+                                     AgentChatMessage latestMessage,
+                                     ParsedIntent parsedIntent,
+                                     AgentChatRequest request,
+                                     String authorization,
+                                     SessionState.SessionContext sessionContext) {
         ActionReviewResult result = new ActionReviewResult();
         if (latestMessage == null || !StringUtils.hasText(latestMessage.getContent())) {
             return result;
@@ -163,12 +195,12 @@ public class ActionIntentReviewService {
             return result;
         }
 
-        ActionReviewResult pythonResult = tryPythonReview(sessionId, text, parsedIntent, authorization, pending, signal);
+        ActionReviewResult pythonResult = tryPythonReview(sessionId, text, parsedIntent, authorization, pending, signal, sessionContext);
         if (pythonResult != null) {
             return pythonResult;
         }
 
-        return reviewLocal(sessionId, text, authorization, pending, signal);
+        return reviewLocal(sessionId, text, parsedIntent, authorization, pending, signal, sessionContext);
     }
 
     private boolean shouldEnterReview(String text,
@@ -188,9 +220,11 @@ public class ActionIntentReviewService {
 
     private ActionReviewResult reviewLocal(String sessionId,
                                            String text,
+                                           ParsedIntent parsedIntent,
                                            String authorization,
                                            ActionConversationStore.PendingAction pending,
-                                           ActionSignal signal) {
+                                           ActionSignal signal,
+                                           SessionState.SessionContext sessionContext) {
         ActionReviewResult result = new ActionReviewResult();
         if (pending != null && containsAny(text, CANCEL_KEYWORDS)) {
             actionConversationStore.clear(sessionId);
@@ -209,6 +243,7 @@ public class ActionIntentReviewService {
         }
 
         mergeExtractedParams(working, text);
+        applySessionProductReference(working, text, parsedIntent, sessionContext);
         recomputeMissingFields(working);
         result.setHandled(true);
         result.setPendingAction(working.copy());
@@ -239,7 +274,8 @@ public class ActionIntentReviewService {
                                                ParsedIntent parsedIntent,
                                                String authorization,
                                                ActionConversationStore.PendingAction pending,
-                                               ActionSignal signal) {
+                                               ActionSignal signal,
+                                               SessionState.SessionContext sessionContext) {
         if (agentActionReviewPythonProperties == null
                 || !agentActionReviewPythonProperties.isEnabled()
                 || pythonActionReviewClient == null
@@ -257,7 +293,7 @@ public class ActionIntentReviewService {
             if (response == null || !Boolean.TRUE.equals(response.getHandled())) {
                 return null;
             }
-            return applyPythonReviewResult(sessionId, text, authorization, pending, signal, availableRoutes, response);
+            return applyPythonReviewResult(sessionId, text, parsedIntent, authorization, pending, signal, sessionContext, availableRoutes, response);
         } catch (PythonSidecarException ex) {
             return null;
         } catch (RuntimeException ex) {
@@ -267,9 +303,11 @@ public class ActionIntentReviewService {
 
     private ActionReviewResult applyPythonReviewResult(String sessionId,
                                                        String text,
+                                                       ParsedIntent parsedIntent,
                                                        String authorization,
                                                        ActionConversationStore.PendingAction pending,
                                                        ActionSignal signal,
+                                                       SessionState.SessionContext sessionContext,
                                                        List<ApiRoute> availableRoutes,
                                                        PythonSidecarModels.ActionReviewResponsePayload response) {
         String outcome = response.getOutcome() == null ? "" : response.getOutcome().trim().toLowerCase(Locale.ROOT);
@@ -292,6 +330,7 @@ public class ActionIntentReviewService {
         working.setSessionId(sessionId);
         applyPendingDefaults(working, signal);
         mergeExtractedParams(working, text);
+        applySessionProductReference(working, text, parsedIntent, sessionContext);
         ensureRoute(working, availableRoutes);
         recomputeMissingFields(working);
 
@@ -333,6 +372,9 @@ public class ActionIntentReviewService {
     private boolean looksLikePendingSupplement(ActionConversationStore.PendingAction pendingAction, String text) {
         if (pendingAction == null || !StringUtils.hasText(text)) {
             return false;
+        }
+        if (canApplyShortReplyByMissingFields(pendingAction, text)) {
+            return true;
         }
         if (!CollectionUtils.isEmpty(extractImageUrls(text))) {
             return true;
@@ -414,12 +456,17 @@ public class ActionIntentReviewService {
             if (StringUtils.hasText(route.getPathTemplate()) && route.getPathTemplate().contains("/api/products/")) {
                 score += 0.08D;
             }
+            score += Math.min(Math.max(routePriority(route), 0), 100) / 1000.0D;
             if (score > bestScore) {
                 bestScore = score;
                 best = route;
             }
         }
         return bestScore >= 0.4D ? best : null;
+    }
+
+    private int routePriority(ApiRoute route) {
+        return route == null || route.getMatchPriority() == null ? 0 : route.getMatchPriority();
     }
 
     private List<ApiRoute> resolveAvailableRoutes(ActionConversationStore.PendingAction pending,
@@ -556,7 +603,139 @@ public class ActionIntentReviewService {
         return "\u5199\u64cd\u4f5c";
     }
 
+    private boolean canApplyShortReplyByMissingFields(ActionConversationStore.PendingAction pendingAction, String text) {
+        if (pendingAction == null || CollectionUtils.isEmpty(pendingAction.getMissingFields())) {
+            return false;
+        }
+        String normalized = normalizeShortReply(text);
+        if (!StringUtils.hasText(normalized) || looksLikeQuestionOrLearningIntent(normalized)) {
+            return false;
+        }
+        if (pendingAction.getMissingFields().contains("\u56fe\u7247 URL") && !extractImageUrls(normalized).isEmpty()) {
+            return true;
+        }
+        if (pendingAction.getMissingFields().contains("\u4ef7\u683c") && extractLooseDecimal(normalized) != null) {
+            return true;
+        }
+        if ((pendingAction.getMissingFields().contains("\u5e93\u5b58")
+                || pendingAction.getMissingFields().contains("\u589e\u52a0\u5e93\u5b58\u6570\u91cf"))
+                && extractLooseInteger(normalized) != null) {
+            return true;
+        }
+        if (pendingAction.getMissingFields().contains("\u5546\u54c1 ID")
+                && (extractProductId(normalized) != null || extractLooseLong(normalized) != null)) {
+            return true;
+        }
+        if (pendingAction.getMissingFields().contains("\u5546\u54c1\u5206\u7c7b")
+                && (extractCategoryId(normalized) != null
+                || matchCategoryIdByName(normalized) != null
+                || inferCategoryIdFromText(normalized) != null)) {
+            return true;
+        }
+        return pendingAction.getMissingFields().contains("\u5730\u70b9") && looksLikePlainFieldValue(normalized);
+    }
+
+    private void mergeShortReplyByMissingFields(ActionConversationStore.PendingAction pendingAction, String text) {
+        if (pendingAction == null || CollectionUtils.isEmpty(pendingAction.getMissingFields())) {
+            return;
+        }
+        String normalized = normalizeShortReply(text);
+        if (!StringUtils.hasText(normalized) || looksLikeQuestionOrLearningIntent(normalized)) {
+            return;
+        }
+        if ("create".equalsIgnoreCase(pendingAction.getAction())) {
+            mergeCreateShortReply(pendingAction, normalized);
+            return;
+        }
+        mergeUpdateShortReply(pendingAction, normalized);
+    }
+
+    private void mergeCreateShortReply(ActionConversationStore.PendingAction pendingAction, String text) {
+        List<String> missing = pendingAction.getMissingFields();
+        if (missing.contains("\u4ef7\u683c") && !pendingAction.getPayload().containsKey("price")) {
+            BigDecimal price = extractLooseDecimal(text);
+            if (price != null) {
+                pendingAction.getPayload().put("price", price);
+                return;
+            }
+        }
+        if (missing.contains("\u5e93\u5b58") && !pendingAction.getPayload().containsKey("stockQuantity")) {
+            Integer stockQuantity = extractLooseInteger(text);
+            if (stockQuantity != null) {
+                pendingAction.getPayload().put("stockQuantity", stockQuantity);
+                return;
+            }
+        }
+        if (missing.contains("\u5546\u54c1\u5206\u7c7b") && !pendingAction.getPayload().containsKey("categoryId")) {
+            Integer categoryId = extractCategoryId(text);
+            if (categoryId == null) {
+                categoryId = matchCategoryIdByName(text);
+            }
+            if (categoryId == null) {
+                categoryId = inferCategoryIdFromText(text);
+            }
+            if (categoryId != null) {
+                pendingAction.getPayload().put("categoryId", categoryId);
+                return;
+            }
+        }
+        if (missing.contains("\u5730\u70b9") && !pendingAction.getPayload().containsKey("location")) {
+            String location = extractLocation(text);
+            if (!StringUtils.hasText(location) && looksLikePlainFieldValue(text)) {
+                location = text;
+            }
+            if (StringUtils.hasText(location)) {
+                pendingAction.getPayload().put("location", location);
+                return;
+            }
+        }
+        if (missing.contains("\u56fe\u7247 URL") && !pendingAction.getPayload().containsKey("imageUrls")) {
+            List<String> imageUrls = extractImageUrls(text);
+            if (!imageUrls.isEmpty()) {
+                pendingAction.getPayload().put("imageUrls", toImagePayload(imageUrls));
+            }
+        }
+    }
+
+    private void mergeUpdateShortReply(ActionConversationStore.PendingAction pendingAction, String text) {
+        List<String> missing = pendingAction.getMissingFields();
+        if (missing.contains("\u5546\u54c1 ID") && !pendingAction.getParams().containsKey("productId")) {
+            Long productId = extractProductId(text);
+            if (productId == null && !missing.contains("\u4ef7\u683c") && !missing.contains("\u589e\u52a0\u5e93\u5b58\u6570\u91cf")) {
+                productId = extractLooseLong(text);
+            }
+            if (productId != null) {
+                pendingAction.getParams().put("productId", productId);
+                return;
+            }
+        }
+        if (missing.contains("\u4ef7\u683c") && !pendingAction.getParams().containsKey("price")) {
+            BigDecimal price = extractLooseDecimal(text);
+            if (price != null) {
+                pendingAction.getParams().put("price", price);
+                return;
+            }
+        }
+        if (missing.contains("\u5730\u70b9") && !pendingAction.getParams().containsKey("location")) {
+            String location = extractLocation(text);
+            if (!StringUtils.hasText(location) && looksLikePlainFieldValue(text)) {
+                location = text;
+            }
+            if (StringUtils.hasText(location)) {
+                pendingAction.getParams().put("location", location);
+                return;
+            }
+        }
+        if (missing.contains("\u589e\u52a0\u5e93\u5b58\u6570\u91cf") && !pendingAction.getParams().containsKey("delta")) {
+            Integer delta = extractLooseInteger(text);
+            if (delta != null) {
+                pendingAction.getParams().put("delta", delta);
+            }
+        }
+    }
+
     private void mergeExtractedParams(ActionConversationStore.PendingAction pendingAction, String text) {
+        mergeShortReplyByMissingFields(pendingAction, text);
         if ("create".equalsIgnoreCase(pendingAction.getAction())) {
             mergeCreatePayload(pendingAction, text);
             return;
@@ -584,6 +763,105 @@ public class ActionIntentReviewService {
             if (delta != null) {
                 pendingAction.getParams().put("delta", delta);
             }
+        }
+    }
+
+    private void applySessionProductReference(ActionConversationStore.PendingAction pendingAction,
+                                              String text,
+                                              ParsedIntent parsedIntent,
+                                              SessionState.SessionContext sessionContext) {
+        if (pendingAction == null
+                || "create".equalsIgnoreCase(pendingAction.getAction())
+                || pendingAction.getParams().containsKey("productId")) {
+            return;
+        }
+        Long productId = resolveSessionProductId(text, parsedIntent, sessionContext);
+        if (productId != null) {
+            pendingAction.getParams().put("productId", productId);
+        }
+    }
+
+    private Long resolveSessionProductId(String text,
+                                         ParsedIntent parsedIntent,
+                                         SessionState.SessionContext sessionContext) {
+        Long explicitProductId = extractProductId(text);
+        if (explicitProductId != null) {
+            return explicitProductId;
+        }
+        CandidateSlots slots = parsedIntent == null ? null : parsedIntent.getCandidateSlots();
+        if (slots != null
+                && StringUtils.hasText(slots.getEntityType())
+                && !"product".equalsIgnoreCase(slots.getEntityType())) {
+            return null;
+        }
+        if (slots != null && StringUtils.hasText(slots.getEntityRef())) {
+            Long referencedId = parseEntityId(resolveEntityIdByReference(sessionContext, slots.getEntityRef()));
+            if (referencedId != null) {
+                return referencedId;
+            }
+        }
+        if (!hasReferenceToPriorEntity(text)) {
+            return null;
+        }
+        return parseEntityId(resolveEntityIdByReference(sessionContext, text));
+    }
+
+    private String resolveEntityIdByReference(SessionState.SessionContext sessionContext, String entityRef) {
+        if (sessionContext == null || !StringUtils.hasText(entityRef)) {
+            return null;
+        }
+        if (entityRef.contains("\u7b2c\u4e00\u4e2a") || entityRef.contains("\u7b2c1\u4e2a")) {
+            return resolveCandidateEntityId(sessionContext, 0);
+        }
+        if (entityRef.contains("\u7b2c\u4e8c\u4e2a") || entityRef.contains("\u7b2c2\u4e2a")) {
+            return resolveCandidateEntityId(sessionContext, 1);
+        }
+        Matcher numericIndexMatcher = Pattern.compile("\\u7b2c\\s*(\\d+)\\s*\\u4e2a").matcher(entityRef);
+        if (numericIndexMatcher.find()) {
+            try {
+                return resolveCandidateEntityId(sessionContext, Integer.valueOf(numericIndexMatcher.group(1)) - 1);
+            } catch (NumberFormatException ignore) {
+                return null;
+            }
+        }
+        return resolveFocusedOrLastSelectedEntityId(sessionContext);
+    }
+
+    private String resolveFocusedOrLastSelectedEntityId(SessionState.SessionContext sessionContext) {
+        if (sessionContext == null) {
+            return null;
+        }
+        if (StringUtils.hasText(sessionContext.getFocusedEntityId())) {
+            return sessionContext.getFocusedEntityId();
+        }
+        if (!CollectionUtils.isEmpty(sessionContext.getLastSelectedEntityIds())) {
+            return sessionContext.getLastSelectedEntityIds().get(0);
+        }
+        return resolveCandidateEntityId(sessionContext, 0);
+    }
+
+    private String resolveCandidateEntityId(SessionState.SessionContext sessionContext, int index) {
+        if (sessionContext == null
+                || CollectionUtils.isEmpty(sessionContext.getCandidateEntities())
+                || index < 0
+                || index >= sessionContext.getCandidateEntities().size()) {
+            return null;
+        }
+        return sessionContext.getCandidateEntities().get(index);
+    }
+
+    private Long parseEntityId(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        Matcher matcher = ENTITY_ID_VALUE_PATTERN.matcher(value);
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(matcher.group(1));
+        } catch (NumberFormatException ignore) {
+            return null;
         }
     }
 
@@ -691,6 +969,9 @@ public class ActionIntentReviewService {
             return ActionSignal.NONE;
         }
         String normalized = text.trim();
+        if (looksLikeQuestionOrLearningIntent(normalized)) {
+            return ActionSignal.NONE;
+        }
         if (containsAny(normalized, CREATE_KEYWORDS) && looksLikeProductContext(normalized, parsedIntent)) {
             return ActionSignal.CREATE_PRODUCT;
         }
@@ -701,6 +982,28 @@ public class ActionIntentReviewService {
             return ActionSignal.UPDATE_PRODUCT_PRICE;
         }
         if (containsAny(normalized, UPDATE_LOCATION_KEYWORDS) || (normalized.contains("\u5730\u70b9") && normalized.contains("\u6539"))) {
+            return ActionSignal.UPDATE_PRODUCT_LOCATION;
+        }
+        Long productId = extractProductId(normalized);
+        boolean hasPriorEntityReference = hasReferenceToPriorEntity(normalized);
+        if (productId != null
+                && (normalized.contains("\u4ef7\u683c") || normalized.contains("\u552e\u4ef7"))
+                && extractPrice(normalized) != null) {
+            return ActionSignal.UPDATE_PRODUCT_PRICE;
+        }
+        if (hasPriorEntityReference
+                && (normalized.contains("\u4ef7\u683c") || normalized.contains("\u552e\u4ef7"))
+                && extractPrice(normalized) != null) {
+            return ActionSignal.UPDATE_PRODUCT_PRICE;
+        }
+        if (productId != null
+                && (normalized.contains("\u5730\u70b9") || normalized.contains("\u4f4d\u7f6e"))
+                && StringUtils.hasText(extractLocation(normalized))) {
+            return ActionSignal.UPDATE_PRODUCT_LOCATION;
+        }
+        if (hasPriorEntityReference
+                && (normalized.contains("\u5730\u70b9") || normalized.contains("\u4f4d\u7f6e"))
+                && StringUtils.hasText(extractLocation(normalized))) {
             return ActionSignal.UPDATE_PRODUCT_LOCATION;
         }
         if (containsAny(normalized, INCREASE_STOCK_KEYWORDS)) {
@@ -729,6 +1032,13 @@ public class ActionIntentReviewService {
         return false;
     }
 
+    private boolean hasReferenceToPriorEntity(String text) {
+        if (!StringUtils.hasText(text)) {
+            return false;
+        }
+        return containsAny(text, REFERENCE_KEYWORDS) || text.matches(".*\\u7b2c\\s*[\\u4e00\\u4e8c\\u4e09\\u56db\\u4e94\\u516d\\u4e03\\u516b\\u4e5d\\u5341\\d]+\\s*\\u4e2a.*");
+    }
+
     private Long extractProductId(String text) {
         if (!StringUtils.hasText(text)) {
             return null;
@@ -737,6 +1047,14 @@ public class ActionIntentReviewService {
         if (matcher.find()) {
             try {
                 return Long.valueOf(matcher.group(1));
+            } catch (NumberFormatException ignore) {
+                return null;
+            }
+        }
+        Matcher shortMatcher = PRODUCT_ID_SHORT_PATTERN.matcher(text);
+        if (shortMatcher.find()) {
+            try {
+                return Long.valueOf(shortMatcher.group(1));
             } catch (NumberFormatException ignore) {
                 return null;
             }
@@ -752,6 +1070,13 @@ public class ActionIntentReviewService {
         BigDecimal lastValue = null;
         while (priceMatcher.find()) {
             lastValue = new BigDecimal(priceMatcher.group(1));
+        }
+        if (lastValue != null) {
+            return lastValue;
+        }
+        Matcher actionMatcher = PRICE_ACTION_PATTERN.matcher(text);
+        while (actionMatcher.find()) {
+            lastValue = new BigDecimal(actionMatcher.group(1));
         }
         if (lastValue != null) {
             return lastValue;
@@ -788,11 +1113,11 @@ public class ActionIntentReviewService {
         }
         Matcher matcher = LOCATION_PATTERN.matcher(text);
         if (matcher.find()) {
-            return cleanFieldValue(matcher.group(1));
+            return cleanLocationValue(matcher.group(1));
         }
         Matcher moveMatcher = MOVE_LOCATION_PATTERN.matcher(text);
         if (moveMatcher.find()) {
-            return cleanFieldValue(moveMatcher.group(1));
+            return cleanLocationValue(moveMatcher.group(1));
         }
         return null;
     }
@@ -1110,6 +1435,90 @@ public class ActionIntentReviewService {
         cleaned = cleaned.replaceAll("^[\\uFF1A:\\s]+", "");
         cleaned = cleaned.replaceAll("[,\\uff0c.\\u3002;\\uff1b\\s]+$", "");
         return StringUtils.hasText(cleaned) ? cleaned : null;
+    }
+
+    private String cleanLocationValue(String value) {
+        String cleaned = cleanFieldValue(value);
+        if (!StringUtils.hasText(cleaned)) {
+            return null;
+        }
+        cleaned = cleaned.replaceFirst("^(?:\\u653e\\u5230|\\u79fb\\u5230|\\u6539\\u5230|\\u6539\\u6210|\\u6539\\u4e3a|\\u8c03\\u6574\\u4e3a|\\u662f|\\u4e3a)\\s*", "");
+        return cleanFieldValue(cleaned);
+    }
+
+    private String normalizeShortReply(String text) {
+        String cleaned = cleanFieldValue(text);
+        if (!StringUtils.hasText(cleaned)) {
+            return null;
+        }
+        return cleaned.replaceAll("^\\s*(?:\\u5c31|\\u662f|\\u586b|\\u8865|\\u6539\\u6210|\\u6539\\u4e3a|\\u8bbe\\u4e3a)\\s*", "").trim();
+    }
+
+    private BigDecimal extractLooseDecimal(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        BigDecimal price = extractPrice(text);
+        if (price != null) {
+            return price;
+        }
+        Matcher matcher = NUMBER_ONLY_PATTERN.matcher(text);
+        return matcher.matches() ? new BigDecimal(matcher.group(1)) : null;
+    }
+
+    private Integer extractLooseInteger(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        Integer value = extractDelta(text);
+        if (value != null) {
+            return value;
+        }
+        Matcher matcher = INTEGER_ONLY_PATTERN.matcher(text);
+        return matcher.matches() ? Integer.valueOf(matcher.group(1)) : null;
+    }
+
+    private Long extractLooseLong(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        Matcher matcher = INTEGER_ONLY_PATTERN.matcher(text);
+        return matcher.matches() ? Long.valueOf(matcher.group(1)) : null;
+    }
+
+    private boolean looksLikePlainFieldValue(String text) {
+        if (!StringUtils.hasText(text) || text.length() > 30) {
+            return false;
+        }
+        if (looksLikeQuestionOrLearningIntent(text) || containsAny(text, CONFIRM_KEYWORDS) || containsAny(text, CANCEL_KEYWORDS)) {
+            return false;
+        }
+        return !text.contains(" ") || text.length() <= 12;
+    }
+
+    private boolean looksLikeQuestionOrLearningIntent(String text) {
+        if (!StringUtils.hasText(text)) {
+            return false;
+        }
+        String normalized = text.trim();
+        if (containsAny(normalized, LEARNING_INTENT_KEYWORDS)) {
+            return true;
+        }
+        boolean hasQuestionMarker = containsAny(normalized, QUESTION_MARKERS)
+                || normalized.endsWith("?")
+                || normalized.endsWith("\uff1f");
+        if (!hasQuestionMarker) {
+            return false;
+        }
+        if (containsAny(normalized, REQUEST_COMMAND_PREFIXES)
+                && (containsAny(normalized, CREATE_KEYWORDS)
+                || containsAny(normalized, TAKE_DOWN_KEYWORDS)
+                || containsAny(normalized, UPDATE_PRICE_KEYWORDS)
+                || containsAny(normalized, UPDATE_LOCATION_KEYWORDS)
+                || containsAny(normalized, INCREASE_STOCK_KEYWORDS))) {
+            return false;
+        }
+        return true;
     }
 
     @Data

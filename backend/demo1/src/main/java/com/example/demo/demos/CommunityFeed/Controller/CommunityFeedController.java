@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -49,7 +50,7 @@ public class CommunityFeedController {
     @PostMapping("/posts")
     public ResponseEntity<?> createPost(@RequestBody CommunityFeedPostRequest request) {
         CommunityFeed feed = communityFeedService.createPost(request);
-        return ResponseEntity.ok(feed);
+        return ResponseEntity.ok(toResponse(feed));
     }
 
     @Operation(summary = "列表动态（按时间倒序）")
@@ -207,21 +208,25 @@ public class CommunityFeedController {
         if (keys == null) return urls;
         for (String key : keys) {
             if (!StringUtils.hasText(key)) continue;
-            if (key.startsWith("http://") || key.startsWith("https://")) {
+            if ((key.startsWith("http://") || key.startsWith("https://")) && !isMinioUrl(key)) {
                 urls.add(key);
             } else {
-                urls.add(presignGet(key));
+                urls.add(presignGet(normalizeObjectKey(key)));
             }
         }
         return urls;
     }
 
     private String presignGet(String objectKey) {
+        String normalizedKey = normalizeObjectKey(objectKey);
+        if (!StringUtils.hasText(normalizedKey)) {
+            return objectKey;
+        }
         try {
             return minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .bucket(minioProperties.getBucket())
-                            .object(objectKey)
+                            .object(normalizedKey)
                             .method(Method.GET)
                             .expiry(1, TimeUnit.HOURS)
                             .build()
@@ -229,5 +234,46 @@ public class CommunityFeedController {
         } catch (Exception e) {
             return objectKey; // fallback to key
         }
+    }
+
+    private boolean isMinioUrl(String value) {
+        if (!StringUtils.hasText(value) || !StringUtils.hasText(minioProperties.getEndpoint())) {
+            return false;
+        }
+        String endpoint = trimTrailingSlash(minioProperties.getEndpoint().trim());
+        return value.trim().startsWith(endpoint + "/") || value.trim().equals(endpoint);
+    }
+
+    private String normalizeObjectKey(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        String key = value.trim();
+        if (key.startsWith("http://") || key.startsWith("https://")) {
+            try {
+                key = URI.create(key).getPath();
+            } catch (Exception ignored) {
+                return value;
+            }
+        }
+        while (key.startsWith("/")) {
+            key = key.substring(1);
+        }
+        String bucket = minioProperties.getBucket();
+        if (StringUtils.hasText(bucket)) {
+            String prefix = bucket.trim() + "/";
+            if (key.startsWith(prefix)) {
+                key = key.substring(prefix.length());
+            }
+        }
+        return key;
+    }
+
+    private String trimTrailingSlash(String value) {
+        String result = value;
+        while (result.endsWith("/")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
     }
 }

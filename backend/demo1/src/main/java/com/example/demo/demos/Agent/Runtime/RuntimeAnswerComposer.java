@@ -77,8 +77,7 @@ public class RuntimeAnswerComposer {
         FinalAnswer finalAnswer = baseAnswer(AnswerType.CLARIFICATION);
         ActionConversationStore.PendingAction pendingAction = reviewResult == null ? null : reviewResult.getPendingAction();
         finalAnswer.setSummary("\u8fd9\u4e2a\u8bf7\u6c42\u5df2\u8bc6\u522b\u4e3a" + safeText(pendingAction == null ? null : pendingAction.getDisplayName(), "\u5199\u64cd\u4f5c") + "\uff0c\u4f46\u8fd8\u7f3a\u5c11\u5fc5\u8981\u53c2\u6570\u3002");
-        finalAnswer.setAnswerText("\u6211\u53ef\u4ee5\u7ee7\u7eed\u6267\u884c" + safeText(pendingAction == null ? null : pendingAction.getDisplayName(), "\u8fd9\u4e2a\u64cd\u4f5c")
-                + "\uff0c\u4f46\u8fd8\u9700\u8981\u4f60\u8865\u5145\uff1a" + String.join("\u3001", pendingAction == null ? Collections.<String>emptyList() : pendingAction.getMissingFields()) + "\u3002");
+        finalAnswer.setAnswerText(buildActionClarificationText(pendingAction));
         finalAnswer.getDisclaimers().add("\u5199\u64cd\u4f5c\u4f1a\u76f4\u63a5\u8c03\u7528\u540e\u7aef\u63a5\u53e3\uff0c\u5148\u8865\u9f50\u53c2\u6570\u540e\u624d\u80fd\u7ee7\u7eed\u3002");
         finalAnswer.getNextActions().add("\u76f4\u63a5\u56de\u590d\u7f3a\u5c11\u7684\u53c2\u6570\uff0c\u6211\u4f1a\u57fa\u4e8e\u5f53\u524d session \u63a5\u7740\u8865\u5168\u3002");
         finalAnswer.getNextActions().add("\u5982\u679c\u4e0d\u60f3\u6267\u884c\uff0c\u56de\u590d\u201c\u53d6\u6d88\u201d\u5373\u53ef\u3002");
@@ -167,11 +166,11 @@ public class RuntimeAnswerComposer {
         FinalAnswer finalAnswer = baseAnswer(AnswerType.CLARIFICATION);
         String prompt = StringUtils.hasText(clarificationPrompt)
                 ? clarificationPrompt
-                : "????????????????????????????";
-        finalAnswer.setSummary("????????????????");
+                : "我还需要你补充一点条件，才能准确选择要查询的工具。";
+        finalAnswer.setSummary("当前查询条件还不够明确。");
         finalAnswer.setAnswerText(prompt);
-        finalAnswer.getNextActions().add("???????????????????????????");
-        finalAnswer.getNextActions().add("???????????????????????");
+        finalAnswer.getNextActions().add("可以补充你想查商品、活动还是门店。");
+        finalAnswer.getNextActions().add("也可以补充关键词、地点、时间或价格范围。");
         finalAnswer.getComposerMeta().getUsedSources().add("tool_router");
         finalAnswer.getComposerMeta().getMetadata().put("taskType",
                 parsedIntent == null || parsedIntent.getTaskType() == null ? null : parsedIntent.getTaskType().getCode());
@@ -304,6 +303,47 @@ public class RuntimeAnswerComposer {
         finalAnswer.getNextActions().add("如果结果不够精确，可以补充价格、城市或类目条件。");
         if (items.size() < total) {
             finalAnswer.getDisclaimers().add("当前先展示前 " + items.size() + " 条结果。");
+        }
+        return finalAnswer;
+    }
+
+    public FinalAnswer buildRouteDataAnswer(NormalizedRouteData routeData,
+                                             AgentChatMessage latestMessage,
+                                             ParsedIntent parsedIntent) {
+        if (routeData == null) {
+            return buildNoResultAnswer(latestMessage, parsedIntent, "api_route", "route_empty");
+        }
+        boolean hasItems = !CollectionUtils.isEmpty(routeData.getItems());
+        FinalAnswer finalAnswer = baseAnswer(hasItems ? AnswerType.RECOMMENDATION : AnswerType.NO_RESULT);
+        String entityLabel = routeEntityLabel(routeData.getEntityType());
+        long total = routeData.getTotal() > 0 ? routeData.getTotal() : routeData.getItems().size();
+        finalAnswer.setSummary(hasItems
+                ? "共找到 " + total + " 个" + entityLabel + "候选结果。"
+                : "当前没有查询到匹配的" + entityLabel + "结果。");
+        finalAnswer.setAnswerText(hasItems
+                ? buildRouteDataNarrative(routeData.getItems(), entityLabel)
+                : "我理解你想查" + entityLabel + "，但当前没有命中可返回的结果。");
+        finalAnswer.getComposerMeta().getUsedSources().add("api_routes");
+        finalAnswer.getComposerMeta().getUsedSources().add("backend_api_proxy");
+        finalAnswer.getComposerMeta().getMetadata().put("routeEntityType", routeData.getEntityType());
+        finalAnswer.getComposerMeta().getMetadata().put("routeSourceResource", routeData.getSourceResource());
+        finalAnswer.getComposerMeta().getMetadata().put("routeSourceAction", routeData.getSourceAction());
+        finalAnswer.getComposerMeta().getMetadata().put("routeSearchTotal", total);
+        finalAnswer.getComposerMeta().getMetadata().put("presentationHint", routeData.getPresentationHint());
+        if (routeData.isDegraded()) {
+            finalAnswer.setAnswerType(AnswerType.PARTIAL_RESULT);
+            finalAnswer.getComposerMeta().setDegraded(true);
+            finalAnswer.getComposerMeta().setDegradeReason(routeData.getErrorMessage());
+            finalAnswer.getDisclaimers().add("接口结果已降级：" + safeText(routeData.getErrorMessage(), "未知原因"));
+        }
+        for (RouteEntityCandidate item : routeData.getItems()) {
+            finalAnswer.getCards().add(buildRouteCard(item, routeData));
+            finalAnswer.getCitations().add(buildRouteCitation(item, routeData));
+        }
+        if (hasItems) {
+            finalAnswer.getNextActions().add("可以继续补充时间、地点或关键词，我再帮你缩小范围。");
+        } else {
+            finalAnswer.getNextActions().add("可以换一个关键词、地点或时间范围再查一次。");
         }
         return finalAnswer;
     }
@@ -641,6 +681,68 @@ public class RuntimeAnswerComposer {
         FinalAnswer finalAnswer = new FinalAnswer();
         finalAnswer.setAnswerType(answerType);
         return finalAnswer;
+    }
+
+    private String buildRouteDataNarrative(List<RouteEntityCandidate> items, String entityLabel) {
+        List<String> fragments = new ArrayList<String>();
+        for (int index = 0; index < Math.min(items.size(), 3); index++) {
+            RouteEntityCandidate item = items.get(index);
+            List<String> suffix = new ArrayList<String>();
+            if (StringUtils.hasText(item.getLocationText())) {
+                suffix.add(item.getLocationText());
+            }
+            if (!CollectionUtils.isEmpty(item.getHighlights())) {
+                suffix.add(item.getHighlights().get(0));
+            }
+            String text = safeText(item.getTitle(), entityLabel + "#" + (index + 1));
+            if (!suffix.isEmpty()) {
+                text += "（" + String.join("，", suffix) + "）";
+            }
+            fragments.add(text);
+        }
+        return "优先命中的" + entityLabel + "有：" + String.join("；", fragments) + "。";
+    }
+
+    private FinalAnswer.EntityCard buildRouteCard(RouteEntityCandidate item, NormalizedRouteData routeData) {
+        FinalAnswer.EntityCard card = new FinalAnswer.EntityCard();
+        card.setEntityId(item.getEntityId());
+        card.setEntityType(routeData == null ? null : routeData.getEntityType());
+        card.setTitle(firstNonBlank(item.getTitle(), routeEntityLabel(routeData == null ? null : routeData.getEntityType())));
+        card.setSubtitle(item.getSubtitle());
+        card.setImageUrl(item.getImageUrl());
+        card.setPriceText(item.getPriceText());
+        card.setLocationText(item.getLocationText());
+        card.setRealtimeStatusText(item.getRealtimeStatusText());
+        card.setTags(dedupeAndLimit(item.getTags(), 6));
+        card.setHighlights(dedupeAndLimit(item.getHighlights(), 6));
+        card.setSourceLabel(routeData == null ? "api_routes" : firstNonBlank(routeData.getSourceResource(), "api_routes"));
+        card.setRecommendReason("来自后端结构化接口 " + (routeData == null ? "" : safeText(routeData.getSourceAction(), "read")));
+        return card;
+    }
+
+    private FinalAnswer.Citation buildRouteCitation(RouteEntityCandidate item, NormalizedRouteData routeData) {
+        FinalAnswer.Citation citation = new FinalAnswer.Citation();
+        citation.setSourceType("api_routes");
+        citation.setSourceId(routeData == null ? null : routeData.getSourceRouteId());
+        citation.setTitle(firstNonBlank(item.getTitle(), routeEntityLabel(routeData == null ? null : routeData.getEntityType())));
+        citation.setDocId(item.getEntityId());
+        citation.setDocTitle(routeData == null ? null : routeData.getSourceResource());
+        citation.setSnippet(firstNonBlank(item.getSubtitle(), item.getLocationText(), "后端结构化接口返回结果"));
+        citation.setConfidence(0.86D);
+        return citation;
+    }
+
+    private String routeEntityLabel(String entityType) {
+        if ("event".equalsIgnoreCase(entityType)) {
+            return "活动";
+        }
+        if ("store".equalsIgnoreCase(entityType)) {
+            return "门店";
+        }
+        if ("product".equalsIgnoreCase(entityType)) {
+            return "商品";
+        }
+        return "结果";
     }
 
     private String buildSearchNarrative(List<ProductSearchSnapshot> items) {
@@ -1038,6 +1140,104 @@ public class RuntimeAnswerComposer {
         }
         String detail = parts.isEmpty() ? "\u5f53\u524d\u53c2\u6570\u5df2\u5c31\u7eea" : String.join("\uff0c", parts);
         return "\u8bf7\u786e\u8ba4\u662f\u5426\u6267\u884c" + safeText(pendingAction.getDisplayName(), "\u8fd9\u4e2a\u64cd\u4f5c") + "\uff1a" + detail + "\u3002";
+    }
+
+    private String buildActionClarificationText(ActionConversationStore.PendingAction pendingAction) {
+        if (pendingAction == null) {
+            return "\u8fd8\u9700\u8981\u4f60\u8865\u5145\u8fd9\u6b21\u5199\u64cd\u4f5c\u7684\u5fc5\u8981\u53c2\u6570\u3002";
+        }
+        List<String> collected = buildCollectedActionFields(pendingAction);
+        List<String> missing = pendingAction.getMissingFields() == null
+                ? Collections.<String>emptyList()
+                : pendingAction.getMissingFields();
+        StringBuilder builder = new StringBuilder();
+        builder.append("\u6211\u53ef\u4ee5\u7ee7\u7eed\u6267\u884c")
+                .append(safeText(pendingAction.getDisplayName(), "\u8fd9\u4e2a\u64cd\u4f5c"))
+                .append("\u3002");
+        if (!collected.isEmpty()) {
+            builder.append("\n\u5df2\u6536\u96c6\uff1a").append(String.join("\uff0c", collected)).append("\u3002");
+        }
+        if (!missing.isEmpty()) {
+            builder.append("\n\u8fd8\u9700\u8865\u5145\uff1a");
+            for (int i = 0; i < missing.size(); i++) {
+                String field = missing.get(i);
+                if (i > 0) {
+                    builder.append("\uff1b");
+                }
+                builder.append(field);
+                String example = actionFieldExample(field);
+                if (StringUtils.hasText(example)) {
+                    builder.append("\uff08\u4f8b\u5982\u201c").append(example).append("\u201d\uff09");
+                }
+            }
+            builder.append("\u3002");
+        }
+        return builder.toString();
+    }
+
+    private List<String> buildCollectedActionFields(ActionConversationStore.PendingAction pendingAction) {
+        List<String> parts = new ArrayList<String>();
+        if (!CollectionUtils.isEmpty(pendingAction.getPayload())) {
+            if ("local_activity".equalsIgnoreCase(pendingAction.getResource())) {
+                appendIfPresent(parts, "\u6d3b\u52a8\u540d", pendingAction.getPayload().get("title"));
+                appendIfPresent(parts, "\u6d3b\u52a8\u5206\u7c7b", pendingAction.getPayload().get("category"));
+                appendIfPresent(parts, "\u6d3b\u52a8\u65e5\u671f", pendingAction.getPayload().get("date"));
+                appendIfPresent(parts, "\u5f00\u59cb\u65f6\u95f4", pendingAction.getPayload().get("timeStart"));
+                appendIfPresent(parts, "\u7ed3\u675f\u65f6\u95f4", pendingAction.getPayload().get("timeEnd"));
+                appendIfPresent(parts, "\u6d3b\u52a8\u5730\u70b9", pendingAction.getPayload().get("location"));
+            } else {
+                appendIfPresent(parts, "\u5546\u54c1\u540d", pendingAction.getPayload().get("title"));
+                appendIfPresent(parts, "\u4ef7\u683c", pendingAction.getPayload().get("price"));
+                appendIfPresent(parts, "\u5e93\u5b58", pendingAction.getPayload().get("stockQuantity"));
+                appendIfPresent(parts, "\u5206\u7c7b", pendingAction.getPayload().get("categoryId"));
+                appendIfPresent(parts, "\u5730\u70b9", pendingAction.getPayload().get("location"));
+                appendIfPresent(parts, "\u56fe\u7247", summarizeImages(pendingAction.getPayload().get("imageUrls")));
+            }
+        }
+        if (!CollectionUtils.isEmpty(pendingAction.getParams())) {
+            appendIfPresent(parts, "\u5546\u54c1ID", pendingAction.getParams().get("productId"));
+            appendIfPresent(parts, "\u4ef7\u683c", pendingAction.getParams().get("price"));
+            appendIfPresent(parts, "\u5730\u70b9", pendingAction.getParams().get("location"));
+            appendIfPresent(parts, "\u5e93\u5b58\u589e\u91cf", pendingAction.getParams().get("delta"));
+        }
+        return parts;
+    }
+
+    private String actionFieldExample(String field) {
+        if (!StringUtils.hasText(field)) {
+            return null;
+        }
+        if (field.contains("\u4ef7\u683c")) {
+            return "\u4ef7\u683c 999";
+        }
+        if (field.contains("\u5e93\u5b58") || field.contains("\u6570\u91cf")) {
+            return "\u5e93\u5b58 10";
+        }
+        if (field.contains("\u5206\u7c7b")) {
+            return "\u5206\u7c7b \u624b\u673a";
+        }
+        if (field.contains("\u5730\u70b9")) {
+            return "\u5730\u70b9 \u4e00\u98df\u5802";
+        }
+        if (field.contains("\u56fe\u7247")) {
+            return "https://example.com/a.jpg";
+        }
+        if (field.contains("ID") || field.contains("Id") || field.contains("id")) {
+            return "\u5546\u54c1 ID 123";
+        }
+        if (field.contains("\u65e5\u671f")) {
+            return "\u65e5\u671f 5\u67081\u65e5";
+        }
+        if (field.contains("\u65f6\u95f4")) {
+            return "\u4e0b\u53482\u70b9\u52304\u70b9";
+        }
+        if (field.contains("\u63cf\u8ff0")) {
+            return "\u63cf\u8ff0 \u9002\u5408\u65b0\u624b\u53c2\u4e0e";
+        }
+        if (field.contains("\u540d\u79f0") || field.contains("\u6d3b\u52a8")) {
+            return "\u7fbd\u6bdb\u7403\u6d3b\u52a8";
+        }
+        return null;
     }
 
     private void appendIfPresent(List<String> parts, String label, Object value) {

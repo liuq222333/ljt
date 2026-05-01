@@ -18,6 +18,8 @@ public class RealtimeQueryProperties {
     private int gatewayConnectTimeoutMs = 200;
     private int gatewayReadTimeoutMs = 450;
     private int cacheTtlSeconds = 15;
+    private int partialCacheTtlSeconds = 5;
+    private int degradedCacheTtlSeconds = 5;
     private int gatewayRetryCount = 1;
     private int circuitFailureThreshold = 3;
     private int circuitOpenSeconds = 30;
@@ -109,6 +111,22 @@ public class RealtimeQueryProperties {
 
     public void setCacheTtlSeconds(int cacheTtlSeconds) {
         this.cacheTtlSeconds = cacheTtlSeconds;
+    }
+
+    public int getPartialCacheTtlSeconds() {
+        return partialCacheTtlSeconds;
+    }
+
+    public void setPartialCacheTtlSeconds(int partialCacheTtlSeconds) {
+        this.partialCacheTtlSeconds = partialCacheTtlSeconds;
+    }
+
+    public int getDegradedCacheTtlSeconds() {
+        return degradedCacheTtlSeconds;
+    }
+
+    public void setDegradedCacheTtlSeconds(int degradedCacheTtlSeconds) {
+        this.degradedCacheTtlSeconds = degradedCacheTtlSeconds;
     }
 
     public int getGatewayRetryCount() {

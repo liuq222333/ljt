@@ -66,6 +66,9 @@ public class HttpRealtimeGatewayClient implements RealtimeGatewayClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        if (StringUtils.hasText(request.getTraceId())) {
+            headers.set("X-Trace-Id", request.getTraceId());
+        }
         HttpEntity<RealtimeQueryRequest> entity = new HttpEntity<RealtimeQueryRequest>(request, headers);
         try {
             ResponseEntity<RealtimeQueryResponse> response = restTemplate.postForEntity(

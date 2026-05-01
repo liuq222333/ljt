@@ -163,6 +163,9 @@ public class PythonSidecarMapper {
         if (payload == null || !StringUtils.hasText(payload.getAnswerType())) {
             throw new PythonSidecarException("Python sidecar compose_response payload is missing answer_type");
         }
+        if (!StringUtils.hasText(payload.getAnswerText())) {
+            throw new PythonSidecarException("Python sidecar compose_response payload is missing answer_text");
+        }
         FinalAnswer finalAnswer = new FinalAnswer();
         finalAnswer.setAnswerType(AnswerType.fromCode(payload.getAnswerType()));
         finalAnswer.setAnswerText(payload.getAnswerText());

@@ -46,12 +46,12 @@ class ProductRealtimeFallbackServiceTest {
         product.setPrice(new BigDecimal("19.90"));
         product.setStockQuantity(3);
         product.setStatus("在售");
-        when(productsMapper.getProductById(1L)).thenReturn(product);
+        when(productsMapper.selectByIds(Collections.singletonList(1L))).thenReturn(Collections.singletonList(product));
 
         ProductSearchSnapshot snapshot = new ProductSearchSnapshot();
         snapshot.setProductId(1L);
         snapshot.setCurrency("CNY");
-        when(productSearchSnapshotMapper.selectByProductId(1L)).thenReturn(snapshot);
+        when(productSearchSnapshotMapper.selectByProductIds(Collections.singletonList(1L))).thenReturn(Collections.singletonList(snapshot));
 
         RealtimeQueryRequest request = new RealtimeQueryRequest();
         request.setEntityType("product");
@@ -67,5 +67,28 @@ class ProductRealtimeFallbackServiceTest {
         assertEquals("on_sale", response.getItems().get(0).getSellStatus());
         assertEquals(new BigDecimal("19.90"), response.getItems().get(0).getPrice());
         assertTrue(response.getItems().get(0).isDegraded());
+    }
+
+    @Test
+    void queryProviderShouldReturnSuccessWithoutCallingOrchestrator() {
+        Product product = new Product();
+        product.setId(1L);
+        product.setPrice(new BigDecimal("19.90"));
+        product.setStockQuantity(8);
+        product.setStatus("在售");
+        when(productsMapper.selectByIds(Collections.singletonList(1L))).thenReturn(Collections.singletonList(product));
+        when(productSearchSnapshotMapper.selectByProductIds(Collections.singletonList(1L))).thenReturn(Collections.<ProductSearchSnapshot>emptyList());
+
+        RealtimeQueryRequest request = new RealtimeQueryRequest();
+        request.setEntityType("product");
+        request.setEntityIds(Collections.singletonList(1L));
+        request.setQueryType("inventory");
+
+        RealtimeQueryResponse response = service.queryProvider(request, request.getEntityIds(), "internal_product_provider");
+
+        assertEquals(RealtimeStatus.SUCCESS, response.getRealtimeStatus());
+        assertEquals(Boolean.FALSE, response.getQueryMeta().get("fallbackUsed"));
+        assertEquals("internal_product_provider", response.getItems().get(0).getSource());
+        assertEquals(false, response.getItems().get(0).isDegraded());
     }
 }

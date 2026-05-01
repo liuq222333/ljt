@@ -3,11 +3,15 @@ package com.example.demo.demos.Agent.Runtime;
 import com.example.demo.demos.Agent.Config.AgentActionReviewPythonProperties;
 import com.example.demo.demos.Agent.Config.AgentRouterPythonProperties;
 import com.example.demo.demos.Agent.Config.AgentComposerPythonProperties;
+import com.example.demo.demos.Agent.Config.AgentRouteMatcherProperties;
 import com.example.demo.demos.Agent.Entity.KnowledgeBase;
 import com.example.demo.demos.Agent.Pojo.AgentChatMessage;
 import com.example.demo.demos.Agent.Pojo.AgentChatRequest;
 import com.example.demo.demos.Agent.Pojo.KnowledgeRetrievalResponse;
 import com.example.demo.demos.Agent.Pojo.ParsedIntent;
+import com.example.demo.demos.Agent.Runtime.adapter.ActivityRouteResultAdapter;
+import com.example.demo.demos.Agent.Runtime.adapter.DefaultRouteResultAdapter;
+import com.example.demo.demos.Agent.Runtime.adapter.StoreRouteResultAdapter;
 import com.example.demo.demos.Agent.Python.PythonActionReviewClient;
 import com.example.demo.demos.Agent.Python.PythonSidecarException;
 import com.example.demo.demos.Agent.Python.PythonSidecarMapper;
@@ -109,6 +113,16 @@ class AgentRuntimeTest {
         agentActionReviewPythonProperties = new AgentActionReviewPythonProperties();
         agentActionReviewPythonProperties.setEnabled(false);
         ProductQueryExpansionService productQueryExpansionService = new ProductQueryExpansionService(queryExpandDictMapper, searchCategoryMapper);
+        ApiRouteExecutionService apiRouteExecutionService = new ApiRouteExecutionService(
+                new ApiRouteIntentMatcher(apiRouteService, new AgentRouteMatcherProperties()),
+                new RouteParamBuilder(),
+                backendApiProxyService,
+                java.util.Arrays.asList(
+                        new ActivityRouteResultAdapter(),
+                        new StoreRouteResultAdapter(),
+                        new DefaultRouteResultAdapter()
+                )
+        );
         agentRuntime = new AgentRuntime(
                 agentCheckpointStore,
                 queryParserService,
@@ -132,7 +146,10 @@ class AgentRuntimeTest {
                 productSearchSnapshotMapper,
                 knowledgeSearchService,
                 productsService,
-                productQueryExpansionService
+                productQueryExpansionService,
+                null,
+                null,
+                apiRouteExecutionService
         );
     }
 
@@ -560,18 +577,6 @@ class AgentRuntimeTest {
     }
 
     @Test
-    void runShouldTreatShortGreetingAsChitchatEvenIfParserMisclassifiesIt() {
-        ParsedIntent parsedIntent = new ParsedIntent();
-        parsedIntent.setTaskType(TaskType.PRODUCT_SEARCH);
-        when(queryParserService.parse(any(String.class), any(java.util.List.class), any(SessionState.SessionContext.class), any(java.util.Map.class))).thenReturn(parsedIntent);
-
-        SessionState state = agentRuntime.run(request("你好"), null);
-
-        assertEquals(AnswerType.FAQ_ANSWER, state.getFinalAnswer().getAnswerType());
-        assertTrue(state.getFinalAnswer().getAnswerText().contains("你好"));
-    }
-
-    @Test
     void runShouldAskForMissingCreateProductFieldsViaActionReview() {
         ParsedIntent parsedIntent = new ParsedIntent();
         parsedIntent.setTaskType(TaskType.PRODUCT_SEARCH);
@@ -891,7 +896,7 @@ class AgentRuntimeTest {
     }
 
     @Test
-    void runShouldExecuteLocalActivityListThroughActionReview() {
+    void runShouldExecuteLocalActivityListThroughReadRouteMatcher() {
         ParsedIntent parsedIntent = new ParsedIntent();
         parsedIntent.setTaskType(TaskType.PRODUCT_SEARCH);
         when(queryParserService.parse(any(String.class), any(java.util.List.class), any(SessionState.SessionContext.class), any(java.util.Map.class)))
@@ -915,10 +920,12 @@ class AgentRuntimeTest {
 
         SessionState state = agentRuntime.run(request("当前有哪些活动"), null);
 
-        assertEquals(AnswerType.FAQ_ANSWER, state.getFinalAnswer().getAnswerType());
-        assertTrue(state.getExecutionMeta().getCompletedNodes().contains("action_review"));
-        assertTrue(state.getFinalAnswer().getAnswerText().contains("查询活动"));
-        assertTrue(state.getFinalAnswer().getAnswerText().contains("当前有 1 个活动"));
+        assertEquals(AnswerType.RECOMMENDATION, state.getFinalAnswer().getAnswerType());
+        assertTrue(state.getExecutionMeta().getCompletedNodes().contains("execute"));
+        assertFalse(state.getExecutionMeta().getCompletedNodes().contains("action_review"));
+        assertTrue(state.getFinalAnswer().getAnswerText().contains("社区观影夜"));
+        assertTrue(state.getFinalAnswer().getComposerMeta().getUsedSources().contains("api_routes"));
+        assertEquals("local_activity", state.getFinalAnswer().getComposerMeta().getMetadata().get("matchedRouteResource"));
     }
 
     @Test

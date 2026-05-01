@@ -1,6 +1,5 @@
 package com.example.demo.demos.Agent.Service;
 
-import com.example.demo.demos.Agent.Config.DeepSeekProperties;
 import com.example.demo.demos.Agent.Config.QueryParserPythonProperties;
 import com.example.demo.demos.common.enums.FollowUpType;
 import com.example.demo.demos.common.enums.TaskType;
@@ -10,25 +9,16 @@ import com.example.demo.demos.Agent.Pojo.ParsedIntent;
 import com.example.demo.demos.Agent.Python.PythonQueryParserClient;
 import com.example.demo.demos.Agent.Python.PythonSidecarException;
 import com.example.demo.demos.Agent.Runtime.SessionState;
-import com.example.demo.demos.Agent.Service.helper.deepseek.DeepSeekPayload;
-import com.example.demo.demos.Agent.Service.helper.deepseek.DeepSeekResponse;
+import com.example.demo.demos.Agent.Service.llm.DeepSeekClient;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestTemplate;
 
-import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -49,8 +39,7 @@ public class QueryParserService {
     /** LLM 输出格式异常时的最大重试次数 */
     private static final int MAX_RETRY = 1;
 
-    private final RestTemplate restTemplate;
-    private final DeepSeekProperties properties;
+    private final DeepSeekClient deepSeekClient;
     private final QueryParserPythonProperties pythonProperties;
     private final PythonQueryParserClient pythonQueryParserClient;
     private final RuleFallbackParser ruleFallbackParser;
@@ -117,18 +106,11 @@ public class QueryParserService {
             + "5. 即使信息不足，也必须返回合法 JSON，缺失字段填 null、false、0.0 或空字符串\n"
             + "6. 不要向用户追问，不要输出补充说明，不要输出自然语言";
 
-    public QueryParserService(RestTemplateBuilder restTemplateBuilder,
-                              DeepSeekProperties properties,
+    public QueryParserService(DeepSeekClient deepSeekClient,
                               QueryParserPythonProperties pythonProperties,
                               PythonQueryParserClient pythonQueryParserClient,
                               RuleFallbackParser ruleFallbackParser) {
-        long connectTimeoutMs = properties.getConnectTimeoutMs() != null ? properties.getConnectTimeoutMs() : 3000L;
-        long readTimeoutMs = properties.getReadTimeoutMs() != null ? properties.getReadTimeoutMs() : 10000L;
-        this.restTemplate = restTemplateBuilder
-                .setConnectTimeout(Duration.ofMillis(connectTimeoutMs))
-                .setReadTimeout(Duration.ofMillis(readTimeoutMs))
-                .build();
-        this.properties = properties;
+        this.deepSeekClient = deepSeekClient;
         this.pythonProperties = pythonProperties;
         this.pythonQueryParserClient = pythonQueryParserClient;
         this.ruleFallbackParser = ruleFallbackParser;
@@ -218,23 +200,21 @@ public class QueryParserService {
     }
 
     private boolean shouldTryLocalLlm() {
-        return properties != null && StringUtils.hasText(properties.getKey()) && StringUtils.hasText(properties.getUrl());
+        return deepSeekClient != null && deepSeekClient.isAvailable();
     }
 
     /**
-     * ??? LLM ???????????
+     * 用 LLM 做意图识别。低温度 + json_object 强约束，
+     * 通过统一的 DeepSeekClient 发起请求。
      */
     private ParsedIntent callLlmForIntent(String currentMessage, List<AgentChatMessage> recentMessages) {
-        // 构建消息列表
         List<AgentChatMessage> messages = new ArrayList<>();
 
-        // System Prompt
         AgentChatMessage systemMsg = new AgentChatMessage();
         systemMsg.setRole("system");
         systemMsg.setContent(INTENT_SYSTEM_PROMPT);
         messages.add(systemMsg);
 
-        // 如果有上下文，加入最近消息（最多 6 条）
         if (recentMessages != null && !recentMessages.isEmpty()) {
             int start = Math.max(0, recentMessages.size() - 6);
             for (int i = start; i < recentMessages.size(); i++) {
@@ -242,47 +222,22 @@ public class QueryParserService {
             }
         }
 
-        // 当前用户输入
         AgentChatMessage userMsg = new AgentChatMessage();
         userMsg.setRole("user");
         userMsg.setContent(currentMessage);
         messages.add(userMsg);
 
-        // 构建 Payload
-        DeepSeekPayload payload = new DeepSeekPayload();
-        payload.setModel(properties.getModel());
-        payload.setTemperature(0.1); // 意图识别用低温度保证稳定性
-        payload.setMaxTokens(512);   // 意图 JSON 不需要太多 token
-        payload.setStream(false);
-        payload.setResponseFormat(new DeepSeekPayload.ResponseFormat("json_object"));
-        payload.setMessages(messages);
-
-        // 调用 LLM
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-        headers.setBearerAuth(properties.getKey());
-
-        HttpEntity<DeepSeekPayload> entity = new HttpEntity<>(payload, headers);
-
-        long startTime = System.currentTimeMillis();
-        ResponseEntity<DeepSeekResponse> response = restTemplate.postForEntity(
-                properties.getUrl(), entity, DeepSeekResponse.class);
-        long elapsed = System.currentTimeMillis() - startTime;
-        log.debug("QueryParser LLM 调用耗时: {}ms", elapsed);
-
-        DeepSeekResponse body = response.getBody();
-        if (body == null) {
+        String content = deepSeekClient.chatMessages(
+                messages,
+                DeepSeekClient.ChatOptions.defaults()
+                        .temperature(0.1)
+                        .maxTokens(512)
+                        .jsonMode(true)
+        );
+        if (!StringUtils.hasText(content)) {
             return null;
         }
-
-        DeepSeekResponse.ResponseMessage message = body.extractMessage();
-        if (message == null || !StringUtils.hasText(message.getContent())) {
-            return null;
-        }
-
-        // 解析 LLM 返回的 JSON
-        return parseLlmResponse(message.getContent(), currentMessage);
+        return parseLlmResponse(content, currentMessage);
     }
 
     /**
