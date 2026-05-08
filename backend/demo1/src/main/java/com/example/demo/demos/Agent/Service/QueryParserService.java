@@ -146,6 +146,9 @@ public class QueryParserService {
             empty.setIntentConfidence(0.0);
             return empty;
         }
+        if (isPureChitchat(currentMessage)) {
+            return chitchatIntent(currentMessage, 0.95);
+        }
 
         ParsedIntent pythonResult = tryPythonSidecar(currentMessage, recentMessages, sessionContext, userProfile);
         if (pythonResult != null) {
@@ -174,6 +177,46 @@ public class QueryParserService {
         return sessionContext == null
                 ? ruleFallbackParser.parse(currentMessage)
                 : ruleFallbackParser.parse(currentMessage, sessionContext);
+    }
+
+    private ParsedIntent chitchatIntent(String currentMessage, double confidence) {
+        ParsedIntent intent = new ParsedIntent();
+        intent.setTaskType(TaskType.CHITCHAT);
+        intent.setQueryText(currentMessage);
+        intent.setIntentConfidence(confidence);
+        return intent;
+    }
+
+    private boolean isPureChitchat(String currentMessage) {
+        if (!StringUtils.hasText(currentMessage)) {
+            return true;
+        }
+        String normalized = currentMessage.trim()
+                .toLowerCase()
+                .replaceAll("[，,。！？.!?、；;：:\\s]+", "");
+        if (!StringUtils.hasText(normalized)) {
+            return true;
+        }
+        return "你好".equals(normalized)
+                || "您好".equals(normalized)
+                || "你好啊".equals(normalized)
+                || "你好呀".equals(normalized)
+                || "在吗".equals(normalized)
+                || "嗨".equals(normalized)
+                || "hi".equals(normalized)
+                || "hello".equals(normalized)
+                || "谢谢".equals(normalized)
+                || "感谢".equals(normalized)
+                || "再见".equals(normalized)
+                || "拜拜".equals(normalized)
+                || "早".equals(normalized)
+                || "早上好".equals(normalized)
+                || "晚上好".equals(normalized)
+                || "晚安".equals(normalized)
+                || "ok".equals(normalized)
+                || "好的".equals(normalized)
+                || "嗯".equals(normalized)
+                || "嗯嗯".equals(normalized);
     }
 
     private ParsedIntent tryPythonSidecar(String currentMessage,

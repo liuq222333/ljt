@@ -252,6 +252,9 @@ public class AgentRuntime {
                         state.getSessionContext(),
                         request == null ? null : request.getUserProfile()
                 );
+        if (isPureChitchatText(latestMessage)) {
+            parsedIntent = forceChitchatIntent(latestMessage, parsedIntent);
+        }
         state.getIntermediateData().put("parsedTaskType", parsedIntent.getTaskType().getCode());
         state.getIntermediateData().put("needRealtime", parsedIntent.isNeedRealtime());
         executionMeta.getCompletedNodes().add("parse_intent");
@@ -463,7 +466,60 @@ public class AgentRuntime {
     }
 
     private boolean shouldComposeChitchat(ParsedIntent parsedIntent, AgentChatMessage latestMessage) {
-        return parsedIntent != null && parsedIntent.getTaskType() == TaskType.CHITCHAT;
+        return parsedIntent != null && parsedIntent.getTaskType() == TaskType.CHITCHAT
+                || isPureChitchatText(latestMessage);
+    }
+
+    private ParsedIntent forceChitchatIntent(AgentChatMessage latestMessage, ParsedIntent original) {
+        ParsedIntent parsedIntent = original == null ? new ParsedIntent() : original;
+        parsedIntent.setTaskType(TaskType.CHITCHAT);
+        parsedIntent.setQueryText(latestMessage == null ? null : latestMessage.getContent());
+        parsedIntent.setIntentConfidence(Math.max(parsedIntent.getIntentConfidence(), 0.95D));
+        parsedIntent.setNeedRealtime(false);
+        parsedIntent.setNeedExplanation(false);
+        parsedIntent.setNeedRecommendation(false);
+        parsedIntent.setFollowUp(false);
+        parsedIntent.setNegation(false);
+        parsedIntent.setFollowUpType(null);
+        parsedIntent.setNegatedEntities(new ArrayList<String>());
+        parsedIntent.setCandidateSlots(new CandidateSlots());
+        return parsedIntent;
+    }
+
+    private boolean isPureChitchatText(AgentChatMessage latestMessage) {
+        if (latestMessage == null) {
+            return true;
+        }
+        String text = latestMessage.getContent();
+        if (!StringUtils.hasText(text)) {
+            return true;
+        }
+        String normalized = text.trim()
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[，,。！？.!?、；;：:\\s]+", "");
+        if (!StringUtils.hasText(normalized)) {
+            return true;
+        }
+        return "你好".equals(normalized)
+                || "您好".equals(normalized)
+                || "你好啊".equals(normalized)
+                || "你好呀".equals(normalized)
+                || "在吗".equals(normalized)
+                || "嗨".equals(normalized)
+                || "hi".equals(normalized)
+                || "hello".equals(normalized)
+                || "谢谢".equals(normalized)
+                || "感谢".equals(normalized)
+                || "再见".equals(normalized)
+                || "拜拜".equals(normalized)
+                || "早".equals(normalized)
+                || "早上好".equals(normalized)
+                || "晚上好".equals(normalized)
+                || "晚安".equals(normalized)
+                || "ok".equals(normalized)
+                || "好的".equals(normalized)
+                || "嗯".equals(normalized)
+                || "嗯嗯".equals(normalized);
     }
 
     private RuntimeRequest normalizeRequest(AgentChatMessage latestMessage,
@@ -1819,17 +1875,28 @@ public class AgentRuntime {
         if (isGenericSearchFollowUpPhraseV2(normalized)) {
             return null;
         }
+        if (isGenericProductListingPhraseV2(normalized)) {
+            return null;
+        }
         normalized = removeLeadingAffixesV2(normalized,
                 "\u6211\u60f3\u8981", "\u6211\u60f3\u4e70", "\u6211\u60f3", "\u6211\u8981",
                 "\u60f3\u4e70", "\u4e70\u70b9", "\u4e70\u4e2a", "\u4e70\u4e00\u4e9b",
                 "\u4e70\u4e00\u90e8", "\u4e70", "\u5e2e\u6211", "\u7ed9\u6211", "\u627e",
-                "\u641c\u7d22", "\u63a8\u8350", "\u770b\u770b", "\u67e5\u4e00\u4e0b", "\u67e5\u67e5");
+                "\u641c\u7d22", "\u63a8\u8350", "\u770b\u770b", "\u67e5\u4e00\u4e0b", "\u67e5\u67e5",
+                "\u6709\u4ec0\u4e48", "\u6709\u54ea\u4e9b", "\u90fd\u6709\u4ec0\u4e48", "\u90fd\u6709\u54ea\u4e9b",
+                "\u8fd8\u6709\u4ec0\u4e48", "\u8fd8\u6709\u54ea\u4e9b", "\u8fd8\u6709\u5565",
+                "\u5728\u552e", "\u51fa\u552e", "\u552e\u5356", "\u4e0a\u67b6", "\u53ef\u4e70", "\u80fd\u4e70");
         normalized = removeTrailingAffixesV2(normalized,
                 "\u73b0\u5728", "\u76ee\u524d", "\u90fd\u6709\u4ec0\u4e48", "\u90fd\u6709\u54ea\u4e9b",
                 "\u6709\u4ec0\u4e48", "\u8fd8\u6709\u4ec0\u4e48", "\u8fd8\u6709\u54ea\u4e9b", "\u8fd8\u6709\u5565",
-                "\u54ea\u4e9b", "\u5728\u5356", "\u80fd\u4e70", "\u53ef\u4e70", "\u5417", "\u5462", "\u5427");
+                "\u54ea\u4e9b", "\u5728\u5356", "\u5728\u552e", "\u51fa\u552e", "\u552e\u5356", "\u6709\u552e",
+                "\u6709\u8d27", "\u4e0a\u67b6", "\u80fd\u4e70", "\u53ef\u4e70", "\u5546\u54c1", "\u4ea7\u54c1",
+                "\u7269\u54c1", "\u4e1c\u897f", "\u5417", "\u5462", "\u5427");
         normalized = normalized.replaceAll("^[\\-_/]+", "").replaceAll("[\\-_/]+$", "").trim();
         if (isGenericSearchFollowUpPhraseV2(normalized)) {
+            return null;
+        }
+        if (isGenericProductListingPhraseV2(normalized)) {
             return null;
         }
         return StringUtils.hasText(normalized) ? normalized : null;
@@ -1847,6 +1914,36 @@ public class AgentRuntime {
                 || "\u8fd8\u6709\u5565".equals(value)
                 || "\u90fd".equals(value)
                 || "\u8fd8\u6709".equals(value);
+    }
+
+    private boolean isGenericProductListingPhraseV2(String value) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        String stripped = value.trim().replaceAll("[，,。！？.!?、；;：:\\s]+", "");
+        if (!StringUtils.hasText(stripped)) {
+            return false;
+        }
+        stripped = removeLeadingAffixesV2(stripped,
+                "\u6709\u4ec0\u4e48", "\u6709\u54ea\u4e9b", "\u90fd\u6709\u4ec0\u4e48", "\u90fd\u6709\u54ea\u4e9b",
+                "\u8fd8\u6709\u4ec0\u4e48", "\u8fd8\u6709\u54ea\u4e9b", "\u8fd8\u6709\u5565");
+        stripped = stripped
+                .replace("\u5546\u54c1", "")
+                .replace("\u4ea7\u54c1", "")
+                .replace("\u7269\u54c1", "")
+                .replace("\u4e1c\u897f", "")
+                .replace("\u8d27\u54c1", "")
+                .replace("\u5728\u552e", "")
+                .replace("\u5728\u5356", "")
+                .replace("\u51fa\u552e", "")
+                .replace("\u552e\u5356", "")
+                .replace("\u6709\u552e", "")
+                .replace("\u6709\u8d27", "")
+                .replace("\u4e0a\u67b6", "")
+                .replace("\u53ef\u4e70", "")
+                .replace("\u80fd\u4e70", "")
+                .trim();
+        return !StringUtils.hasText(stripped);
     }
 
     private String removeLeadingAffixesV2(String value, String... affixes) {

@@ -33,6 +33,7 @@ public class RouteParamBuilder {
     );
     private static final Pattern RADIUS_PATTERN = Pattern.compile("(\\d+(?:\\.\\d+)?)\\s*(?:公里|km|KM)");
     private static final Pattern PRICE_PATTERN = Pattern.compile("(\\d+(?:\\.\\d+)?)");
+    private static final Pattern ID_PATTERN = Pattern.compile("(?:活动|故事|任务|id|ID|#)\\s*#?\\s*(\\d+)");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -56,6 +57,24 @@ public class RouteParamBuilder {
         }
         if (isActivityRoute(route)) {
             result.getParams().putIfAbsent("status", "PUBLISHED");
+            String timeState = resolveActivityTimeState(text);
+            if (StringUtils.hasText(timeState)) {
+                result.getParams().putIfAbsent("timeState", timeState);
+            }
+        }
+        if (isUserScopedLocalRoute(route)) {
+            result.getParams().remove("status");
+            String status = resolveActivityStatus(text);
+            if (StringUtils.hasText(status)) {
+                result.getParams().putIfAbsent("status", status);
+            }
+            String username = resolveUsername(request);
+            if (StringUtils.hasText(username)) {
+                result.getParams().putIfAbsent("username", username);
+                if (!isReadRoute(route)) {
+                    result.getPayload().putIfAbsent("username", username);
+                }
+            }
         }
         if (StringUtils.hasText(slots.getKeyword())) {
             result.getParams().putIfAbsent("keyword", slots.getKeyword());
@@ -89,6 +108,7 @@ public class RouteParamBuilder {
         if (StringUtils.hasText(entityType)) {
             result.getParams().putIfAbsent("entityType", entityType);
         }
+        applyPathVariables(result, route, text, request);
         removeNullValues(result.getParams());
         removeNullValues(result.getPayload());
         applyRequiredFields(result.getMissingFields(), result.getParams(), route == null ? null : route.getQuerySchema());
@@ -180,6 +200,116 @@ public class RouteParamBuilder {
 
     private boolean isNearbyAction(String action) {
         return StringUtils.hasText(action) && action.toLowerCase(Locale.ROOT).contains("nearby");
+    }
+
+    private boolean isUserScopedLocalRoute(ApiRoute route) {
+        if (route == null) {
+            return false;
+        }
+        String action = route.getAction() == null ? "" : route.getAction().toLowerCase(Locale.ROOT);
+        String path = route.getPathTemplate() == null ? "" : route.getPathTemplate().toLowerCase(Locale.ROOT);
+        return action.contains("my")
+                || action.contains("favorite")
+                || action.contains("enroll")
+                || path.contains("/my-activities")
+                || path.contains("/favorites")
+                || path.contains("/enrollments")
+                || path.contains("/favorite")
+                || path.contains("/enroll");
+    }
+
+    private String resolveUsername(AgentChatRequest request) {
+        Object username = firstValue(request == null ? null : request.getUserProfile(), "username", "userName");
+        if (username == null || !StringUtils.hasText(String.valueOf(username))) {
+            return null;
+        }
+        return String.valueOf(username).trim();
+    }
+
+    private void applyPathVariables(BuildResult result, ApiRoute route, String text, AgentChatRequest request) {
+        if (result == null || route == null || !StringUtils.hasText(route.getPathTemplate())) {
+            return;
+        }
+        if (!route.getPathTemplate().contains("{id}")) {
+            return;
+        }
+        String id = resolvePathId(text, request);
+        if (StringUtils.hasText(id)) {
+            result.getPathVariables().put("id", id);
+            result.getParams().remove("id");
+        } else {
+            result.getMissingFields().add("id");
+        }
+    }
+
+    private String resolvePathId(String text, AgentChatRequest request) {
+        if (StringUtils.hasText(text)) {
+            Matcher matcher = ID_PATTERN.matcher(text);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+            String trimmed = text.trim();
+            if (trimmed.matches("\\d+")) {
+                return trimmed;
+            }
+        }
+        Object selectedId = firstValue(request == null ? null : request.getUserProfile(),
+                "selectedEventId", "selectedActivityId", "selectedStoryId", "selectedTaskId");
+        if (selectedId != null && StringUtils.hasText(String.valueOf(selectedId))) {
+            return String.valueOf(selectedId).trim();
+        }
+        return null;
+    }
+
+    private String resolveActivityStatus(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        String normalized = text.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+        if (normalized.contains("草稿") || normalized.contains("draft")) {
+            return "DRAFT";
+        }
+        if (normalized.contains("审核") || normalized.contains("reviewing") || normalized.contains("pending")) {
+            return "REVIEWING";
+        }
+        if (normalized.contains("已发布") || normalized.contains("发布中") || normalized.contains("published")) {
+            return "PUBLISHED";
+        }
+        return null;
+    }
+
+    private String resolveActivityTimeState(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        String normalized = text.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+        if (normalized.contains("正在进行")
+                || normalized.contains("进行中")
+                || normalized.contains("当前活动")
+                || normalized.contains("现在活动")
+                || normalized.contains("当前有什么活动")
+                || normalized.contains("现在有什么活动")
+                || normalized.contains("ongoing")
+                || normalized.contains("running")) {
+            return "ongoing";
+        }
+        if (normalized.contains("即将开始")
+                || normalized.contains("将要开始")
+                || normalized.contains("未开始")
+                || normalized.contains("未来")
+                || normalized.contains("接下来")
+                || normalized.contains("upcoming")) {
+            return "upcoming";
+        }
+        if (normalized.contains("已结束")
+                || normalized.contains("结束了")
+                || normalized.contains("历史活动")
+                || normalized.contains("过去")
+                || normalized.contains("ended")
+                || normalized.contains("finished")) {
+            return "ended";
+        }
+        return null;
     }
 
     private void applyPrice(Map<String, Object> params, String priceText, String rawText) {

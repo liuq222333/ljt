@@ -14,8 +14,19 @@ public interface LocalActivityMapper {
     int insertTags(@Param("activityId") Long activityId, @Param("tags") List<String> tags);
 
     List<LocalActivity> listActivities(@Param("status") String status,
+                                       @Param("timeState") String timeState,
                                        @Param("limit") int limit,
                                        @Param("offset") int offset);
+
+    List<LocalActivity> listActivitiesByOrganizer(@Param("organizerUserId") Integer organizerUserId,
+                                                  @Param("status") String status,
+                                                  @Param("timeState") String timeState,
+                                                  @Param("limit") int limit,
+                                                  @Param("offset") int offset);
+
+    List<LocalActivity> listFavoriteActivities(@Param("userId") Integer userId,
+                                               @Param("limit") int limit,
+                                               @Param("offset") int offset);
 
     List<LocalActivity> listAll();
 
@@ -25,4 +36,10 @@ public interface LocalActivityMapper {
 
     String findUserEnrollmentStatus(@Param("activityId") Long activityId,
                                     @Param("username") String username);
+
+    int countFavorite(@Param("activityId") Long activityId, @Param("userId") Integer userId);
+
+    int insertFavorite(@Param("activityId") Long activityId, @Param("userId") Integer userId);
+
+    int deleteFavorite(@Param("activityId") Long activityId, @Param("userId") Integer userId);
 }

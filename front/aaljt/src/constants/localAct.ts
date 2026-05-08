@@ -11,6 +11,7 @@ export const LOCAL_ACT_CATEGORIES = [
 
 export const LOCAL_ACT_STATUS_LABELS: Record<string, string> = {
   DRAFT: '草稿',
+  REVIEWING: '待审核',
   PENDING_REVIEW: '待审核',
   PUBLISHED: '报名中',
   FULL: '已满员',
@@ -43,4 +44,3 @@ export const getEnrollmentStatusLabel = (status?: string) => {
   if (!status) return '';
   return ENROLLMENT_STATUS_LABELS[status] ?? status;
 };
-

@@ -109,6 +109,11 @@ public class ActionIntentReviewService {
     private static final List<String> PRODUCT_HINT_KEYWORDS = Arrays.asList(
             "\u5546\u54c1", "\u8d27", "\u5356", "\u53d1\u5e03", "\u4e0a\u67b6", "\u4e0b\u67b6"
     );
+    private static final List<String> ACTIVITY_READ_QUERY_KEYWORDS = Arrays.asList(
+            "\u67e5\u8be2", "\u67e5\u770b", "\u83b7\u53d6", "\u770b\u770b", "\u5217\u51fa", "\u6709\u54ea\u4e9b", "\u6709\u4ec0\u4e48",
+            "\u6211\u7684\u6536\u85cf", "\u6211\u6536\u85cf\u7684", "\u6211\u6536\u85cf\u4e86", "\u6536\u85cf\u4e86\u54ea\u4e9b",
+            "\u6211\u7684\u53d1\u5e03", "\u6211\u53d1\u5e03\u7684", "\u6211\u53d1\u5e03\u4e86", "\u6211\u7684\u62a5\u540d", "\u6211\u62a5\u540d\u7684", "\u62a5\u540d\u8bb0\u5f55"
+    );
     private static final List<String> LEARNING_INTENT_KEYWORDS = Arrays.asList(
             "\u4e86\u89e3", "\u60f3\u77e5\u9053", "\u77e5\u9053\u4e00\u4e0b", "\u600e\u4e48", "\u5982\u4f55", "\u600e\u6837",
             "\u6559\u7a0b", "\u6d41\u7a0b", "\u89c4\u5219", "\u4ec0\u4e48\u610f\u601d"
@@ -179,6 +184,10 @@ public class ActionIntentReviewService {
         }
         String text = latestMessage.getContent().trim();
         ActionConversationStore.PendingAction pending = actionConversationStore.get(sessionId);
+        if (shouldDropPendingForFreshQuery(text, parsedIntent, pending)) {
+            actionConversationStore.clear(sessionId);
+            pending = null;
+        }
         ActionReviewResult localActivityResult = localActivityActionAdapter.review(
                 sessionId,
                 latestMessage,
@@ -216,6 +225,21 @@ public class ActionIntentReviewService {
                 || signal != ActionSignal.NONE
                 || containsAny(text, CONFIRM_KEYWORDS)
                 || looksLikePendingSupplement(pending, text);
+    }
+
+    private boolean shouldDropPendingForFreshQuery(String text,
+                                                   ParsedIntent parsedIntent,
+                                                   ActionConversationStore.PendingAction pending) {
+        if (pending == null || !StringUtils.hasText(text)) {
+            return false;
+        }
+        if (containsAny(text, CANCEL_KEYWORDS) || containsAny(text, CONFIRM_KEYWORDS)) {
+            return false;
+        }
+        if (looksLikePendingSupplement(pending, text)) {
+            return false;
+        }
+        return looksLikeActivityReadQuery(text, parsedIntent);
     }
 
     private ActionReviewResult reviewLocal(String sessionId,
@@ -972,6 +996,9 @@ public class ActionIntentReviewService {
         if (looksLikeQuestionOrLearningIntent(normalized)) {
             return ActionSignal.NONE;
         }
+        if (looksLikeActivityReadQuery(normalized, parsedIntent)) {
+            return ActionSignal.NONE;
+        }
         if (containsAny(normalized, CREATE_KEYWORDS) && looksLikeProductContext(normalized, parsedIntent)) {
             return ActionSignal.CREATE_PRODUCT;
         }
@@ -1013,11 +1040,42 @@ public class ActionIntentReviewService {
     }
 
     private boolean looksLikeProductContext(String text, ParsedIntent parsedIntent) {
+        if (looksLikeActivityReadQuery(text, parsedIntent)) {
+            return false;
+        }
         if (containsAny(text, PRODUCT_HINT_KEYWORDS)) {
             return true;
         }
         CandidateSlots slots = parsedIntent == null ? null : parsedIntent.getCandidateSlots();
         return slots == null || !StringUtils.hasText(slots.getEntityType()) || "product".equalsIgnoreCase(slots.getEntityType());
+    }
+
+    private boolean looksLikeActivityReadQuery(String text, ParsedIntent parsedIntent) {
+        if (!StringUtils.hasText(text)) {
+            return false;
+        }
+        String compact = text.trim().replaceAll("\\s+", "");
+        boolean hasActivityScope = compact.contains("\u6d3b\u52a8")
+                || compact.contains("\u6536\u85cf")
+                || compact.contains("\u62a5\u540d")
+                || compact.contains("\u6211\u7684\u53d1\u5e03")
+                || compact.contains("\u6211\u53d1\u5e03\u7684")
+                || compact.contains("\u6211\u53d1\u5e03\u4e86");
+        if (hasActivityScope && containsAny(compact, ACTIVITY_READ_QUERY_KEYWORDS)) {
+            return true;
+        }
+        CandidateSlots slots = parsedIntent == null ? null : parsedIntent.getCandidateSlots();
+        if (slots != null && StringUtils.hasText(slots.getEntityType())) {
+            String entityType = slots.getEntityType();
+            if (("event".equalsIgnoreCase(entityType) || "activity".equalsIgnoreCase(entityType) || "local_activity".equalsIgnoreCase(entityType))
+                    && containsAny(compact, ACTIVITY_READ_QUERY_KEYWORDS)) {
+                return true;
+            }
+        }
+        return parsedIntent != null
+                && parsedIntent.getTaskType() != null
+                && "event_search".equalsIgnoreCase(parsedIntent.getTaskType().getCode())
+                && containsAny(compact, ACTIVITY_READ_QUERY_KEYWORDS);
     }
 
     private boolean containsAny(String text, List<String> keywords) {

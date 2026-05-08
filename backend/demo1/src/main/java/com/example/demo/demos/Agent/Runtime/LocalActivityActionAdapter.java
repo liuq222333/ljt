@@ -35,6 +35,9 @@ public class LocalActivityActionAdapter {
     private static final List<String> CREATE_KEYWORDS = Arrays.asList(
             "创建", "发布", "发起", "组织", "新增", "举办"
     );
+    private static final List<String> QUERY_KEYWORDS = Arrays.asList(
+            "查询", "查看", "获取", "看看", "列出", "有哪些", "有什么", "列表", "我的", "我发布的", "我发起的", "我组织的"
+    );
     private static final List<String> LEARNING_INTENT_KEYWORDS = Arrays.asList(
             "了解", "想知道", "怎么", "如何", "怎么办", "怎么样", "教程", "流程", "规则"
     );
@@ -94,6 +97,7 @@ public class LocalActivityActionAdapter {
     private static final Pattern FEE_PATTERN = Pattern.compile(
             "(?:费用|收费|票价)\\s*(?:是|为|:|：)?\\s*([^,，。；;\\n]+)"
     );
+    private static final Pattern URL_PATTERN = Pattern.compile("https?://[^\\s,，]+");
 
     private final ApiRouteService apiRouteService;
     private final BackendApiProxyService backendApiProxyService;
@@ -241,8 +245,22 @@ public class LocalActivityActionAdapter {
 
     private boolean looksLikeCreateActivity(String text) {
         return !looksLikeQuestionOrLearningIntent(text)
+                && !looksLikeOwnedActivityQuery(text)
                 && containsAny(text, CREATE_KEYWORDS)
                 && containsAny(text, ACTIVITY_KEYWORDS);
+    }
+
+    private boolean looksLikeOwnedActivityQuery(String text) {
+        if (!StringUtils.hasText(text) || !containsAny(text, ACTIVITY_KEYWORDS)) {
+            return false;
+        }
+        String compact = text.replaceAll("\\s+", "");
+        return compact.contains("我发布的")
+                || compact.contains("我发起的")
+                || compact.contains("我创建的")
+                || compact.contains("我组织的")
+                || compact.contains("我的活动")
+                || containsAny(compact, QUERY_KEYWORDS) && compact.contains("发布的活动");
     }
 
     private boolean looksLikeActivityQuery(String text, ParsedIntent parsedIntent) {
@@ -315,6 +333,7 @@ public class LocalActivityActionAdapter {
         }
         putIfAbsent(payload, "location", extractLocation(text));
         putIfAbsent(payload, "description", extractDescription(text));
+        putIfAbsent(payload, "coverUrl", extractCoverUrl(text, request));
         if (!payload.containsKey("capacity")) {
             Integer capacity = extractCapacity(text);
             if (capacity != null) {
@@ -336,6 +355,7 @@ public class LocalActivityActionAdapter {
         require(payload, "timeEnd", "结束时间", missing);
         require(payload, "location", "活动地点", missing);
         require(payload, "description", "活动描述", missing);
+        require(payload, "coverUrl", "活动封面图", missing);
         pendingAction.setMissingFields(missing);
     }
 
@@ -558,6 +578,49 @@ public class LocalActivityActionAdapter {
         }
         if (text.toUpperCase(Locale.ROOT).contains("AA")) {
             return "AA";
+        }
+        return null;
+    }
+
+    private String extractCoverUrl(String text, AgentChatRequest request) {
+        String uploadedCover = extractCoverUrlFromProfile(request);
+        if (StringUtils.hasText(uploadedCover)) {
+            return uploadedCover;
+        }
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        Matcher matcher = URL_PATTERN.matcher(text);
+        if (matcher.find()) {
+            return matcher.group().trim();
+        }
+        Matcher objectKeyMatcher = Pattern.compile("local-act/(?:activities|stories)/\\d{8}/[^\\s,，]+\\.(?:jpg|jpeg|png|webp|gif)", Pattern.CASE_INSENSITIVE)
+                .matcher(text);
+        return objectKeyMatcher.find() ? objectKeyMatcher.group().trim() : null;
+    }
+
+    private String extractCoverUrlFromProfile(AgentChatRequest request) {
+        if (request == null || CollectionUtils.isEmpty(request.getUserProfile())) {
+            return null;
+        }
+        Object value = firstNonNull(
+                request.getUserProfile().get("pendingActivityCoverUrl"),
+                request.getUserProfile().get("activityCoverObjectKey"),
+                request.getUserProfile().get("activityCoverUrl"),
+                request.getUserProfile().get("coverObjectKey"),
+                request.getUserProfile().get("coverUrl")
+        );
+        return value == null ? null : stringValue(value);
+    }
+
+    private Object firstNonNull(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            if (value != null && StringUtils.hasText(String.valueOf(value))) {
+                return value;
+            }
         }
         return null;
     }

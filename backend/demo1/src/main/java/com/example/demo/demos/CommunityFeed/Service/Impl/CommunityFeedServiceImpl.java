@@ -7,6 +7,8 @@ import com.example.demo.demos.CommunityFeed.Dao.UserAvatarMapper;
 import com.example.demo.demos.CommunityFeed.Pojo.CommunityFeed;
 import com.example.demo.demos.CommunityFeed.Pojo.CommunityFeedComment;
 import com.example.demo.demos.CommunityFeed.Service.CommunityFeedService;
+import com.example.demo.demos.Notification.Pojo.NotificationMessage;
+import com.example.demo.demos.Notification.Service.NotificationSender;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.minio.GetPresignedObjectUrlArgs;
@@ -33,6 +35,7 @@ public class CommunityFeedServiceImpl implements CommunityFeedService {
     private final ObjectMapper objectMapper;
     private final MinioClient minioClient;
     private final MinioProperties minioProperties;
+    private final NotificationSender notificationSender;
 
     @Override
     public CommunityFeed createPost(CommunityFeedPostRequest request) {
@@ -71,10 +74,11 @@ public class CommunityFeedServiceImpl implements CommunityFeedService {
     public void like(Long feedId, Long userId) {
         requireIds(feedId, userId);
         if (communityFeedMapper.existsLike(feedId, userId) != null) {
-            return; // ???
+            return; // 已点赞，不重复通知
         }
         communityFeedMapper.insertLike(feedId, userId);
         communityFeedMapper.updateLikes(feedId, 1);
+        sendInteractionNotification(feedId, userId, "COMMUNITY_FEED_LIKED", "有人赞了你的帖子");
     }
 
     @Override
@@ -100,6 +104,7 @@ public class CommunityFeedServiceImpl implements CommunityFeedService {
         comment.setContent(content.trim());
         communityFeedMapper.insertComment(comment);
         communityFeedMapper.updateComments(feedId, 1);
+        sendInteractionNotification(feedId, userId, "COMMUNITY_FEED_COMMENTED", "有人评论了你的帖子");
         return comment;
     }
 
@@ -190,6 +195,33 @@ public class CommunityFeedServiceImpl implements CommunityFeedService {
             return objectMapper.writeValueAsString(images);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("????????", e);
+        }
+    }
+
+    private void sendInteractionNotification(Long feedId, Long actorId, String kind, String title) {
+        try {
+            CommunityFeed feed = communityFeedMapper.findById(feedId);
+            if (feed == null || feed.getUserId() == null) {
+                return;
+            }
+            // 不通知自己的操作
+            if (feed.getUserId().equals(actorId)) {
+                return;
+            }
+            NotificationMessage msg = new NotificationMessage();
+            msg.setKind(kind);
+            msg.setTitle(title);
+            String preview = feed.getContent() == null ? "" : feed.getContent();
+            if (preview.length() > 50) {
+                preview = preview.substring(0, 50) + "...";
+            }
+            msg.setContent("你的帖子「" + preview + "」");
+            msg.setTargetType("USER");
+            msg.setTargetUserId(feed.getUserId());
+            msg.setPriority(3);
+            notificationSender.send(msg);
+        } catch (Exception ignore) {
+            // 通知发送失败不影响主流程
         }
     }
 

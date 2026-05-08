@@ -94,7 +94,7 @@ public class BackendApiProxyService {
                 }
             }
         }
-        return builder.build(true).toUri();
+        return builder.build(false).encode().toUri();
     }
 
     private String resolvePath(String pathTemplate, InvocationRequest request) {

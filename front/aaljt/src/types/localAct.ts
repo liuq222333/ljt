@@ -1,5 +1,6 @@
 export type LocalActStatus =
   | 'DRAFT'
+  | 'REVIEWING'
   | 'PENDING_REVIEW'
   | 'PUBLISHED'
   | 'FULL'
@@ -42,8 +43,10 @@ export type LocalActivityDetail = {
   title?: string;
   subtitle?: string;
   category?: LocalActCategory;
+  categoryCode?: LocalActCategory;
   description?: string;
   location?: string;
+  locationText?: string;
   latitude?: number;
   longitude?: number;
   address?: string;
@@ -61,6 +64,7 @@ export type LocalActivityDetail = {
   reviewNote?: string;
   tags?: string[];
   enrollmentStatus?: EnrollmentStatus;
+  favorited?: boolean;
 };
 
 export type LocalActivityListItem = LocalActivityDetail & {
@@ -71,4 +75,18 @@ export type LocalActEnrollmentActionResponse = {
   enrollmentId?: number;
   status: EnrollmentStatus;
   waitlistRank?: number | null;
+};
+
+export type LocalActCreateResponse = {
+  activityId?: number;
+  id?: number;
+  status?: LocalActStatus;
+};
+
+export type LocalActMediaUploadResponse = {
+  objectKey: string;
+  url?: string;
+  publicUrl?: string;
+  contentType?: string;
+  size?: number;
 };

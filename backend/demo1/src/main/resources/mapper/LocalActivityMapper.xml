@@ -5,12 +5,12 @@
 
     <insert id="insertActivity" parameterType="com.example.demo.demos.LocalActive.Pojo.LocalActivity"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO local_activity_admin
-        (organizer_user_id, title, subtitle, category_code, description, location_text, capacity,
+        INSERT INTO local_activity
+        (organizer_user_id, title, subtitle, category_code, description, location_text, address, latitude, longitude, cover_url, capacity,
          fee_type, fee_amount, allow_waitlist, require_checkin, status, start_at, end_at,
          reminder_minutes,review_note, created_at, updated_at)
         VALUES
-        (#{organizerUserId}, #{title}, #{subtitle}, #{categoryCode}, #{description}, #{locationText}, #{capacity},
+        (#{organizerUserId}, #{title}, #{subtitle}, #{categoryCode}, #{description}, #{locationText}, #{address}, #{latitude}, #{longitude}, #{coverUrl}, #{capacity},
          #{feeType}, #{feeAmount}, #{allowWaitlist}, #{requireCheckin}, #{status}, #{startAt}, #{endAt},
          #{reminderMinutes}, #{reviewNote}, NOW(), NOW())
     </insert>
@@ -25,15 +25,67 @@
 
     <select id="listActivities" resultType="com.example.demo.demos.LocalActive.Pojo.LocalActivity">
         SELECT id, organizer_user_id, title, subtitle, category_code, description, location_text,
-               capacity, fee_type, fee_amount, allow_waitlist, require_checkin, status,
+               address, latitude, longitude, cover_url, capacity, fee_type, fee_amount, allow_waitlist, require_checkin, status,
                start_at, end_at, reminder_minutes, review_note
         FROM local_activity
         <where>
             <if test="status != null and status != ''">
                 status = #{status}
             </if>
+            <if test="timeState != null and timeState != ''">
+                <choose>
+                    <when test="timeState == 'ongoing'">
+                        AND start_at &lt;= NOW() AND end_at &gt;= NOW()
+                    </when>
+                    <when test="timeState == 'upcoming'">
+                        AND start_at &gt; NOW()
+                    </when>
+                    <when test="timeState == 'ended'">
+                        AND end_at &lt; NOW()
+                    </when>
+                </choose>
+            </if>
         </where>
         ORDER BY created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="listActivitiesByOrganizer" resultType="com.example.demo.demos.LocalActive.Pojo.LocalActivity">
+        SELECT id, organizer_user_id, title, subtitle, category_code, description, location_text,
+               address, latitude, longitude, cover_url, capacity, fee_type, fee_amount, allow_waitlist, require_checkin, status,
+               start_at, end_at, reminder_minutes, review_note
+        FROM local_activity
+        <where>
+            organizer_user_id = #{organizerUserId}
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+            <if test="timeState != null and timeState != ''">
+                <choose>
+                    <when test="timeState == 'ongoing'">
+                        AND start_at &lt;= NOW() AND end_at &gt;= NOW()
+                    </when>
+                    <when test="timeState == 'upcoming'">
+                        AND start_at &gt; NOW()
+                    </when>
+                    <when test="timeState == 'ended'">
+                        AND end_at &lt; NOW()
+                    </when>
+                </choose>
+            </if>
+        </where>
+        ORDER BY created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="listFavoriteActivities" resultType="com.example.demo.demos.LocalActive.Pojo.LocalActivity">
+        SELECT a.id, a.organizer_user_id, a.title, a.subtitle, a.category_code, a.description, a.location_text,
+               a.address, a.latitude, a.longitude, a.cover_url, a.capacity, a.fee_type, a.fee_amount,
+               a.allow_waitlist, a.require_checkin, a.status, a.start_at, a.end_at, a.reminder_minutes, a.review_note
+        FROM local_activity_favorite f
+                 JOIN local_activity a ON a.id = f.activity_id
+        WHERE f.user_id = #{userId}
+        ORDER BY f.created_at DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
@@ -73,7 +125,7 @@
                  LEFT JOIN (
                      SELECT activity_id, COUNT(*) AS reserved
                      FROM local_activity_enrollment
-                     WHERE status IN ('confirmed', 'checked_in', 'completed')
+                     WHERE status IN ('confirmed', 'CONFIRMED', 'checked_in', 'CHECKED_IN', 'completed', 'COMPLETED')
                      GROUP BY activity_id
                  ) en ON en.activity_id = a.id
         WHERE a.id = #{id}
@@ -95,4 +147,22 @@
         ORDER BY e.id DESC
         LIMIT 1
     </select>
+
+    <select id="countFavorite" resultType="int">
+        SELECT COUNT(*)
+        FROM local_activity_favorite
+        WHERE activity_id = #{activityId}
+          AND user_id = #{userId}
+    </select>
+
+    <insert id="insertFavorite">
+        INSERT IGNORE INTO local_activity_favorite(activity_id, user_id, created_at)
+        VALUES(#{activityId}, #{userId}, NOW())
+    </insert>
+
+    <delete id="deleteFavorite">
+        DELETE FROM local_activity_favorite
+        WHERE activity_id = #{activityId}
+          AND user_id = #{userId}
+    </delete>
 </mapper>

@@ -42,6 +42,21 @@ const localActRoutes: RouteRecordRaw[] = [
     component: () => import('../../components/Home/LocalAct/MyEnrollments.vue')
   },
   {
+    path: '/local-act/my-activities',
+    name: 'LocalActMyActivities',
+    component: () => import('../../components/Home/LocalAct/MyPublishedActivities.vue')
+  },
+  {
+    path: '/local-act/favorites',
+    name: 'LocalActFavorites',
+    component: () => import('../../components/Home/LocalAct/MyFavoriteActivities.vue')
+  },
+  {
+    path: '/local-act/admin/reviews',
+    name: 'LocalActAdminReviews',
+    component: () => import('../../components/Home/LocalAct/AdminActivityReviews.vue')
+  },
+  {
     path: '/local-act/stories',
     name: 'LocalActStories',
     component: () => import('../../components/Home/LocalAct/StoriesArchive.vue')

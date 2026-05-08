@@ -15,9 +15,7 @@
 
     <section class="stats-row">
       <article class="stat-card" v-for="stat in statsCards" :key="stat.key">
-        <span class="stat-icon" :class="`stat-${stat.key}`">
-          <i :class="['fas', stat.icon || 'fa-calendar']"></i>
-        </span>
+        <span class="stat-icon" :class="`stat-${stat.key}`" v-html="statSvg[stat.key]"></span>
         <div class="stat-text">
           <p class="label">{{ stat.label }}</p>
           <strong>{{ stat.value }}</strong>
@@ -41,6 +39,7 @@
         <label>
           时间
           <select v-model="filters.period">
+            <option value="">全部时间</option>
             <option value="upcoming">即将开始</option>
             <option value="past">历史活动</option>
           </select>
@@ -159,10 +158,16 @@ const router = useRouter();
 const username = ref(localStorage.getItem('username') || '');
 
 const statsCards = ref([
-  { key: 'upcoming', label: '即将开始', value: 0, desc: '已报名活动', icon: 'fa-calendar-day' },
-  { key: 'participated', label: '累计参与', value: 0, desc: '历史参与记录', icon: 'fa-clock-rotate-left' },
-  { key: 'hours', label: '志愿时长', value: 0, desc: '累计服务小时', icon: 'fa-hand-holding-heart' }
+  { key: 'upcoming', label: '即将开始', value: 0, desc: '已报名活动' },
+  { key: 'participated', label: '累计参与', value: 0, desc: '历史参与记录' },
+  { key: 'hours', label: '志愿时长', value: 0, desc: '累计服务小时' }
 ]);
+
+const statSvg: Record<string, string> = {
+  upcoming: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="9" y="13" width="6" height="6" rx="1" fill="currentColor" stroke="none"/></svg>`,
+  participated: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  hours: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/><path d="M12 9v4"/><circle cx="12" cy="7" r="0.5" fill="currentColor" stroke="none"/></svg>`
+};
 
 const enrollments = ref<Enrollment[]>([]);
 const loading = ref(false);
@@ -172,7 +177,7 @@ const infoMsg = ref('');
 
 const filters = ref<Filters>({
   status: '',
-  period: 'upcoming',
+  period: '',
   keyword: ''
 });
 
@@ -187,9 +192,9 @@ const formatDate = (iso?: string) => {
 
 const updateStats = (stats?: ApiStats) => {
   statsCards.value = [
-    { key: 'upcoming', label: '即将开始', value: stats?.upcomingCount ?? 0, desc: '已报名活动', icon: 'fa-calendar-day' },
-    { key: 'participated', label: '累计参与', value: stats?.totalParticipated ?? 0, desc: '历史参与记录', icon: 'fa-clock-rotate-left' },
-    { key: 'hours', label: '志愿时长', value: stats?.volunteerHours ?? 0, desc: '累计服务小时', icon: 'fa-hand-holding-heart' }
+    { key: 'upcoming', label: '即将开始', value: stats?.upcomingCount ?? 0, desc: '已报名活动' },
+    { key: 'participated', label: '累计参与', value: stats?.totalParticipated ?? 0, desc: '历史参与记录' },
+    { key: 'hours', label: '志愿时长', value: stats?.volunteerHours ?? 0, desc: '累计服务小时' }
   ];
 };
 
@@ -364,28 +369,24 @@ const exportEnrollments = () => {
 }
 
 .stat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 48px;
+  height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 28px;
   flex-shrink: 0;
 }
 
 .stat-icon.stat-upcoming {
-  background: rgba(255, 107, 44, 0.1);
   color: #ff6b2c;
 }
 
 .stat-icon.stat-participated {
-  background: rgba(78, 142, 247, 0.1);
   color: #4e8ef7;
 }
 
 .stat-icon.stat-hours {
-  background: rgba(56, 185, 130, 0.1);
   color: #38b982;
 }
 

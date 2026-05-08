@@ -15,10 +15,28 @@
             <span>标题 <em>*</em></span>
             <input v-model="form.title" type="text" placeholder="如：夜跑团的首次5km" />
           </label>
-          <label class="field full">
-            <span>封面图 URL</span>
-            <input v-model="form.coverUrl" type="url" placeholder="https://example.com/cover.jpg" />
-          </label>
+          <div class="field full">
+            <span>故事封面 <em>*</em></span>
+            <input ref="coverInput" class="file-input" type="file" accept="image/*" @change="handleCoverChange" />
+            <div :class="['cover-uploader', { ready: coverPreviewUrl }]">
+              <div v-if="coverPreviewUrl" class="cover-preview">
+                <img :src="coverPreviewUrl" alt="故事封面预览" />
+              </div>
+              <div v-else class="cover-empty">
+                <i class="far fa-image"></i>
+                <strong>上传故事封面</strong>
+                <p>这张图片会展示在故事列表和详情页顶部。</p>
+              </div>
+              <div class="cover-actions">
+                <button class="ghost mini" type="button" :disabled="uploading" @click="selectCover">
+                  {{ uploading ? '上传中...' : coverPreviewUrl ? '更换图片' : '选择图片' }}
+                </button>
+                <button v-if="coverPreviewUrl" class="ghost mini" type="button" :disabled="uploading" @click="removeCover">
+                  移除
+                </button>
+              </div>
+            </div>
+          </div>
           <label class="field">
             <span>关联活动ID</span>
             <input v-model.number="form.activityId" type="number" min="1" placeholder="可选" />
@@ -60,9 +78,11 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { createLocalActStory, uploadLocalActMedia } from '@/api/localAct';
 import dhstyle from '../../dhstyle/dhstyle.vue';
 
-const API_BASE = (import.meta as any)?.env?.VITE_API_BASE ?? 'http://localhost:8080';
+const router = useRouter();
 const username = ref(localStorage.getItem('username') || '');
 
 const form = reactive({
@@ -75,17 +95,59 @@ const form = reactive({
 });
 
 const loading = ref(false);
+const uploading = ref(false);
 const message = ref('');
 const messageType = ref<'success' | 'error'>('success');
+const coverInput = ref<HTMLInputElement | null>(null);
+const coverPreviewUrl = ref('');
 
 const reset = () => {
   form.title = '';
   form.coverUrl = '';
+  coverPreviewUrl.value = '';
   form.summary = '';
   form.content = '';
   form.visibility = 'PUBLIC';
   form.activityId = undefined;
   message.value = '';
+};
+
+const selectCover = () => {
+  coverInput.value?.click();
+};
+
+const removeCover = () => {
+  form.coverUrl = '';
+  coverPreviewUrl.value = '';
+};
+
+const handleCoverChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    message.value = '请选择图片文件';
+    messageType.value = 'error';
+    input.value = '';
+    return;
+  }
+  uploading.value = true;
+  message.value = '';
+  try {
+    const result = await uploadLocalActMedia(file, 'story');
+    form.coverUrl = result.objectKey;
+    coverPreviewUrl.value = result.url || result.publicUrl || URL.createObjectURL(file);
+    message.value = '封面上传成功';
+    messageType.value = 'success';
+  } catch (e: any) {
+    form.coverUrl = '';
+    coverPreviewUrl.value = '';
+    message.value = e?.message || '封面上传失败';
+    messageType.value = 'error';
+  } finally {
+    uploading.value = false;
+    input.value = '';
+  }
 };
 
 const submit = async () => {
@@ -100,28 +162,27 @@ const submit = async () => {
     messageType.value = 'error';
     return;
   }
+  if (!form.coverUrl) {
+    message.value = '请先上传故事封面';
+    messageType.value = 'error';
+    return;
+  }
   loading.value = true;
   try {
-    const resp = await fetch(`${API_BASE}/api/local-act/stories`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: username.value,
-        title: form.title,
-        coverUrl: form.coverUrl,
-        summary: form.summary,
-        content: form.content,
-        visibility: form.visibility,
-        activityId: form.activityId
-      })
+    const storyId = await createLocalActStory({
+      username: username.value,
+      title: form.title,
+      coverUrl: form.coverUrl,
+      summary: form.summary,
+      content: form.content,
+      visibility: form.visibility,
+      activityId: form.activityId
     });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok || data?.code !== 200) {
-      throw new Error(data?.message || '发布失败');
-    }
-    message.value = '发布成功';
+    message.value = '发布成功，即将进入故事详情';
     messageType.value = 'success';
-    reset();
+    window.setTimeout(() => {
+      router.push(storyId ? `/local-act/stories/${storyId}` : '/local-act/stories');
+    }, 500);
   } catch (e: any) {
     message.value = e?.message || '发布失败';
     messageType.value = 'error';
@@ -209,6 +270,70 @@ const submit = async () => {
   margin-left: 2px;
   color: #ff6b2c;
   font-style: normal;
+}
+
+.file-input {
+  display: none;
+}
+
+.cover-uploader {
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.cover-uploader.ready {
+  border-style: solid;
+  background: #ffffff;
+}
+
+.cover-preview,
+.cover-empty {
+  aspect-ratio: 16 / 8;
+}
+
+.cover-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cover-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  color: #94a3b8;
+}
+
+.cover-empty i {
+  color: #cbd5e1;
+  font-size: 28px;
+}
+
+.cover-empty strong {
+  color: #475569;
+  font-size: 14px;
+}
+
+.cover-empty p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.cover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid #edf2f7;
+  background: #ffffff;
 }
 
 .field input,
@@ -301,6 +426,12 @@ const submit = async () => {
 
 .ghost:hover:not(:disabled) {
   background: #eef2f6;
+}
+
+.ghost.mini {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 12.5px;
 }
 
 .msg {

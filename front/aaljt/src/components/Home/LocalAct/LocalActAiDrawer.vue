@@ -25,6 +25,46 @@
           <div v-else class="chat-list">
             <div v-for="message in messages" :key="message.id" :class="['chat-row', message.sender]">
               <div class="chat-bubble">{{ message.text }}</div>
+
+              <div v-if="message.sender === 'agent' && message.cards?.length" class="chat-card-list">
+                <article
+                  v-for="card in message.cards"
+                  :key="`${message.id}-${card.entityType || 'card'}-${card.entityId || card.title}`"
+                  class="chat-result-card"
+                  :class="{ clickable: canOpenCard(card) }"
+                  @click="handleCardClick(card)"
+                >
+                  <div class="chat-result-media">
+                    <img
+                      :src="card.imageUrl || fallbackImage"
+                      :alt="card.title || '推荐卡片'"
+                      @error="handleImageError"
+                    />
+                  </div>
+                  <div class="chat-result-body">
+                    <div class="chat-result-head">
+                      <div>
+                        <span class="chat-result-type">{{ resolveCardType(card.entityType) }}</span>
+                        <h5>{{ card.title || '未命名内容' }}</h5>
+                      </div>
+                      <strong v-if="card.priceText" class="chat-result-price">{{ card.priceText }}</strong>
+                    </div>
+                    <p v-if="card.subtitle" class="chat-result-subtitle">{{ card.subtitle }}</p>
+                    <div v-if="card.locationText || card.realtimeStatusText" class="chat-result-meta">
+                      <span v-if="card.locationText">{{ card.locationText }}</span>
+                      <span v-if="card.realtimeStatusText">{{ card.realtimeStatusText }}</span>
+                    </div>
+                    <p v-if="card.recommendReason" class="chat-result-reason">{{ card.recommendReason }}</p>
+                    <div v-if="card.tags?.length" class="chat-result-tags">
+                      <span v-for="tag in card.tags" :key="tag" class="chat-result-tag">{{ tag }}</span>
+                    </div>
+                    <ul v-if="card.highlights?.length" class="chat-result-highlights">
+                      <li v-for="highlight in card.highlights" :key="highlight">{{ highlight }}</li>
+                    </ul>
+                  </div>
+                </article>
+              </div>
+
               <span class="chat-time">{{ message.time }}</span>
             </div>
 
@@ -41,6 +81,29 @@
         <p v-if="error" class="chat-error">{{ error }}</p>
 
         <div class="chat-input-panel">
+          <div v-if="coverUploadVisible || uploadedCoverPreview" class="cover-upload-assist">
+            <input
+              ref="coverFileInputRef"
+              class="cover-file-input"
+              type="file"
+              accept="image/*"
+              @change="handleCoverUploadChange"
+            />
+            <div class="cover-upload-copy">
+              <strong>活动封面图</strong>
+              <span>{{ uploadedCoverPreview ? '封面已上传，可继续确认发布。' : '选择本地图片上传到 MinIO。' }}</span>
+            </div>
+            <img v-if="uploadedCoverPreview" class="cover-upload-preview" :src="uploadedCoverPreview" alt="活动封面预览" />
+            <button
+              class="cover-upload-btn"
+              type="button"
+              :disabled="loading || coverUploading"
+              @click="triggerCoverUpload"
+            >
+              {{ coverUploading ? '上传中' : uploadedCoverPreview ? '更换封面' : '上传封面' }}
+            </button>
+          </div>
+
           <textarea
             ref="chatInputRef"
             :value="inputValue"
@@ -65,12 +128,30 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
 
+export type LocalAiCard = {
+  entityId?: string | number;
+  entityType?: string;
+  title?: string;
+  subtitle?: string;
+  imageUrl?: string;
+  priceText?: string;
+  tags?: string[];
+  highlights?: string[];
+  locationText?: string;
+  realtimeStatusText?: string;
+  recommendReason?: string;
+};
+
 type AgentMessage = {
   id: string;
   sender: 'user' | 'agent';
   text: string;
   time: string;
+  cards?: LocalAiCard[];
 };
+
+const fallbackImage =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220"><rect width="100%" height="100%" fill="%23f8fafc"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-size="16">暂无图片</text></svg>';
 
 const props = withDefaults(
   defineProps<{
@@ -82,12 +163,18 @@ const props = withDefaults(
     headline?: string;
     emptyText?: string;
     placeholder?: string;
+    coverUploadVisible?: boolean;
+    coverUploading?: boolean;
+    uploadedCoverPreview?: string;
   }>(),
   {
     error: '',
     headline: '围绕当前活动继续提问',
     emptyText: '消息会发送到后端活动助手接口，并保留当前会话上下文。',
-    placeholder: '例如：帮我写一条今晚活动的群提醒，语气亲切一些'
+    placeholder: '例如：帮我写一条今晚活动的群提醒，语气亲切一些',
+    coverUploadVisible: false,
+    coverUploading: false,
+    uploadedCoverPreview: ''
   }
 );
 
@@ -95,10 +182,13 @@ const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void;
   (event: 'update:inputValue', value: string): void;
   (event: 'send'): void;
+  (event: 'card-click', value: LocalAiCard): void;
+  (event: 'cover-upload', value: File): void;
 }>();
 
 const chatWindowRef = ref<HTMLDivElement | null>(null);
 const chatInputRef = ref<HTMLTextAreaElement | null>(null);
+const coverFileInputRef = ref<HTMLInputElement | null>(null);
 
 const syncScroll = () => {
   nextTick(() => {
@@ -120,6 +210,52 @@ const handleTextareaKeydown = (event: KeyboardEvent) => {
     event.preventDefault();
     emit('send');
   }
+};
+
+const triggerCoverUpload = () => {
+  if (props.loading || props.coverUploading) {
+    return;
+  }
+  coverFileInputRef.value?.click();
+};
+
+const handleCoverUploadChange = (event: Event) => {
+  const input = event.target as HTMLInputElement | null;
+  const file = input?.files?.[0];
+  if (file) {
+    emit('cover-upload', file);
+  }
+  if (input) {
+    input.value = '';
+  }
+};
+
+const resolveCardType = (entityType?: string) => {
+  const type = String(entityType || '').toLowerCase();
+  if (type === 'product') return '二手好物';
+  if (['event', 'activity', 'local_act', 'local-activity'].includes(type)) return '社区活动';
+  if (type === 'story') return '社区故事';
+  return '推荐';
+};
+
+const canOpenCard = (card: LocalAiCard) => {
+  const type = String(card.entityType || '').toLowerCase();
+  return !!card.entityId && ['product', 'event', 'activity', 'local_act', 'local-activity', 'story'].includes(type);
+};
+
+const handleCardClick = (card: LocalAiCard) => {
+  if (!canOpenCard(card)) {
+    return;
+  }
+  emit('card-click', card);
+};
+
+const handleImageError = (event: Event) => {
+  const image = event.target as HTMLImageElement | null;
+  if (!image || image.src === fallbackImage) {
+    return;
+  }
+  image.src = fallbackImage;
 };
 
 watch(
@@ -352,6 +488,128 @@ watch(
   color: #94a3b8;
 }
 
+.chat-card-list {
+  display: grid;
+  gap: 12px;
+  width: min(100%, 430px);
+}
+
+.chat-result-card {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 14px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 26px rgba(15, 23, 42, 0.05);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.chat-result-card.clickable {
+  cursor: pointer;
+}
+
+.chat-result-card.clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 16px 32px rgba(255, 107, 44, 0.12);
+}
+
+.chat-result-media {
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.chat-result-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.chat-result-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.chat-result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chat-result-head h5 {
+  margin: 3px 0 0;
+  color: #0f172a;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.chat-result-type {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: rgba(255, 107, 44, 0.09);
+  color: #f25a1b;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.chat-result-price {
+  color: #f25a1b;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.chat-result-subtitle,
+.chat-result-reason,
+.chat-result-meta {
+  margin: 0;
+  color: #64748b;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.chat-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chat-result-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chat-result-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11.5px;
+}
+
+.chat-result-highlights {
+  margin: 0;
+  padding-left: 17px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .chat-bubble.loading {
   display: inline-flex;
   align-items: center;
@@ -395,6 +653,72 @@ watch(
 .chat-input-panel:focus-within {
   background: #ffffff;
   box-shadow: 0 0 0 3px rgba(255, 107, 44, 0.12);
+}
+
+.cover-upload-assist {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #fed7aa;
+}
+
+.cover-file-input {
+  display: none;
+}
+
+.cover-upload-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cover-upload-copy strong {
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.cover-upload-copy span {
+  color: #64748b;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.cover-upload-preview {
+  width: 44px;
+  height: 44px;
+  border-radius: 9px;
+  object-fit: cover;
+  grid-row: span 2;
+}
+
+.cover-upload-btn {
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #f25a1b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.cover-upload-btn:hover:not(:disabled) {
+  background: #ffedd5;
+  transform: translateY(-1px);
+}
+
+.cover-upload-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .chat-input-panel textarea {
@@ -499,6 +823,15 @@ watch(
   }
 
   .send-btn {
+    width: 100%;
+  }
+
+  .cover-upload-assist {
+    grid-template-columns: 1fr;
+  }
+
+  .cover-upload-preview,
+  .cover-upload-btn {
     width: 100%;
   }
 }

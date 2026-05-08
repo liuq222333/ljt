@@ -33,4 +33,5 @@ public class LocalActivityDetail {
     private String reviewNote;
     private List<String> tags;
     private String enrollmentStatus;
+    private Boolean favorited;
 }

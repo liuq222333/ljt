@@ -55,7 +55,7 @@ public class LocalActEnrollmentController {
         return enrollmentService.getUserEnrollments(query);
     }
 
-    @Operation(summary = "创建活动到管理员审核表")
+    @Operation(summary = "创建本地活动")
     @PostMapping("/activities")
     public Resp<LocalActCreateResponse> createActivity(@RequestBody LocalActCreateRequest request) {
         return Resp.success(activityService.createActivity(request));
@@ -71,9 +71,30 @@ public class LocalActEnrollmentController {
     @GetMapping("/activities/list")
     public Resp<java.util.List<LocalActivity>> listActivities(
             @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "timeState", required = false) String timeState,
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "size", defaultValue = "10") int size) {
-        return Resp.success(activityService.listActivities(status, page, size));
+        return Resp.success(activityService.listActivities(status, timeState, page, size));
+    }
+
+    @Operation(summary = "查询我发布的活动")
+    @GetMapping("/my-activities")
+    public Resp<java.util.List<LocalActivity>> listMyActivities(
+            @RequestParam("username") String username,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "timeState", required = false) String timeState,
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size) {
+        return Resp.success(activityService.listMyActivities(username, status, timeState, page, size));
+    }
+
+    @Operation(summary = "查询我收藏的活动")
+    @GetMapping("/favorites")
+    public Resp<java.util.List<LocalActivity>> listFavoriteActivities(
+            @RequestParam("username") String username,
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size) {
+        return Resp.success(activityService.listFavoriteActivities(username, page, size));
     }
 
     @Operation(summary = "查询活动详情")
@@ -98,6 +119,24 @@ public class LocalActEnrollmentController {
             @PathVariable("id") Long id,
             @RequestBody LocalActEnrollmentActionRequest request) {
         return Resp.success(enrollmentService.cancelEnrollment(id, request));
+    }
+
+    @Operation(summary = "收藏活动")
+    @PostMapping("/activities/{id}/favorite")
+    public Resp<Void> favoriteActivity(
+            @PathVariable("id") Long id,
+            @RequestBody LocalActEnrollmentActionRequest request) {
+        activityService.favoriteActivity(id, request == null ? null : request.getUsername());
+        return Resp.success();
+    }
+
+    @Operation(summary = "取消收藏活动")
+    @PostMapping("/activities/{id}/unfavorite")
+    public Resp<Void> unfavoriteActivity(
+            @PathVariable("id") Long id,
+            @RequestBody LocalActEnrollmentActionRequest request) {
+        activityService.unfavoriteActivity(id, request == null ? null : request.getUsername());
+        return Resp.success();
     }
 
     @Operation(summary = "附近活动查询（使用 RediSearch）")

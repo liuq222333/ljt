@@ -42,9 +42,9 @@
             <i class="fas fa-paper-plane"></i>
             {{ enrollLoading ? '提交中...' : enrollButtonText }}
           </button>
-          <button class="btn btn-light" @click="handleFavoriteClick">
-            <i class="far fa-heart"></i>
-            收藏
+          <button class="btn btn-light" @click="handleFavoriteClick" :disabled="favoriteLoading">
+            <i :class="[activity.favorited ? 'fas' : 'far', 'fa-heart']"></i>
+            {{ favoriteLoading ? '处理中...' : activity.favorited ? '已收藏' : '收藏' }}
           </button>
         </div>
       </div>
@@ -139,7 +139,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { enrollLocalActivity, fetchLocalActivityDetail } from '@/api/localAct';
+import {
+  enrollLocalActivity,
+  favoriteLocalActivity,
+  fetchLocalActivityDetail,
+  unfavoriteLocalActivity
+} from '@/api/localAct';
 import { getActivityStatusLabel, getCategoryLabel, getEnrollmentStatusLabel } from '@/constants/localAct';
 import type { LocalActivityDetail } from '@/types/localAct';
 import dhstyle from '../../dhstyle/dhstyle.vue';
@@ -153,6 +158,7 @@ const activityId = computed(() => String(route.params.id ?? '-'));
 const username = ref(localStorage.getItem('username') || '');
 const loading = ref(false);
 const enrollLoading = ref(false);
+const favoriteLoading = ref(false);
 const errorMsg = ref('');
 const actionMessage = ref('');
 
@@ -175,6 +181,7 @@ type ActivityView = {
   status?: string;
   enrollmentStatus?: string;
   requireCheckin?: boolean;
+  favorited?: boolean;
 };
 
 const fallbackActivity: ActivityView = {
@@ -195,7 +202,8 @@ const fallbackActivity: ActivityView = {
   organizer: '绿色行动组',
   organizerRole: '社区活动组织者',
   status: 'PUBLISHED',
-  requireCheckin: true
+  requireCheckin: true,
+  favorited: false
 };
 
 const activity = ref<ActivityView>({ ...fallbackActivity });
@@ -299,7 +307,8 @@ const mapDetailToView = (detail: LocalActivityDetail): ActivityView => {
     organizerRole: '活动组织者',
     status: detail.status,
     enrollmentStatus: detail.enrollmentStatus,
-    requireCheckin: detail.requireCheckin
+    requireCheckin: detail.requireCheckin,
+    favorited: Boolean(detail.favorited)
   };
 };
 
@@ -349,8 +358,33 @@ const handleEnrollClick = async () => {
   }
 };
 
-const handleFavoriteClick = () => {
-  actionMessage.value = '收藏功能将在报名闭环后接入。';
+const handleFavoriteClick = async () => {
+  if (!username.value) {
+    actionMessage.value = '请先登录后再收藏活动。';
+    return;
+  }
+  if (favoriteLoading.value) {
+    return;
+  }
+
+  favoriteLoading.value = true;
+  actionMessage.value = '';
+  errorMsg.value = '';
+  try {
+    if (activity.value.favorited) {
+      await unfavoriteLocalActivity(activityId.value, username.value);
+      activity.value = { ...activity.value, favorited: false };
+      actionMessage.value = '已取消收藏。';
+    } else {
+      await favoriteLocalActivity(activityId.value, username.value);
+      activity.value = { ...activity.value, favorited: true };
+      actionMessage.value = '已收藏，可在“我的收藏”中查看。';
+    }
+  } catch (error) {
+    errorMsg.value = error instanceof Error ? error.message : '收藏操作失败，请稍后重试。';
+  } finally {
+    favoriteLoading.value = false;
+  }
 };
 
 onMounted(loadActivityDetail);

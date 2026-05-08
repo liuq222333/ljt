@@ -1,4 +1,11 @@
-import type { ApiResp, LocalActEnrollmentActionResponse, LocalActivityDetail } from '@/types/localAct';
+import type {
+  ApiResp,
+  LocalActCreateResponse,
+  LocalActEnrollmentActionResponse,
+  LocalActMediaUploadResponse,
+  LocalActivityDetail,
+  LocalActivityListItem
+} from '@/types/localAct';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '';
 
@@ -28,6 +35,52 @@ const request = async <T>(
 export const fetchLocalActivityDetail = (id: string | number, username?: string) =>
   request<LocalActivityDetail>(`/api/local-act/activities/${id}`, { username });
 
+export const fetchLocalActivities = (params?: Record<string, string | number | boolean | undefined | null>) =>
+  request<LocalActivityListItem[]>('/api/local-act/activities/list', params);
+
+export const fetchMyLocalActivities = (params: Record<string, string | number | boolean | undefined | null>) =>
+  request<LocalActivityListItem[]>('/api/local-act/my-activities', params);
+
+export const fetchFavoriteLocalActivities = (username: string, page = 1, size = 20) =>
+  request<LocalActivityListItem[]>('/api/local-act/favorites', { username, page, size });
+
+export const createLocalActivity = (payload: Record<string, unknown>) =>
+  request<LocalActCreateResponse>('/api/local-act/activities', undefined, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+export const uploadLocalActMedia = (file: File, scene: 'activity' | 'story' = 'activity') => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('scene', scene);
+  return request<LocalActMediaUploadResponse>('/api/local-act/media/upload', undefined, {
+    method: 'POST',
+    body: formData
+  });
+};
+
+export const createLocalActStory = (payload: Record<string, unknown>) =>
+  request<number>('/api/local-act/stories', undefined, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+export const fetchAdminLocalActReviews = (params?: Record<string, string | number | boolean | undefined | null>) =>
+  request<LocalActivityListItem[]>('/api/admin/local-act/reviews', params);
+
+export const approveLocalActReview = (id: string | number, note?: string) =>
+  request<number>(`/api/admin/local-act/reviews/${id}/approve`, { note }, {
+    method: 'POST'
+  });
+
+export const rejectLocalActReview = (id: string | number, note?: string) =>
+  request<void>(`/api/admin/local-act/reviews/${id}/reject`, { note }, {
+    method: 'POST'
+  });
+
 export const enrollLocalActivity = (id: string | number, username: string) =>
   request<LocalActEnrollmentActionResponse>(
     `/api/local-act/activities/${id}/enroll`,
@@ -49,3 +102,17 @@ export const cancelLocalActivityEnrollment = (id: string | number, username: str
       body: JSON.stringify({ username, reason })
     }
   );
+
+export const favoriteLocalActivity = (id: string | number, username: string) =>
+  request<void>(`/api/local-act/activities/${id}/favorite`, undefined, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username })
+  });
+
+export const unfavoriteLocalActivity = (id: string | number, username: string) =>
+  request<void>(`/api/local-act/activities/${id}/unfavorite`, undefined, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username })
+  });

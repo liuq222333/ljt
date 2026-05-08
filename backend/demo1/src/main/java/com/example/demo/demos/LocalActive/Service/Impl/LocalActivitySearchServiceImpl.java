@@ -1,6 +1,7 @@
 package com.example.demo.demos.LocalActive.Service.Impl;
 
 import com.example.demo.demos.LocalActive.DTO.NearbyActivityDTO;
+import com.example.demo.demos.LocalActive.Service.LocalActMediaService;
 import com.example.demo.demos.LocalActive.Service.LocalActivitySearchService;
 import com.example.demo.demos.LocalActive.Dao.LocalActivityMapper;
 import com.example.demo.demos.LocalActive.Pojo.LocalActivity;
@@ -28,6 +29,7 @@ public class LocalActivitySearchServiceImpl implements LocalActivitySearchServic
 
     private final StringRedisTemplate stringRedisTemplate;
     private final LocalActivityMapper activityMapper;
+    private final LocalActMediaService mediaService;
     private static final DateTimeFormatter ISO_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     @Override
@@ -151,7 +153,7 @@ public class LocalActivitySearchServiceImpl implements LocalActivitySearchServic
             dto.setStatus(a.getStatus());
             dto.setStartAt(a.getStartAt() == null ? null : a.getStartAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
             dto.setEndAt(a.getEndAt() == null ? null : a.getEndAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
-            dto.setCoverUrl(a.getAddress());
+            dto.setCoverUrl(mediaService.resolveCoverUrl(a.getCoverUrl()));
             dto.setLatitude(lat2);
             dto.setLongitude(lon2);
             dto.setDistanceKm(dist);
@@ -186,7 +188,7 @@ public class LocalActivitySearchServiceImpl implements LocalActivitySearchServic
             dto.setStatus(map.getOrDefault("status", "PUBLISHED"));
             dto.setStartAt(parseDate(map.get("startAt")));
             dto.setEndAt(parseDate(map.get("endAt")));
-            dto.setCoverUrl(map.get("cover_url"));
+            dto.setCoverUrl(mediaService.resolveCoverUrl(map.get("cover_url")));
             dto.setLatitude(parseDouble(map.get("lat")));
             dto.setLongitude(parseDouble(map.get("lon")));
             if (dto.getLatitude() != null && dto.getLongitude() != null) {
@@ -198,15 +200,13 @@ public class LocalActivitySearchServiceImpl implements LocalActivitySearchServic
     }
 
     private Map<String, String> toMap(List<Object> fields) {
-        Map<String, String> map = fields.stream()
+        Map<String, String> map = new java.util.HashMap<>();
+        List<String> pairs = fields.stream()
                 .map(o -> o instanceof byte[] ? new String((byte[]) o, StandardCharsets.UTF_8) : Objects.toString(o, ""))
-                .collect(Collectors.toList())
-                .stream()
-                .collect(Collectors.toMap(
-                        k -> k,
-                        v -> v,
-                        (a, b) -> b));
-        // fields are [key1, val1, key2, val2...], rebuild map
+                .collect(Collectors.toList());
+        for (int i = 0; i + 1 < pairs.size(); i += 2) {
+            map.put(pairs.get(i), pairs.get(i + 1));
+        }
         return map;
     }
 
@@ -257,7 +257,7 @@ public class LocalActivitySearchServiceImpl implements LocalActivitySearchServic
         doc.put("category", safe(a.getCategoryCode()));
         doc.put("status", safe(a.getStatus()));
         doc.put("location_text", safe(a.getLocationText()));
-        doc.put("cover_url", safe(a.getAddress())); // fallback: address if no cover_url column in pojo
+        doc.put("cover_url", safe(a.getCoverUrl()));
         doc.put("startAt", a.getStartAt() == null ? "" : a.getStartAt().format(ISO_FMT));
         doc.put("endAt", a.getEndAt() == null ? "" : a.getEndAt().format(ISO_FMT));
         if (a.getLatitude() != null && a.getLongitude() != null) {

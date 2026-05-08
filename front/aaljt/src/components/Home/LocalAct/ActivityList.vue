@@ -60,7 +60,12 @@
             </label>
           </div>
 
-          <div v-if="sortedActivities.length" class="activity-grid">
+          <div v-if="loading" class="empty-state">
+            <h3>正在加载活动</h3>
+            <p>正在同步社区活动列表。</p>
+          </div>
+
+          <div v-else-if="sortedActivities.length" class="activity-grid">
             <article
               v-for="activity in sortedActivities"
               :key="activity.id"
@@ -91,7 +96,7 @@
 
           <div v-else class="empty-state">
             <h3>暂无匹配活动</h3>
-            <p>可以调整分类、时间或地点筛选，再看看有没有更合适的活动。</p>
+            <p>{{ errorMsg || '可以调整分类、时间或地点筛选，再看看有没有更合适的活动。' }}</p>
             <button type="button" @click="resetFilters">重置筛选</button>
           </div>
         </section>
@@ -101,8 +106,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { fetchLocalActivities } from '@/api/localAct';
+import { getCategoryLabel } from '@/constants/localAct';
+import type { LocalActivityListItem } from '@/types/localAct';
 import dhstyle from '../../dhstyle/dhstyle.vue';
 import coverMarket from '../../../pictures/homePicture1.jpg';
 import coverRun from '../../../pictures/homePicture2.jpg';
@@ -194,7 +202,7 @@ const filterGroups: Array<{
   }
 ];
 
-const activities: Activity[] = [
+const fallbackActivities: Activity[] = [
   {
     id: 2004,
     title: '城市夜跑计划',
@@ -277,9 +285,74 @@ const activities: Activity[] = [
   }
 ];
 
+const activities = ref<Activity[]>([]);
+const loading = ref(false);
+const errorMsg = ref('');
+
+const normalizeDateValue = (value?: unknown) => {
+  if (!value) return null;
+  if (Array.isArray(value)) {
+    const [year, month, day, hour = 0, minute = 0] = value.map(Number);
+    return new Date(year, month - 1, day, hour, minute);
+  }
+  const date = new Date(String(value).replace(' ', 'T'));
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatActivityDate = (startAt?: unknown) => {
+  const date = normalizeDateValue(startAt);
+  if (!date) return '时间待定';
+  const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.getDay()];
+  return `${String(date.getMonth() + 1).padStart(2, '0')}月${String(date.getDate()).padStart(2, '0')}日（${weekday}）${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+};
+
+const resolveTimeType = (startAt?: unknown) => {
+  const date = normalizeDateValue(startAt);
+  if (!date) return 'month';
+  const diffDays = Math.ceil((date.getTime() - Date.now()) / 86400000);
+  if ([0, 6].includes(date.getDay())) return 'weekend';
+  if (diffDays >= 0 && diffDays <= 7) return 'week';
+  return 'month';
+};
+
+const mapApiActivity = (item: LocalActivityListItem, index: number): Activity => {
+  const category = item.category || item.categoryCode || 'market';
+  const fallback = fallbackActivities[index % fallbackActivities.length];
+  return {
+    id: Number(item.id),
+    title: item.title || fallback.title,
+    category,
+    categoryLabel: getCategoryLabel(category),
+    organizer: item.organizer || '社区组织',
+    relativeTime: '',
+    date: formatActivityDate(item.startAt),
+    location: item.location || item.locationText || item.address || '地点待定',
+    participants: Number(item.reserved ?? 0),
+    description: item.description || item.subtitle || '组织者暂未填写活动简介。',
+    cover: item.coverUrl || fallback.cover,
+    timeType: resolveTimeType(item.startAt),
+    placeType: item.distanceKm != null && item.distanceKm <= 3 ? 'nearby' : 'outdoor',
+    sortType: 'latest'
+  };
+};
+
+const loadActivities = async () => {
+  loading.value = true;
+  errorMsg.value = '';
+  try {
+    const list = await fetchLocalActivities({ status: 'PUBLISHED', size: 50 });
+    activities.value = list.length ? list.map(mapApiActivity) : fallbackActivities;
+  } catch (error) {
+    activities.value = fallbackActivities;
+    errorMsg.value = error instanceof Error ? `${error.message}，已展示演示活动。` : '活动列表加载失败，已展示演示活动。';
+  } finally {
+    loading.value = false;
+  }
+};
+
 const filteredActivities = computed(() => {
   const text = keyword.value.trim().toLowerCase();
-  return activities.filter((activity) => {
+  return activities.value.filter((activity) => {
     if (filters.category !== 'all' && activity.category !== filters.category) return false;
     if (filters.time !== 'all' && activity.timeType !== filters.time && !(filters.time === 'month' && ['week', 'weekend', 'month'].includes(activity.timeType))) return false;
     if (filters.place !== 'city' && activity.placeType !== filters.place) return false;
@@ -304,7 +377,7 @@ const sortedActivities = computed(() => {
 
 const displayTotal = computed(() => {
   const hasActiveFilter = filters.category !== 'all' || filters.time !== 'all' || filters.place !== 'city' || keyword.value.trim();
-  return hasActiveFilter ? filteredActivities.value.length : 128;
+  return hasActiveFilter ? filteredActivities.value.length : activities.value.length;
 });
 
 const resetFilters = () => {
@@ -330,6 +403,8 @@ const goToDetail = (id: number) => {
 const goToPublish = () => {
   router.push('/local-act/publish');
 };
+
+onMounted(loadActivities);
 </script>
 
 <style scoped>

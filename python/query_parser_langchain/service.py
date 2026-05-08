@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Any, Protocol
 
@@ -12,6 +13,29 @@ from .prompt import HUMAN_PROMPT, SYSTEM_PROMPT
 from .rule_fallback import RuleFallbackParser
 
 logger = logging.getLogger(__name__)
+
+_PURE_CHITCHAT_WORDS = {
+    "hello",
+    "hi",
+    "你好",
+    "您好",
+    "你好啊",
+    "你好呀",
+    "在吗",
+    "嗨",
+    "谢谢",
+    "感谢",
+    "再见",
+    "拜拜",
+    "早",
+    "早上好",
+    "晚上好",
+    "晚安",
+    "ok",
+    "好的",
+    "嗯",
+    "嗯嗯",
+}
 
 
 class Invokable(Protocol):
@@ -29,6 +53,13 @@ class LangChainQueryParser:
     def parse_request(self, request: QueryParserRequest) -> ParsedIntent:
         if not (request.current_message or "").strip():
             return ParsedIntent(task_type=TaskType.CHITCHAT, query_text="")
+        if self._is_pure_chitchat(request.current_message):
+            return ParsedIntent(
+                task_type=TaskType.CHITCHAT,
+                intent_confidence=0.95,
+                query_text=request.current_message,
+                candidate_slots=CandidateSlots(),
+            )
         if self._chain is None:
             return self._fallback.parse(request)
         try:
@@ -41,6 +72,12 @@ class LangChainQueryParser:
         except Exception as exc:
             logger.warning("query parser chain failed; fallback to rules: %s", exc)
         return self._fallback.parse(request)
+
+    def _is_pure_chitchat(self, text: str) -> bool:
+        normalized = re.sub(r"[，,。！？.!?、；;：:\s]+", "", (text or "").strip().lower())
+        if not normalized:
+            return True
+        return normalized in _PURE_CHITCHAT_WORDS
 
     def _invoke_chain(self, request: QueryParserRequest) -> Any:
         assert self._chain is not None

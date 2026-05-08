@@ -25,10 +25,16 @@ import java.util.Set;
 public class ApiRouteIntentMatcher {
 
     private static final List<String> PRODUCT_HINTS = Arrays.asList("商品", "在售", "有货", "水果", "蔬菜", "买", "卖", "价格");
-    private static final List<String> EVENT_HINTS = Arrays.asList("活动", "本地活动", "社区活动", "报名", "名额", "市集", "讲座", "观影");
+    private static final List<String> EVENT_HINTS = Arrays.asList("活动", "本地活动", "社区活动", "报名", "报名记录", "我的报名", "我报名的", "名额",
+            "市集", "讲座", "观影", "收藏活动", "我的收藏", "我收藏的", "我发布的", "我的发布");
+    private static final List<String> STORY_HINTS = Arrays.asList("故事", "社区故事", "邻里故事", "活动故事", "故事集");
+    private static final List<String> SUPPORT_HINTS = Arrays.asList("互助", "邻里互助", "互助任务", "志愿", "志愿服务", "求助");
     private static final List<String> STORE_HINTS = Arrays.asList("门店", "店铺", "商家", "营业", "地址", "附近店", "自提点");
     private static final List<String> NEARBY_HINTS = Arrays.asList("附近", "周边", "离我近", "周围");
     private static final List<String> LIST_HINTS = Arrays.asList("有什么", "有哪些", "哪些", "列表", "推荐", "查一下", "查询", "看看", "现在");
+    private static final List<String> FAVORITE_HINTS = Arrays.asList("收藏", "我的收藏", "我收藏的", "我收藏了");
+    private static final List<String> ENROLLMENT_HINTS = Arrays.asList("报名", "我的报名", "我报名的", "参与记录");
+    private static final List<String> MY_PUBLISHED_HINTS = Arrays.asList("我发布的", "我的发布", "我发起的", "我组织的", "我的活动");
 
     private final ApiRouteService apiRouteService;
     private final AgentRouteMatcherProperties properties;
@@ -74,7 +80,10 @@ public class ApiRouteIntentMatcher {
         int autoThreshold = properties == null ? 72 : properties.getAutoExecuteThreshold();
         int clarifyThreshold = properties == null ? 55 : properties.getClarifyThreshold();
         int closeGap = properties == null ? 8 : properties.getCloseScoreGap();
-        if (best.score >= autoThreshold && (runnerUp == null || best.score - runnerUpScore >= closeGap)) {
+        if (best.score >= autoThreshold
+                && (runnerUp == null
+                || best.score - runnerUpScore >= closeGap
+                || isSameReadQueryFamily(best, runnerUp))) {
             return RouteMatchResult.matched(best.route, best.score, runnerUpScore, best.entityType, best.reasons);
         }
         if (best.score >= autoThreshold && runnerUp != null) {
@@ -141,8 +150,9 @@ public class ApiRouteIntentMatcher {
         }
         scored.add(resourceScore(route, entityHint), "resource_entity_hint");
 
-        int keywordHits = countHits(text, parseList(route.getTriggerKeywords()));
-        if (keywordHits == 0) {
+        List<String> routeKeywords = parseList(route.getTriggerKeywords());
+        int keywordHits = countHits(text, routeKeywords);
+        if (keywordHits == 0 && routeKeywords.isEmpty()) {
             keywordHits = countHits(text, legacyKeywords(scored.entityType, route));
         }
         if (keywordHits > 0) {
@@ -164,6 +174,7 @@ public class ApiRouteIntentMatcher {
         } else if (containsAny(text, LIST_HINTS) && isListRoute(route)) {
             scored.add(12D, "list_action");
         }
+        applyScopedReadScores(scored, route, text);
 
         if (route.getMatchPriority() != null && route.getMatchPriority() > 0) {
             scored.add(Math.min(12D, route.getMatchPriority() / 10D), "match_priority");
@@ -205,6 +216,40 @@ public class ApiRouteIntentMatcher {
         return "READ".equals(normalized) || "READ_LIST".equals(normalized) || "READ_ONE".equals(normalized);
     }
 
+    private boolean isSameReadQueryFamily(ScoredRoute best, ScoredRoute runnerUp) {
+        if (best == null || runnerUp == null || best.route == null || runnerUp.route == null) {
+            return false;
+        }
+        if (!sameText(best.entityType, runnerUp.entityType)) {
+            return false;
+        }
+        if (!isReadOperation(best.route.getOperationType()) || !isReadOperation(runnerUp.route.getOperationType())) {
+            return false;
+        }
+        return isListOrSearchRoute(best.route) && isListOrSearchRoute(runnerUp.route);
+    }
+
+    private boolean isListOrSearchRoute(ApiRoute route) {
+        if (route == null) {
+            return false;
+        }
+        return isListRoute(route) || isSearchRoute(route);
+    }
+
+    private boolean isSearchRoute(ApiRoute route) {
+        String action = route == null ? null : route.getAction();
+        String path = route == null ? null : route.getPathTemplate();
+        return containsIgnoreCase(Arrays.asList(action, path), "search")
+                || containsIgnoreCase(Arrays.asList(action, path), "query");
+    }
+
+    private boolean sameText(String left, String right) {
+        if (!StringUtils.hasText(left) || !StringUtils.hasText(right)) {
+            return false;
+        }
+        return left.equalsIgnoreCase(right);
+    }
+
     private String resolveEntityHint(ParsedIntent parsedIntent, String text) {
         CandidateSlots slots = parsedIntent == null ? null : parsedIntent.getCandidateSlots();
         if (slots != null && StringUtils.hasText(slots.getEntityType())) {
@@ -233,6 +278,12 @@ public class ApiRouteIntentMatcher {
     private String entityFromText(String text) {
         if (!StringUtils.hasText(text)) {
             return null;
+        }
+        if (containsAny(text, STORY_HINTS)) {
+            return "story";
+        }
+        if (containsAny(text, SUPPORT_HINTS)) {
+            return "support";
         }
         if (containsAny(text, EVENT_HINTS)) {
             return "event";
@@ -264,6 +315,12 @@ public class ApiRouteIntentMatcher {
         if (normalized.contains("activity") || normalized.contains("event")) {
             return "event";
         }
+        if (normalized.contains("story")) {
+            return "story";
+        }
+        if (normalized.contains("support")) {
+            return "support";
+        }
         if (normalized.contains("store") || normalized.contains("shop") || normalized.contains("merchant")) {
             return "store";
         }
@@ -280,6 +337,12 @@ public class ApiRouteIntentMatcher {
         String normalized = value.trim().toLowerCase(Locale.ROOT);
         if ("activity".equals(normalized) || "local_activity".equals(normalized)) {
             return "event";
+        }
+        if ("local_story".equals(normalized) || "story".equals(normalized)) {
+            return "story";
+        }
+        if ("neighbor_support".equals(normalized) || "support".equals(normalized)) {
+            return "support";
         }
         if ("shop".equals(normalized) || "merchant".equals(normalized)) {
             return "store";
@@ -305,6 +368,10 @@ public class ApiRouteIntentMatcher {
         Set<String> values = new LinkedHashSet<String>();
         if ("event".equalsIgnoreCase(entityType)) {
             values.addAll(EVENT_HINTS);
+        } else if ("story".equalsIgnoreCase(entityType)) {
+            values.addAll(STORY_HINTS);
+        } else if ("support".equalsIgnoreCase(entityType)) {
+            values.addAll(SUPPORT_HINTS);
         } else if ("store".equalsIgnoreCase(entityType)) {
             values.addAll(STORE_HINTS);
         } else if ("product".equalsIgnoreCase(entityType)) {
@@ -332,7 +399,40 @@ public class ApiRouteIntentMatcher {
             return false;
         }
         String normalized = action.toLowerCase(Locale.ROOT);
-        return normalized.contains("list") || normalized.contains("search") || normalized.contains("query");
+        return normalized.contains("list")
+                || normalized.contains("search")
+                || normalized.contains("query")
+                || normalized.contains("favorites")
+                || normalized.contains("enrollments");
+    }
+
+    private void applyScopedReadScores(ScoredRoute scored, ApiRoute route, String text) {
+        if (scored == null || route == null || !StringUtils.hasText(text)) {
+            return;
+        }
+        String action = route.getAction() == null ? "" : route.getAction().toLowerCase(Locale.ROOT);
+        String path = route.getPathTemplate() == null ? "" : route.getPathTemplate().toLowerCase(Locale.ROOT);
+        if (containsAny(text, FAVORITE_HINTS)) {
+            if (action.contains("favorite") || path.contains("favorite")) {
+                scored.add(32D, "favorite_action");
+            } else if ("event".equalsIgnoreCase(scored.entityType)) {
+                scored.add(-10D, "favorite_mismatch");
+            }
+        }
+        if (containsAny(text, ENROLLMENT_HINTS)) {
+            if (action.contains("enrollment") || action.contains("enroll") || path.contains("enrollment") || path.contains("enroll")) {
+                scored.add(32D, "enrollment_action");
+            } else if ("event".equalsIgnoreCase(scored.entityType)) {
+                scored.add(-10D, "enrollment_mismatch");
+            }
+        }
+        if (containsAny(text, MY_PUBLISHED_HINTS)) {
+            if (action.contains("my_list") || path.contains("my-activities")) {
+                scored.add(32D, "my_published_action");
+            } else if ("event".equalsIgnoreCase(scored.entityType)) {
+                scored.add(-10D, "my_published_mismatch");
+            }
+        }
     }
 
     private String taskCode(ParsedIntent parsedIntent) {
@@ -344,6 +444,12 @@ public class ApiRouteIntentMatcher {
     private String resourceForEntity(String entityHint) {
         if ("event".equalsIgnoreCase(entityHint)) {
             return "local_activity";
+        }
+        if ("story".equalsIgnoreCase(entityHint)) {
+            return "local_story";
+        }
+        if ("support".equalsIgnoreCase(entityHint)) {
+            return "neighbor_support";
         }
         if ("store".equalsIgnoreCase(entityHint)) {
             return "store";
@@ -451,6 +557,12 @@ public class ApiRouteIntentMatcher {
     private String displayEntity(String entityType) {
         if ("event".equalsIgnoreCase(entityType)) {
             return "活动";
+        }
+        if ("story".equalsIgnoreCase(entityType)) {
+            return "故事";
+        }
+        if ("support".equalsIgnoreCase(entityType)) {
+            return "互助任务";
         }
         if ("store".equalsIgnoreCase(entityType)) {
             return "门店";

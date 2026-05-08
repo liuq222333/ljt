@@ -11,9 +11,9 @@ public interface AdminActivityMapper {
     @Select({
             "<script>",
             "SELECT id, organizer_user_id, title, subtitle, category_code, description,",
-            "       location_text, capacity, fee_type, fee_amount, allow_waitlist, require_checkin,",
+            "       location_text, address, latitude, longitude, cover_url, capacity, fee_type, fee_amount, allow_waitlist, require_checkin,",
             "       status, start_at, end_at, reminder_minutes, review_note",
-            "  FROM local_activity_admin",
+            "  FROM local_activity",
             " WHERE 1=1",
             " <if test='status != null and status != \"\"'> AND status = #{status} </if>",
             " <if test='keyword != null and keyword != \"\"'>",
@@ -30,25 +30,11 @@ public interface AdminActivityMapper {
                                             @Param("limit") int limit,
                                             @Param("offset") int offset);
 
-    @Select("SELECT id, organizer_user_id, title, subtitle, category_code, description, location_text, capacity, fee_type, fee_amount, allow_waitlist, require_checkin, status, start_at, end_at, reminder_minutes, review_note FROM local_activity_admin WHERE id = #{id}")
-    LocalActivity findAdminActivityById(@Param("id") Long id);
+    @Select("SELECT id, organizer_user_id, title, subtitle, category_code, description, location_text, address, latitude, longitude, cover_url, capacity, fee_type, fee_amount, allow_waitlist, require_checkin, status, start_at, end_at, reminder_minutes, review_note FROM local_activity WHERE id = #{id}")
+    LocalActivity findActivityById(@Param("id") Long id);
 
-    @Insert({
-            "INSERT INTO local_activity(organizer_user_id, title, subtitle, category_code, description,",
-            " location_text, capacity, fee_type, fee_amount, allow_waitlist, require_checkin, status,",
-            " start_at, end_at, reminder_minutes, review_note, created_at, updated_at)",
-            " VALUES(#{organizerUserId}, #{title}, #{subtitle}, #{categoryCode}, #{description},",
-            " #{locationText}, #{capacity}, #{feeType}, #{feeAmount}, #{allowWaitlist}, #{requireCheckin},",
-            " #{status}, #{startAt}, #{endAt}, #{reminderMinutes}, #{reviewNote}, NOW(), NOW())"
-    })
-    @Options(useGeneratedKeys = true, keyProperty = "id")
-    int insertToMain(LocalActivity activity);
-
-    @Delete("DELETE FROM local_activity_admin WHERE id = #{id}")
-    int deleteAdminActivity(@Param("id") Long id);
-
-    @Update("UPDATE local_activity_admin SET status = #{status}, review_note = #{note}, updated_at = NOW() WHERE id = #{id}")
-    int updateAdminStatus(@Param("id") Long id, @Param("status") String status, @Param("note") String note);
+    @Update("UPDATE local_activity SET status = #{status}, review_note = #{note}, updated_at = NOW() WHERE id = #{id}")
+    int updateActivityStatus(@Param("id") Long id, @Param("status") String status, @Param("note") String note);
 
     @Select("SELECT tag FROM local_activity_tag WHERE activity_id = #{activityId}")
     List<String> listTags(@Param("activityId") Long activityId);

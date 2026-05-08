@@ -14,6 +14,8 @@ import com.example.demo.demos.LocalActive.DTO.LocalActivityDetail;
 import com.example.demo.demos.LocalActive.Service.LocalActEnrollmentService;
 import com.example.demo.demos.Login.Entity.User;
 import com.example.demo.demos.Login.Service.LoginService;
+import com.example.demo.demos.Notification.Pojo.NotificationMessage;
+import com.example.demo.demos.Notification.Service.NotificationSender;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +40,7 @@ public class LocalActEnrollmentServiceImpl implements LocalActEnrollmentService 
     private final LocalActEnrollmentMapper mapper;
     private final LocalActivityMapper activityMapper;
     private final LoginService loginService;
+    private final NotificationSender notificationSender;
     private static final DateTimeFormatter REMINDER_FORMATTER =
             DateTimeFormatter.ofPattern("MM/dd HH:mm", Locale.getDefault());
 
@@ -70,7 +73,7 @@ public class LocalActEnrollmentServiceImpl implements LocalActEnrollmentService 
         item.setTitle(record.getTitle());
         item.setOrganizer(record.getOrganizer());
         item.setLocation(record.getLocation());
-        item.setStatus(record.getStatus());
+        item.setStatus(normalizeStatus(record.getStatus()));
         item.setStartAt(record.getStartAt());
         item.setReminder(buildReminder(record));
         item.setTags(parseTags(record.getTagsCsv()));
@@ -103,7 +106,7 @@ public class LocalActEnrollmentServiceImpl implements LocalActEnrollmentService 
 
         LocalActEnrollmentActionRecord existing = mapper.findLatestEnrollment(activityId, userId);
         if (existing != null && isActiveEnrollment(existing.getStatus())) {
-            return new LocalActEnrollmentActionResponse(existing.getId(), existing.getStatus(), existing.getWaitlistRank());
+            return new LocalActEnrollmentActionResponse(existing.getId(), normalizeStatus(existing.getStatus()), existing.getWaitlistRank());
         }
 
         String status = resolveEnrollmentStatus(activity);
@@ -117,7 +120,8 @@ public class LocalActEnrollmentServiceImpl implements LocalActEnrollmentService 
             LocalActEnrollmentActionRecord inserted = mapper.findLatestEnrollment(activityId, userId);
             enrollmentId = inserted == null ? null : inserted.getId();
         }
-        return new LocalActEnrollmentActionResponse(enrollmentId, status, waitlistRank);
+        sendEnrollNotification(activity, user, status, waitlistRank);
+        return new LocalActEnrollmentActionResponse(enrollmentId, normalizeStatus(status), waitlistRank);
     }
 
     @Override
@@ -156,6 +160,10 @@ public class LocalActEnrollmentServiceImpl implements LocalActEnrollmentService 
             mapper.decrementWaitlistRanksAfter(activityId, oldRank);
         }
         return new LocalActEnrollmentActionResponse(existing.getId(), "cancelled", null);
+    }
+
+    private String normalizeStatus(String status) {
+        return status == null ? null : status.toLowerCase(Locale.ROOT);
     }
 
     private void promoteFirstWaitlist(Long activityId) {
@@ -223,5 +231,36 @@ public class LocalActEnrollmentServiceImpl implements LocalActEnrollmentService 
             return "活动前 24 小时提醒 · " + record.getStartAt().format(REMINDER_FORMATTER);
         }
         return "活动提醒";
+    }
+
+    private void sendEnrollNotification(LocalActivityDetail activity, User user, String status, Integer waitlistRank) {
+        try {
+            NotificationMessage msg = new NotificationMessage();
+            String t = activity.getTitle() == null ? "" : activity.getTitle();
+            if ("confirmed".equals(status)) {
+                msg.setKind("LOCAL_ACTIVITY_ENROLLED");
+                msg.setTitle("报名成功");
+                msg.setContent("您已成功报名活动【" + t + "】");
+            } else {
+                String rank = waitlistRank != null ? "第 " + waitlistRank + " 位" : "";
+                msg.setKind("LOCAL_ACTIVITY_WAITLIST");
+                msg.setTitle("已加入候补");
+                msg.setContent("活动【" + t + "】名额已满，您已加入候补列表" + rank);
+            }
+            msg.setTargetType("USER");
+            msg.setTargetUserId(parseLong(user.getUserId()));
+            msg.setPriority(5);
+            notificationSender.send(msg);
+        } catch (Exception ignore) {
+            // 通知发送失败不影响主流程
+        }
+    }
+
+    private Long parseLong(String val) {
+        try {
+            return Long.valueOf(val);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

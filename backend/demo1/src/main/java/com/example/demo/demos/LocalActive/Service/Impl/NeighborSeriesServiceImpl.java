@@ -5,6 +5,7 @@ import com.example.demo.demos.LocalActive.DTO.LocalStoryListItem;
 import com.example.demo.demos.LocalActive.DTO.LocalStoryCreateRequest;
 import com.example.demo.demos.LocalActive.Dao.LocalActivityStoryMapper;
 import com.example.demo.demos.LocalActive.Pojo.LocalActivityStory;
+import com.example.demo.demos.LocalActive.Service.LocalActMediaService;
 import com.example.demo.demos.LocalActive.Service.NeighborSeriesService;
 import com.example.demo.demos.Login.Entity.User;
 import com.example.demo.demos.Login.Service.LoginService;
@@ -23,13 +24,22 @@ public class NeighborSeriesServiceImpl implements NeighborSeriesService {
 
     private final LocalActivityStoryMapper storyMapper;
     private final LoginService loginService;
+    private final LocalActMediaService mediaService;
 
     @Override
     public List<LocalStoryListItem> listStories(String keyword, String visibility, int page, int size) {
         int limit = Math.max(1, size);
         int offset = Math.max(0, (Math.max(1, page) - 1) * limit);
-        return storyMapper.listStories(StringUtils.hasText(keyword) ? keyword : null,
+        List<LocalStoryListItem> stories = storyMapper.listStories(StringUtils.hasText(keyword) ? keyword : null,
                 StringUtils.hasText(visibility) ? visibility : null, limit, offset);
+        if (stories != null) {
+            for (LocalStoryListItem story : stories) {
+                if (story != null) {
+                    story.setCoverUrl(mediaService.resolveCoverUrl(story.getCoverUrl()));
+                }
+            }
+        }
+        return stories;
     }
 
     @Override
@@ -38,6 +48,7 @@ public class NeighborSeriesServiceImpl implements NeighborSeriesService {
         if (detail == null) {
             throw new ResponseStatusException(NOT_FOUND, "故事不存在");
         }
+        detail.setCoverUrl(mediaService.resolveCoverUrl(detail.getCoverUrl()));
         return detail;
     }
 

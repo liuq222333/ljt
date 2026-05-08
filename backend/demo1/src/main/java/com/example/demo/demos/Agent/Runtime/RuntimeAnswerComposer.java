@@ -1129,6 +1129,7 @@ public class RuntimeAnswerComposer {
             appendIfPresent(parts, "\u5f00\u59cb\u65f6\u95f4", pendingAction.getPayload().get("timeStart"));
             appendIfPresent(parts, "\u7ed3\u675f\u65f6\u95f4", pendingAction.getPayload().get("timeEnd"));
             appendIfPresent(parts, "\u6d3b\u52a8\u63cf\u8ff0", pendingAction.getPayload().get("description"));
+            appendIfPresent(parts, "\u5c01\u9762\u56fe", summarizeImages(pendingAction.getPayload().get("coverUrl")));
             appendIfPresent(parts, "\u4eba\u6570", pendingAction.getPayload().get("capacity"));
             appendIfPresent(parts, "\u8d39\u7528", pendingAction.getPayload().get("fee"));
         }
@@ -1185,6 +1186,7 @@ public class RuntimeAnswerComposer {
                 appendIfPresent(parts, "\u5f00\u59cb\u65f6\u95f4", pendingAction.getPayload().get("timeStart"));
                 appendIfPresent(parts, "\u7ed3\u675f\u65f6\u95f4", pendingAction.getPayload().get("timeEnd"));
                 appendIfPresent(parts, "\u6d3b\u52a8\u5730\u70b9", pendingAction.getPayload().get("location"));
+                appendIfPresent(parts, "\u5c01\u9762\u56fe", summarizeImages(pendingAction.getPayload().get("coverUrl")));
             } else {
                 appendIfPresent(parts, "\u5546\u54c1\u540d", pendingAction.getPayload().get("title"));
                 appendIfPresent(parts, "\u4ef7\u683c", pendingAction.getPayload().get("price"));
@@ -1219,8 +1221,8 @@ public class RuntimeAnswerComposer {
         if (field.contains("\u5730\u70b9")) {
             return "\u5730\u70b9 \u4e00\u98df\u5802";
         }
-        if (field.contains("\u56fe\u7247")) {
-            return "https://example.com/a.jpg";
+        if (field.contains("\u56fe\u7247") || field.contains("\u5c01\u9762")) {
+            return "\u70b9\u51fb\u4e0a\u4f20\u5c01\u9762\u56fe\uff0c\u6216\u53d1\u9001 https://example.com/a.jpg";
         }
         if (field.contains("ID") || field.contains("Id") || field.contains("id")) {
             return "\u5546\u54c1 ID 123";

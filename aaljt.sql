@@ -1190,8 +1190,24 @@ CREATE TABLE `local_activity_enrollment`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uniq_activity_user`(`activity_id`, `user_id`) USING BTREE,
   INDEX `fk_enrollment_user`(`user_id`) USING BTREE,
-  CONSTRAINT `fk_enrollment_activity` FOREIGN KEY (`activity_id`) REFERENCES `local_activity_admin` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `fk_enrollment_activity` FOREIGN KEY (`activity_id`) REFERENCES `local_activity` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT `fk_enrollment_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for local_activity_favorite
+-- ----------------------------
+DROP TABLE IF EXISTS `local_activity_favorite`;
+CREATE TABLE `local_activity_favorite`  (
+  `id` bigint(0) NOT NULL AUTO_INCREMENT,
+  `activity_id` bigint(0) NOT NULL,
+  `user_id` int(0) NOT NULL,
+  `created_at` datetime(0) NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uniq_local_activity_favorite_user`(`activity_id`, `user_id`) USING BTREE,
+  INDEX `idx_local_activity_favorite_user`(`user_id`) USING BTREE,
+  CONSTRAINT `fk_local_activity_favorite_activity` FOREIGN KEY (`activity_id`) REFERENCES `local_activity` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
+  CONSTRAINT `fk_local_activity_favorite_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------

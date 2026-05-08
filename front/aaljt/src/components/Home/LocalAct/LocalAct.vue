@@ -51,9 +51,7 @@
           class="entry-card"
           @click="handleTopNav(entry.id)"
         >
-          <span class="entry-icon" :class="entry.tone">
-            <i :class="['fas', entry.icon]"></i>
-          </span>
+          <span class="entry-icon" :style="{ color: entry.tone }" v-html="entry.icon"></span>
           <div class="entry-content">
             <strong>{{ entry.title }}</strong>
             <p>{{ entry.desc }}</p>
@@ -313,6 +311,13 @@
                 <span>已完成</span>
               </article>
             </div>
+
+            <div class="side-actions">
+              <button class="side-action" type="button" @click="goToMyEnrollments">查看报名记录</button>
+              <button class="side-action" type="button" @click="goToFavorites">查看我的收藏</button>
+              <button class="side-action" type="button" @click="goToMyActivities">管理我的发布</button>
+              <button class="side-action" type="button" @click="goToReviewAdmin">活动审核台</button>
+            </div>
           </section>
 
           <section class="sidebar-card ranking-card">
@@ -385,8 +390,13 @@
         :input-value="agentInput"
         :loading="agentLoading"
         :error="agentError"
+        :cover-upload-visible="agentCoverUploadVisible"
+        :cover-uploading="agentCoverUploading"
+        :uploaded-cover-preview="agentCoverPreview"
         @update:input-value="agentInput = $event"
         @send="submitAiMessage"
+        @card-click="handleAgentCardClick"
+        @cover-upload="handleAgentCoverUpload"
       />
 
       <button v-if="!aiWorkbenchOpen" class="ai-fab" type="button" @click="openAiWorkbench()">
@@ -402,6 +412,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import dhstyle from '../../dhstyle/dhstyle.vue';
 import LocalActAiDrawer from './LocalActAiDrawer.vue';
+import { uploadLocalActMedia } from '@/api/localAct';
 
 type LocalEvent = {
   id: number;
@@ -472,12 +483,42 @@ type AgentMessage = {
   sender: 'user' | 'agent';
   text: string;
   time: string;
+  preview?: string;
+  cards?: LocalAiCard[];
+  answerType?: string;
+};
+
+type LocalAiCard = {
+  entityId?: string | number;
+  entityType?: string;
+  title?: string;
+  subtitle?: string;
+  imageUrl?: string;
+  priceText?: string;
+  tags?: string[];
+  highlights?: string[];
+  locationText?: string;
+  realtimeStatusText?: string;
+  recommendReason?: string;
+};
+
+type LocalAiFinalAnswer = {
+  answerType?: string;
+  answerText?: string;
+  summary?: string;
+  cards?: LocalAiCard[];
+  composerMeta?: {
+    metadata?: Record<string, unknown>;
+  };
 };
 
 const router = useRouter();
 const API_BASE = (import.meta as any)?.env?.VITE_API_BASE ?? 'http://localhost:8080';
+const AMAP_KEY = (import.meta as any)?.env?.VITE_AMAP_KEY ?? '';
+const COORD_CONVERT_BASE = 'https://restapi.amap.com/v3/assistant/coordinate/convert';
 const AGENT_CHAT_API = `${API_BASE}/api/agent/chat`;
 const AGENT_SESSION_STORAGE_KEY = 'localActAgentSessionId';
+const username = ref(localStorage.getItem('username') || '');
 
 const events = ref<LocalEvent[]>([]);
 const selectedCategory = ref('all');
@@ -485,10 +526,14 @@ const selectedRadius = ref<number | null>(null);
 const showOnlyHot = ref(false);
 const selectedEvent = ref<LocalEvent | null>(null);
 const sortMode = ref<'latest' | 'popular' | 'distance'>('popular');
+const userPosition = ref<{ lat: number; lon: number } | null>(null);
 const aiWorkbenchOpen = ref(false);
 const agentInput = ref('');
 const agentLoading = ref(false);
 const agentError = ref('');
+const agentCoverUploading = ref(false);
+const agentCoverUploadVisible = ref(false);
+const agentCoverPreview = ref('');
 const agentSessionId = ref(sessionStorage.getItem(AGENT_SESSION_STORAGE_KEY) || '');
 const agentMessages = ref<AgentMessage[]>([
   {
@@ -498,13 +543,33 @@ const agentMessages = ref<AgentMessage[]>([
     time: formatChatTime()
   }
 ]);
+const participationStats = ref({
+  upcomingCount: 0,
+  totalParticipated: 0,
+  volunteerHours: 0
+});
+
+/* 入口卡片 SVG 图标 —— 统一 24×24 线框风格，色彩贴合社区暖色调主题 */
+const entryIconSvg: Record<string, string> = {
+  stories: `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 19.5z"/><path d="M9 7h6"/><path d="M9 11h4"/></svg>`,
+  activities: `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="9" y1="16" x2="15" y2="16"/></svg>`,
+  publish: `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`,
+  enrollments: `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9"/><path d="M3 9a3 3 0 0 1 6 0v2H3"/><path d="M21 9a3 3 0 0 0-6 0v2h6"/><path d="M15 9V7a3 3 0 0 0-6 0v2"/><circle cx="12" cy="15" r="1" fill="currentColor" stroke="none"/></svg>`,
+  favorites: `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+  support: `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7 7-7z"/><path d="M12 8v3"/><circle cx="12" cy="6" r="0.5" fill="currentColor" stroke="none"/></svg>`,
+  volunteer: `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M3 19v-1a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v1"/><circle cx="18" cy="8" r="2"/><path d="M15 17v-1a3 3 0 0 1 3-3h1"/><path d="M16 10.5a2.5 2.5 0 0 1 0-5"/></svg>`,
+  welfare: `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/><path d="M8 11h3l1-3 1 3h3"/></svg>`
+};
 
 const landingEntries: EntryCard[] = [
-  { id: 'stories', title: '社区故事', desc: '发现身边故事', icon: 'fa-book-open', tone: 'orange' },
-  { id: 'activities', title: '社区活动', desc: '参与精彩活动', icon: 'fa-calendar-days', tone: 'violet' },
-  { id: 'support', title: '志愿服务', desc: '贡献你的时间', icon: 'fa-heart', tone: 'blue' },
-  { id: 'volunteer', title: '邻里互动', desc: '连接邻里关系', icon: 'fa-users', tone: 'green' },
-  { id: 'welfare', title: '公益捐助', desc: '爱心传递希望', icon: 'fa-hand-holding-heart', tone: 'amber' }
+  { id: 'stories', title: '社区故事', desc: '发现身边故事', icon: entryIconSvg.stories, tone: '#ff6b2c' },
+  { id: 'activities', title: '社区活动', desc: '浏览全部活动', icon: entryIconSvg.activities, tone: '#f59e0b' },
+  { id: 'publish', title: '发布活动', desc: '发起社区活动', icon: entryIconSvg.publish, tone: '#ec4899' },
+  { id: 'enrollments', title: '我的报名', desc: '查看参与记录', icon: entryIconSvg.enrollments, tone: '#3b82f6' },
+  { id: 'favorites', title: '我的收藏', desc: '收藏活动清单', icon: entryIconSvg.favorites, tone: '#f59e0b' },
+  { id: 'support', title: '志愿服务', desc: '贡献你的时间', icon: entryIconSvg.support, tone: '#ef4444' },
+  { id: 'volunteer', title: '邻里互助', desc: '连接邻里关系', icon: entryIconSvg.volunteer, tone: '#10b981' },
+  { id: 'welfare', title: '公益捐助', desc: '爱心传递希望', icon: entryIconSvg.welfare, tone: '#8b5cf6' }
 ];
 
 const categories = [
@@ -711,9 +776,9 @@ const availableSlots = computed(
 const joinMemberCount = computed(() => Math.max(326, totalCapacity.value + volunteerStars.length * 28 + stories.length * 34));
 
 const participationSummary = computed(() => [
-  { label: '已报名活动', value: String(schedules.length + 1) },
-  { label: '已完成服务', value: String(scheduleBuckets.value.done + 1) },
-  { label: '帮助邻里', value: String(volunteerStars.length * 4 + 3) }
+  { label: '已报名活动', value: String(participationStats.value.upcomingCount || schedules.length + 1) },
+  { label: '累计参与', value: String(participationStats.value.totalParticipated || scheduleBuckets.value.done + 1) },
+  { label: '志愿时长', value: `${participationStats.value.volunteerHours || volunteerStars.length * 4 + 3}h` }
 ]);
 
 const heroStats = computed(() => [
@@ -746,7 +811,7 @@ const countdownParts = computed(() => {
 });
 
 const scheduleBuckets = computed(() => ({
-  upcoming: schedules.filter((item) => item.state === 'upcoming').length,
+  upcoming: participationStats.value.upcomingCount || schedules.filter((item) => item.state === 'upcoming').length,
   active: schedules.filter((item) => item.state === 'active').length,
   done: schedules.filter((item) => item.state === 'done').length
 }));
@@ -761,6 +826,7 @@ const resolveCategoryLabel = (id: string) => categories.find((item) => item.id =
 const statusLabel = (status: string) => {
   const labelMap: Record<string, string> = {
     PUBLISHED: '报名中',
+    REVIEWING: '待审核',
     DRAFT: '待发布',
     CLOSED: '已截止'
   };
@@ -840,7 +906,27 @@ const normalizeEvent = (item: any, idx: number): LocalEvent => ({
   description: item.description || ''
 });
 
-const fetchEvents = async (lat = 23.1291, lon = 113.2644) => {
+const convertGpsToAmap = async (lat: number, lon: number) => {
+  if (!AMAP_KEY) return { lat, lon };
+  try {
+    const resp = await fetch(`${COORD_CONVERT_BASE}?key=${AMAP_KEY}&locations=${lon},${lat}&coordsys=gps`);
+    const data = await resp.json();
+    const parts = String(data?.locations || '').split(',').map(parseFloat);
+    if (data?.status === '1' && parts.length === 2 && parts.every((value) => !Number.isNaN(value))) {
+      return { lon: parts[0], lat: parts[1] };
+    }
+  } catch {
+    // Keep browser coordinates if conversion is unavailable.
+  }
+  return { lat, lon };
+};
+
+const fetchEvents = async (lat = userPosition.value?.lat, lon = userPosition.value?.lon) => {
+  if (lat == null || lon == null) {
+    events.value = fallbackEvents;
+    return;
+  }
+
   const qs = new URLSearchParams({
     lat: String(lat),
     lon: String(lon),
@@ -881,20 +967,29 @@ const scrollToSection = (id: string) => {
 const handleTopNav = (id: string) => {
   switch (id) {
     case 'stories':
-      scrollToSection('story-hub');
+      goToStories();
       break;
     case 'activities':
-      scrollToSection('activity-hub');
+      goToActivityList();
+      break;
+    case 'publish':
+      goToPublish();
+      break;
+    case 'enrollments':
+      goToMyEnrollments();
+      break;
+    case 'favorites':
+      goToFavorites();
       break;
     case 'welfare':
-      scrollToSection('community-connect');
+      router.push({ name: 'CommunityService' });
       break;
     case 'support':
     case 'volunteer':
       goToNeighborSupport();
       break;
     default:
-      break;
+      goToActivityList();
   }
 };
 
@@ -906,8 +1001,49 @@ const goToActivityList = () => {
   router.push('/local-act/list');
 };
 
+const goToPublish = () => {
+  router.push('/local-act/publish');
+};
+
 const goToNeighborSupport = () => {
   router.push('/local-act/neighbor-support');
+};
+
+const goToMyEnrollments = () => {
+  router.push('/local-act/my-enrollments');
+};
+
+const goToFavorites = () => {
+  router.push('/local-act/favorites');
+};
+
+const goToMyActivities = () => {
+  router.push('/local-act/my-activities');
+};
+
+const goToReviewAdmin = () => {
+  router.push('/local-act/admin/reviews');
+};
+
+const fetchParticipationStats = async () => {
+  if (!username.value) {
+    return;
+  }
+  try {
+    const params = new URLSearchParams({ username: username.value, period: 'upcoming' });
+    const resp = await fetch(`${API_BASE}/api/local-act/enrollments?${params.toString()}`);
+    const data = await resp.json().catch(() => null);
+    const payload = data?.data ?? data;
+    if (resp.ok && payload?.stats) {
+      participationStats.value = {
+        upcomingCount: Number(payload.stats.upcomingCount ?? 0),
+        totalParticipated: Number(payload.stats.totalParticipated ?? 0),
+        volunteerHours: Number(payload.stats.volunteerHours ?? 0)
+      };
+    }
+  } catch {
+    // 首页保留本地概览兜底。
+  }
 };
 
 const handleNoticeClick = (target: NoticeItem['target']) => {
@@ -964,7 +1100,43 @@ const submitAiMessage = async () => {
   await sendAgentMessage();
 };
 
-const sendAgentMessage = async () => {
+const handleAgentCoverUpload = async (file: File) => {
+  if (agentLoading.value || agentCoverUploading.value) {
+    return;
+  }
+  if (!file.type.startsWith('image/')) {
+    agentError.value = '请选择图片文件';
+    return;
+  }
+
+  agentError.value = '';
+  agentCoverUploading.value = true;
+  try {
+    const result = await uploadLocalActMedia(file, 'activity');
+    if (!result?.objectKey) {
+      throw new Error('上传成功但未返回图片对象标识');
+    }
+    agentCoverPreview.value = result.url || result.publicUrl || URL.createObjectURL(file);
+    agentCoverUploadVisible.value = false;
+    agentMessages.value.push({
+      id: `${Date.now()}-user-cover`,
+      sender: 'user',
+      text: '已上传活动封面图',
+      time: formatChatTime()
+    });
+    await sendAgentMessage({
+      pendingActivityCoverUrl: result.objectKey,
+      activityCoverObjectKey: result.objectKey,
+      activityCoverPreviewUrl: result.url || result.publicUrl
+    });
+  } catch (error: any) {
+    agentError.value = error?.message || '封面上传失败';
+  } finally {
+    agentCoverUploading.value = false;
+  }
+};
+
+const sendAgentMessage = async (extraUserProfile: Record<string, unknown> = {}) => {
   agentLoading.value = true;
 
   try {
@@ -974,6 +1146,24 @@ const sendAgentMessage = async () => {
       headers.Authorization = token;
     }
 
+    const userProfile = {
+      scene: 'local-act',
+      username: username.value || undefined,
+      userName: username.value || undefined,
+      preferredEntityTypes: ['event', 'activity', 'product'],
+      selectedEventId: selectedEvent.value?.id,
+      selectedEventTitle: selectedEvent.value?.title,
+      visibleActivities: activityCards.value.map((event) => ({
+        id: event.id,
+        title: event.title,
+        category: resolveCategoryLabel(event.category),
+        location: event.location,
+        date: event.date,
+        timeRange: event.timeRange
+      })),
+      ...extraUserProfile
+    };
+
     const requestBody = {
       messages: agentMessages.value
         .filter((message) => message.id !== 'welcome')
@@ -981,7 +1171,8 @@ const sendAgentMessage = async () => {
           role: message.sender === 'user' ? 'user' : 'assistant',
           content: message.text
         })),
-      sessionId: agentSessionId.value || undefined
+      sessionId: agentSessionId.value || undefined,
+      userProfile
     };
 
     const response = await fetch(AGENT_CHAT_API, {
@@ -1001,7 +1192,11 @@ const sendAgentMessage = async () => {
       throw new Error(result?.message || 'AI 服务响应异常');
     }
 
-    const reply = result?.data?.reply?.trim() || '已收到，请补充更多活动信息。';
+    const finalAnswer = (result?.data?.finalAnswer ?? null) as LocalAiFinalAnswer | null;
+    const reply =
+      result?.data?.reply?.trim() ||
+      finalAnswer?.answerText?.trim() ||
+      '已收到，请补充更多活动信息。';
     const returnedSessionId = result?.data?.sessionId?.trim?.() || '';
     if (returnedSessionId) {
       agentSessionId.value = returnedSessionId;
@@ -1012,8 +1207,16 @@ const sendAgentMessage = async () => {
       id: `${Date.now()}-agent`,
       sender: 'agent',
       text: reply,
-      time: formatChatTime()
+      preview: finalAnswer?.summary?.trim?.() || reply,
+      time: formatChatTime(),
+      cards: Array.isArray(finalAnswer?.cards) ? finalAnswer.cards : [],
+      answerType: finalAnswer?.answerType
     });
+    agentCoverUploadVisible.value = shouldShowCoverUpload(finalAnswer, reply);
+    if (looksLikeActivityCreated(reply)) {
+      agentCoverPreview.value = '';
+      agentCoverUploadVisible.value = false;
+    }
   } catch (error: any) {
     agentError.value = error?.message || '网络异常，请稍后重试';
     setTimeout(() => {
@@ -1025,6 +1228,23 @@ const sendAgentMessage = async () => {
     agentLoading.value = false;
   }
 };
+
+const shouldShowCoverUpload = (finalAnswer: LocalAiFinalAnswer | null, reply: string) => {
+  const metadata = finalAnswer?.composerMeta?.metadata ?? {};
+  const resource = String(metadata.resource || metadata.actionResource || '').toLowerCase();
+  const missingFields = Array.isArray(metadata.missingFields)
+    ? metadata.missingFields
+    : Array.isArray(metadata.actionMissingFields)
+      ? metadata.actionMissingFields
+      : [];
+  const missingText = missingFields.map((field) => String(field)).join(' ');
+  if (resource === 'local_activity' && /封面|coverUrl|cover_url/i.test(missingText)) {
+    return true;
+  }
+  return /活动封面|封面图片|上传封面/.test(reply);
+};
+
+const looksLikeActivityCreated = (reply: string) => /活动已创建|活动已提交|已提交审核|activityId=/.test(reply);
 
 function formatChatTime(date = new Date()) {
   return date.toLocaleTimeString('zh-CN', {
@@ -1040,6 +1260,27 @@ const goToDetail = (event?: LocalEvent | null) => {
   }
 };
 
+const handleAgentCardClick = (card: LocalAiCard) => {
+  if (!card.entityId) {
+    return;
+  }
+
+  const type = String(card.entityType || '').toLowerCase();
+  if (type === 'product') {
+    router.push({ name: 'ProductDetail', params: { id: card.entityId } });
+    return;
+  }
+
+  if (['event', 'activity', 'local_act', 'local-activity'].includes(type)) {
+    router.push({ name: 'LocalActDetail', params: { id: card.entityId } });
+    return;
+  }
+
+  if (type === 'story') {
+    router.push({ name: 'LocalActStoryDetail', params: { id: card.entityId } });
+  }
+};
+
 watch(sortedEvents, (list) => {
   syncSelectedEvent(list);
 });
@@ -1049,17 +1290,20 @@ watch([selectedCategory, selectedRadius], () => {
 });
 
 onMounted(() => {
+  fetchParticipationStats();
   if (!navigator.geolocation) {
     fetchEvents();
     return;
   }
 
   navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      fetchEvents(pos.coords.latitude, pos.coords.longitude);
+    async (pos) => {
+      const converted = await convertGpsToAmap(pos.coords.latitude, pos.coords.longitude);
+      userPosition.value = converted;
+      fetchEvents(converted.lat, converted.lon);
     },
     () => fetchEvents(),
-    { timeout: 3000 }
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
   );
 });
 </script>
@@ -1288,8 +1532,8 @@ onMounted(() => {
 .entry-grid {
   margin-top: 24px;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .entry-card {
@@ -1317,39 +1561,18 @@ onMounted(() => {
 }
 
 .entry-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
   flex-shrink: 0;
+  line-height: 0;
 }
 
-.entry-icon.orange {
-  background: rgba(255, 107, 44, 0.1);
-  color: #ff6b2c;
-}
-
-.entry-icon.violet {
-  background: rgba(117, 99, 255, 0.1);
-  color: #7563ff;
-}
-
-.entry-icon.blue {
-  background: rgba(78, 142, 247, 0.1);
-  color: #4e8ef7;
-}
-
-.entry-icon.green {
-  background: rgba(56, 185, 130, 0.1);
-  color: #38b982;
-}
-
-.entry-icon.amber {
-  background: rgba(242, 155, 34, 0.1);
-  color: #f29b22;
+.entry-icon :deep(svg) {
+  width: 32px;
+  height: 32px;
 }
 
 .entry-content {
@@ -2066,6 +2289,31 @@ onMounted(() => {
 .cta-wide:hover {
   background: var(--accent-strong);
   transform: translateY(-1px);
+}
+
+.side-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.side-action {
+  width: 100%;
+  height: 38px;
+  border: none;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.side-action:hover {
+  background: rgba(255, 107, 44, 0.1);
+  color: var(--accent);
 }
 
 .participation-top {

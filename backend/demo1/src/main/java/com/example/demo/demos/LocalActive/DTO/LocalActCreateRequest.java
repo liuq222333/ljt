@@ -14,9 +14,13 @@ public class LocalActCreateRequest {
     private String timeStart;
     private String timeEnd;
     private String location;
+    private String address;
+    private Double latitude;
+    private Double longitude;
     private Integer capacity;
     private String fee;
     private String description;
+    private String coverUrl;
     private List<String> tags;
     private String registration;
     private String reviewNote;

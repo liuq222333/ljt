@@ -10,9 +10,6 @@
           <div class="hero-copy">
             <span class="hero-chip">让资源循环 让生活更美好</span>
             <h1>让闲置流转起来</h1>
-            <p class="hero-description">
-              每一次转让，都是对好物的再次珍惜。让闲置找到新主人，让价值继续延续，也让同城交易变得更轻松。
-            </p>
 
             <div class="hero-search">
               <input
@@ -24,106 +21,7 @@
               <button class="hero-search-btn" type="button" @click="goToMarketSearch">搜索好物</button>
             </div>
 
-            <div class="hero-actions">
-              <button class="primary-btn hero-btn" type="button" @click="goToPublish">立即发布</button>
-              <button class="ghost-btn hero-btn" type="button" @click="goToMarketSearch">浏览分类</button>
-            </div>
-
-            <div class="hero-tags">
-              <span class="hero-tags-label">热门搜索</span>
-              <button
-                v-for="keyword in popularKeywords"
-                :key="keyword"
-                class="hero-tag-btn"
-                type="button"
-                @click="applyKeyword(keyword)"
-              >
-                {{ keyword }}
-              </button>
-            </div>
-
-            <div class="hero-stats">
-              <article v-for="stat in heroStats" :key="stat.label" class="hero-stat-card">
-                <span>{{ stat.label }}</span>
-                <strong>{{ stat.value }}</strong>
-                <small>{{ stat.helper }}</small>
-              </article>
-            </div>
-          </div>
-
-          <div class="hero-board">
-            <div class="hero-board-head">
-              <div>
-                <p class="hero-board-kicker">平台精选</p>
-                <h3>今日主推好物</h3>
-              </div>
-              <span class="hero-board-badge">同城优先</span>
-            </div>
-
-            <article v-if="heroLeadProduct" class="hero-lead-card" @click="navigateToDetail(heroLeadProduct)">
-              <div class="hero-lead-media">
-                <img
-                  :src="getFirstImage(heroLeadProduct)"
-                  :alt="heroLeadProduct.title"
-                  @error="handleImageError($event, FALLBACK_ITEM)"
-                />
-              </div>
-              <div class="hero-lead-body">
-                <div class="hero-lead-tags">
-                  <span>{{ getConditionBadge(heroLeadProduct, 0) }}</span>
-                  <span>{{ getDeliveryBadge(heroLeadProduct) }}</span>
-                </div>
-                <h3>{{ heroLeadProduct.title }}</h3>
-                <div class="hero-lead-price-row">
-                  <strong>¥{{ formatPrice(heroLeadProduct.price) }}</strong>
-                  <span>{{ formatLocation(heroLeadProduct.location ?? heroLeadProduct.loaction) }}</span>
-                </div>
-                <p>{{ getHeroLeadDescription(heroLeadProduct) }}</p>
-                <div class="hero-lead-footer">
-                  <div class="hero-lead-meta">
-                    <span>{{ formatSellerId(heroLeadProduct.seller_id ?? heroLeadProduct.sellerId) }}</span>
-                    <span v-if="heroLeadProduct.distanceKm != null">{{ formatDistance(heroLeadProduct.distanceKm) }}</span>
-                  </div>
-                  <button class="hero-inline-btn" type="button" @click.stop="askAboutProduct(heroLeadProduct)">
-                    AI 参考
-                  </button>
-                </div>
-              </div>
-            </article>
-
-            <div class="hero-mini-grid">
-              <article
-                v-for="item in heroBoardCards"
-                :key="item.label"
-                class="hero-mini-card"
-                :style="{ '--hero-card-tone': item.tone }"
-              >
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-                <p>{{ item.helper }}</p>
-              </article>
-            </div>
-
-            <div class="hero-secondary-list">
-              <button
-                v-for="(product, index) in heroProducts"
-                :key="`secondary-${product.id}`"
-                class="hero-secondary-item"
-                type="button"
-                @click="navigateToDetail(product)"
-              >
-                <img
-                  :src="getFirstImage(product)"
-                  :alt="product.title"
-                  @error="handleImageError($event, FALLBACK_ITEM)"
-                />
-                <div class="hero-secondary-content">
-                  <span>{{ getConditionBadge(product, index + 1) }}</span>
-                  <strong>{{ product.title }}</strong>
-                  <small>¥{{ formatPrice(product.price) }}</small>
-                </div>
-              </button>
-            </div>
+            <button class="primary-btn hero-btn" type="button" @click="goToPublish">立即发布</button>
           </div>
         </section>
 
@@ -280,24 +178,10 @@
                   <div class="goods-tags-row">
                     <span class="goods-info-chip location">{{ formatLocation(product.location ?? product.loaction) }}</span>
                     <span v-if="product.distanceKm != null" class="goods-info-chip distance">{{ formatDistance(product.distanceKm) }}</span>
-                    <span v-if="getReferencePrice(product)" class="goods-info-chip ref-price">原价 ¥{{ getReferencePrice(product) }}</span>
                   </div>
 
                   <div class="goods-price-row">
-                    <div class="goods-price">
-                      <strong>¥{{ formatPrice(product.price) }}</strong>
-                      <span class="goods-price-hint">支持同城面交 / 沟通议价</span>
-                    </div>
-                  </div>
-
-                  <div class="goods-bottom-row">
-                    <span class="goods-seller">发布者 {{ formatSellerId(product.seller_id ?? product.sellerId) }}</span>
-                    <span class="goods-status">{{ isDown(product) ? '已下架' : '可咨询' }}</span>
-                  </div>
-
-                  <div class="goods-action-row">
-                    <button class="goods-action-btn" type="button" @click.stop="navigateToDetail(product)">查看详情</button>
-                    <button class="goods-action-btn primary" type="button" @click.stop="askAboutProduct(product)">AI 咨询</button>
+                    <strong>¥{{ formatPrice(product.price) }}</strong>
                   </div>
                 </div>
               </article>
@@ -447,8 +331,6 @@ import dhstyle from '../../dhstyle/dhstyle.vue';
 import CebianTool from './cebianTool.vue';
 import CommunityMarketplaceAiDrawer from './CommunityMarketplaceAiDrawer.vue';
 import { useCommunityMarketplaceAi, type MarketplaceAiCard } from './useCommunityMarketplaceAi';
-import homePicture1 from '../../../pictures/homePicture1.jpg';
-
 interface Product {
   id: number | string;
   title: string;
@@ -493,13 +375,6 @@ interface FooterGroup {
   items: string[];
 }
 
-interface HeroBoardCard {
-  label: string;
-  value: string;
-  helper: string;
-  tone: string;
-}
-
 interface SortOption {
   key: string;
   label: string;
@@ -520,8 +395,7 @@ const route = useRoute();
 const API_BASE = ((import.meta as any)?.env?.VITE_API_BASE ?? (window as any)?.VITE_API_BASE ?? 'http://localhost:8080') as string;
 const AMAP_KEY = ((import.meta as any)?.env?.VITE_AMAP_KEY ?? (window as any)?.VITE_AMAP_KEY ?? '') as string;
 
-const heroBannerImage = homePicture1;
-const popularKeywords = ['同城自提', '学生转卖', '95新数码', '低价家具', '搬家急出'];
+const popularKeywords =['同城自提', '学生转卖', '95新数码', '低价家具', '搬家急出'];
 const agentQuickPrompts = ['帮我筛 3 件适合同城自提的好物', '这个价格值不值', '帮我写一段转让文案'];
 const sortOptions: SortOption[] = [
   { key: 'default', label: '推荐' },
@@ -687,35 +561,6 @@ const {
 });
 
 const featuredProducts = computed(() => products.value.slice(0, 6));
-const heroLeadProduct = computed(() => products.value[0] ?? null);
-const heroProducts = computed(() => products.value.slice(1, 4));
-
-const heroStats = computed(() => [
-  { label: '在售好物', value: `${products.value.length || 12}+`, helper: '实时更新' },
-  { label: '同城优先', value: nearbyRadius.value ? `${nearbyRadius.value}km` : '全城', helper: '支持附近筛选' },
-  { label: 'AI 协助', value: '在线', helper: '随时帮你找货和写文案' }
-]);
-
-const heroBoardCards = computed<HeroBoardCard[]>(() => [
-  {
-    label: '平台节奏',
-    value: '搜索即入口',
-    helper: '首页优先帮你找到商品，不让辅助能力抢主视线。',
-    tone: '#eaf5ef'
-  },
-  {
-    label: '交易方式',
-    value: nearbyRadius.value ? `${nearbyRadius.value}km 自提` : '全城筛选',
-    helper: '默认偏向同城流转，沟通成本更低，交易更直接。',
-    tone: '#eef4ff'
-  },
-  {
-    label: 'AI 工作台',
-    value: '抽屉式辅助',
-    helper: '需要时再拉出，用来看价、筛选和整理转让文案。',
-    tone: '#fff3e8'
-  }
-]);
 
 const resultSummary = computed(() => {
   const count = featuredProducts.value.length;
@@ -795,23 +640,6 @@ function isFavorite(productId: string | number) {
 function formatPrice(price: number | string) {
   const amount = Number(price);
   return Number.isFinite(amount) ? amount.toFixed(0) : '--';
-}
-
-function getReferencePrice(product: Product) {
-  const amount = Number(product.price);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return '';
-  }
-  return Math.round(amount * 1.35).toString();
-}
-
-function getHeroLeadDescription(product: Product) {
-  const parts = [
-    formatLocation(product.location ?? product.loaction),
-    product.distanceKm != null ? formatDistance(product.distanceKm) : '',
-    '平台推荐优先展示'
-  ].filter(Boolean);
-  return `${parts.join(' · ')}，支持先看详情，再决定是否进一步沟通。`;
 }
 
 function handleImageError(event: Event, fallback: string) {
@@ -1236,18 +1064,23 @@ onUnmounted(() => {
 
 .hero-banner {
   position: relative;
-  min-height: 430px;
+  min-height: 300px;
   border-radius: 22px;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.78)),
-    url("../../../pictures/homePicture1.jpg") center/cover no-repeat;
+  background: url("../../../pictures/homePicture1.jpg") center/cover no-repeat;
   border: 1px solid #e5eee0;
   box-shadow: var(--shadow);
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
-  gap: 18px;
-  padding: 34px 36px 30px;
+  display: flex;
+  align-items: center;
+  padding: 40px 44px;
+}
+
+.hero-banner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(20, 33, 22, 0.55) 0%, rgba(20, 33, 22, 0.25) 50%, rgba(20, 33, 22, 0.05) 100%);
+  pointer-events: none;
 }
 
 .hero-copy {
@@ -1255,38 +1088,31 @@ onUnmounted(() => {
   z-index: 2;
   display: flex;
   flex-direction: column;
-  align-self: center;
+  max-width: 520px;
 }
 
 .hero-chip {
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  min-height: 38px;
-  padding: 0 16px;
+  min-height: 34px;
+  padding: 0 14px;
   border-radius: 999px;
-  border: 1px solid rgba(40, 183, 93, 0.18);
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--green-deep);
-  font-size: 15px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #2d7a3e;
+  font-size: 13px;
   font-weight: 600;
+  backdrop-filter: blur(8px);
 }
 
 .hero-copy h1 {
-  margin: 18px 0 0;
-  font-size: clamp(46px, 5vw, 72px);
-  line-height: 1.04;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  color: #142116;
-}
-
-.hero-description {
-  margin: 18px 0 0;
-  max-width: 560px;
-  font-size: 18px;
-  line-height: 1.74;
-  color: #425145;
+  margin: 14px 0 0;
+  font-size: clamp(32px, 4vw, 48px);
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .hero-search {
@@ -1355,43 +1181,9 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-.hero-actions {
-  margin-top: 18px;
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.hero-tags {
-  margin-top: 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.hero-tags-label {
-  font-size: 13px;
-  color: #6f7f70;
-  font-weight: 600;
-}
-
-.hero-tag-btn {
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid #dde7d9;
-  background: rgba(255, 255, 255, 0.86);
-  color: #415043;
-  font-size: 13px;
-  cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
-}
-
-.hero-tag-btn:hover {
-  border-color: rgba(40, 183, 93, 0.28);
-  background: #f4fbf5;
-  color: var(--green-deep);
+.hero-btn {
+  margin-top: 16px;
+  width: fit-content;
 }
 
 .ghost-btn {
@@ -1429,299 +1221,6 @@ onUnmounted(() => {
 .full-width {
   width: 100%;
   justify-content: center;
-}
-
-.hero-stats {
-  margin-top: 26px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  max-width: 680px;
-}
-
-.hero-stat-card {
-  padding: 16px 18px;
-  border-radius: 14px;
-  border: 1px solid rgba(92, 171, 104, 0.12);
-  background: rgba(255, 255, 255, 0.95);
-}
-
-.hero-stat-card span,
-.hero-stat-card small {
-  display: block;
-}
-
-.hero-stat-card span {
-  font-size: 13px;
-  color: #68806d;
-}
-
-.hero-stat-card strong {
-  display: block;
-  margin-top: 8px;
-  font-size: 28px;
-  color: #172419;
-}
-
-.hero-stat-card small {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #95a194;
-}
-
-.hero-board {
-  align-self: stretch;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 18px;
-  border-radius: 20px;
-  border: 1px solid rgba(222, 232, 220, 0.92);
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(12px);
-}
-
-.hero-board-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.hero-board-kicker {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: #5f7161;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.hero-board-head h3 {
-  margin: 8px 0 0;
-  font-size: 26px;
-  line-height: 1.2;
-  color: #162418;
-}
-
-.hero-board-badge {
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: #edf7f1;
-  color: var(--green-deep);
-  display: inline-flex;
-  align-items: center;
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.hero-lead-card {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  gap: 14px;
-  padding: 14px;
-  border-radius: 18px;
-  border: 1px solid #e7eee3;
-  background: #ffffff;
-  cursor: pointer;
-}
-
-.hero-lead-media {
-  height: 190px;
-  border-radius: 14px;
-  overflow: hidden;
-  background: #eef3ec;
-}
-
-.hero-lead-media img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.hero-lead-body {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.hero-lead-tags,
-.trust-summary,
-.goods-tags-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.hero-lead-tags span,
-.trust-summary span {
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: #f3f7f2;
-  color: #536354;
-  display: inline-flex;
-  align-items: center;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.hero-lead-body h3 {
-  margin: 12px 0 0;
-  font-size: 24px;
-  line-height: 1.32;
-  color: #19281b;
-}
-
-.hero-lead-price-row {
-  margin-top: 14px;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.hero-lead-price-row strong {
-  font-size: 34px;
-  line-height: 1;
-  color: #f05a28;
-}
-
-.hero-lead-price-row span {
-  font-size: 14px;
-  color: #6a796c;
-}
-
-.hero-lead-body p {
-  margin: 12px 0 0;
-  font-size: 14px;
-  line-height: 1.72;
-  color: #617066;
-}
-
-.hero-lead-footer {
-  margin-top: auto;
-  padding-top: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.hero-lead-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 13px;
-  color: #738174;
-}
-
-.hero-inline-btn {
-  min-height: 36px;
-  padding: 0 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(40, 183, 93, 0.18);
-  background: #f3fbf5;
-  color: var(--green-deep);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.hero-mini-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.hero-mini-card {
-  min-height: 126px;
-  padding: 14px;
-  border-radius: 16px;
-  border: 1px solid #ebf0e7;
-  background: var(--hero-card-tone);
-}
-
-.hero-mini-card span {
-  display: block;
-  font-size: 12px;
-  color: #6a776b;
-}
-
-.hero-mini-card strong {
-  display: block;
-  margin-top: 12px;
-  font-size: 20px;
-  color: #1f2d21;
-  line-height: 1.3;
-}
-
-.hero-mini-card p {
-  margin: 8px 0 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: #6a776b;
-}
-
-.hero-secondary-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.hero-secondary-item {
-  padding: 10px;
-  border-radius: 16px;
-  border: 1px solid #ebf0e7;
-  background: #ffffff;
-  display: grid;
-  grid-template-columns: 68px 1fr;
-  gap: 10px;
-  align-items: center;
-  cursor: pointer;
-  text-align: left;
-}
-
-.hero-secondary-item img {
-  width: 68px;
-  height: 68px;
-  border-radius: 12px;
-  object-fit: cover;
-  display: block;
-  background: #edf2ea;
-}
-
-.hero-secondary-content {
-  min-width: 0;
-}
-
-.hero-secondary-content span,
-.hero-secondary-content small {
-  display: block;
-}
-
-.hero-secondary-content span {
-  font-size: 12px;
-  color: var(--green-deep);
-  font-weight: 700;
-}
-
-.hero-secondary-content strong {
-  display: block;
-  margin-top: 6px;
-  font-size: 13px;
-  line-height: 1.45;
-  color: #223023;
-}
-
-.hero-secondary-content small {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #7b877c;
 }
 
 .category-rail {
@@ -2079,7 +1578,7 @@ onUnmounted(() => {
 
 .goods-image-wrap {
   position: relative;
-  aspect-ratio: 1 / 0.9;
+  aspect-ratio: 4 / 3;
   background: #f3f6f1;
 }
 
@@ -2093,59 +1592,59 @@ onUnmounted(() => {
 .goods-condition,
 .goods-deliver {
   position: absolute;
-  top: 10px;
-  min-height: 24px;
-  padding: 0 8px;
+  top: 8px;
+  min-height: 22px;
+  padding: 0 7px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
 .goods-condition {
-  left: 10px;
+  left: 8px;
   background: rgba(36, 178, 92, 0.92);
   color: #ffffff;
 }
 
 .goods-deliver {
-  right: 10px;
+  right: 8px;
   background: rgba(255, 255, 255, 0.92);
   color: #4b5c4d;
 }
 
 .goods-price-chip {
   position: absolute;
-  left: 10px;
-  bottom: 10px;
-  min-height: 28px;
-  padding: 0 10px;
+  left: 8px;
+  bottom: 8px;
+  min-height: 24px;
+  padding: 0 8px;
   border-radius: 999px;
   background: rgba(24, 33, 25, 0.82);
   color: #ffffff;
   display: inline-flex;
   align-items: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
 .goods-body {
-  padding: 14px;
+  padding: 12px;
 }
 
 .goods-head-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
   align-items: start;
 }
 
 .goods-body h3 {
   margin: 0;
-  min-height: 48px;
-  font-size: 16px;
-  line-height: 1.45;
+  min-height: 38px;
+  font-size: 14px;
+  line-height: 1.4;
   color: #202f21;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -2155,6 +1654,9 @@ onUnmounted(() => {
 
 .goods-tags-row {
   margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .goods-info-chip {
@@ -2178,56 +1680,14 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-.goods-info-chip.ref-price {
-  background: #fff2ea;
-  color: #c6724e;
-}
-
 .goods-price-row {
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
-.goods-price {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.goods-price strong {
-  font-size: 30px;
+.goods-price-row strong {
+  font-size: 22px;
   color: #f34e22;
   line-height: 1;
-}
-
-.goods-price-hint {
-  color: #8e9990;
-  font-size: 12px;
-}
-
-.goods-bottom-row {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.goods-location,
-.goods-distance,
-.goods-seller {
-  font-size: 13px;
-  color: #7a877c;
-}
-
-.goods-status {
-  min-height: 24px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: #f3f7f2;
-  color: #637264;
-  display: inline-flex;
-  align-items: center;
-  font-size: 12px;
 }
 
 .favorite-btn {
@@ -2272,6 +1732,24 @@ onUnmounted(() => {
 .trust-score span {
   font-size: 13px;
   color: #6f7d70;
+}
+
+.trust-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trust-summary span {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #f3f7f2;
+  color: #536354;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .trust-list {
@@ -2487,35 +1965,6 @@ onUnmounted(() => {
   transform: translateY(-2px);
 }
 
-.goods-action-row {
-  margin-top: 14px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.goods-action-btn {
-  min-height: 38px;
-  border-radius: 12px;
-  border: 1px solid #dde7da;
-  background: #ffffff;
-  color: #455446;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
-}
-
-.goods-action-btn:hover {
-  border-color: #bfd0bf;
-  background: #f8fbf5;
-}
-
-.goods-action-btn.primary {
-  border-color: rgba(40, 183, 93, 0.18);
-  background: #edf8f1;
-  color: var(--green-deep);
-}
 
 .hero-search input:focus,
 .location-input input:focus {
@@ -2562,7 +2011,6 @@ onUnmounted(() => {
     position: static;
   }
 
-  .hero-stats,
   .category-rail,
   .service-strip,
   .footer-columns {
@@ -2601,24 +2049,13 @@ onUnmounted(() => {
   }
 
   .hero-copy h1 {
-    font-size: 38px;
+    font-size: 28px;
   }
 
-  .hero-description {
-    font-size: 16px;
-  }
-
-  .hero-lead-card,
-  .hero-secondary-item,
-  .goods-action-row,
-  .hero-mini-grid,
-  .hero-secondary-list,
   .goods-grid {
     grid-template-columns: 1fr;
   }
 
-  .hero-board-head,
-  .hero-lead-footer,
   .section-actions {
     flex-direction: column;
     align-items: flex-start;

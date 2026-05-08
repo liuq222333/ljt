@@ -7,6 +7,7 @@ import com.example.demo.demos.Agent.Service.BackendApiProxyService;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -59,7 +60,7 @@ abstract class AbstractRouteResultAdapter implements RouteResultAdapter {
         ));
         candidate.setTitle(displayTitle(item, entityType));
         candidate.setSubtitle(firstNonBlank(item.get("subtitle"), item.get("summary"), item.get("summaryText"), item.get("description")));
-        candidate.setImageUrl(firstNonBlank(item.get("imageUrl"), item.get("coverImage"), item.get("cover"), item.get("image")));
+        candidate.setImageUrl(resolveImageUrl(item));
         candidate.setLocationText(firstNonBlank(item.get("locationText"), item.get("location"), item.get("address"), item.get("venue")));
         candidate.setPriceText(formatPrice(firstNonBlank(item.get("priceText"), item.get("price"), item.get("fee")), item.get("currency")));
         candidate.setRealtimeStatusText(firstNonBlank(item.get("realtimeStatusText"), item.get("businessStatus"), item.get("statusText")));
@@ -102,8 +103,111 @@ abstract class AbstractRouteResultAdapter implements RouteResultAdapter {
         return StringUtils.hasText(id) ? prefix + "#" + id : prefix;
     }
 
+    protected String resolveImageUrl(Map<String, Object> item) {
+        if (item == null) {
+            return null;
+        }
+        String direct = firstNonBlank(
+                item.get("imageUrl"),
+                item.get("image_url"),
+                item.get("coverUrl"),
+                item.get("cover_url"),
+                item.get("coverImage"),
+                item.get("cover_image"),
+                item.get("cover"),
+                item.get("image"),
+                item.get("thumbnailUrl"),
+                item.get("thumbnail_url"),
+                item.get("thumbnail")
+        );
+        if (StringUtils.hasText(direct)) {
+            return direct;
+        }
+        return firstImageFrom(
+                item.get("imageUrls"),
+                item.get("image_urls"),
+                item.get("images"),
+                item.get("photos"),
+                item.get("mediaUrls"),
+                item.get("media_urls")
+        );
+    }
+
+    protected String firstImageFrom(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            String image = firstImageValue(value);
+            if (StringUtils.hasText(image)) {
+                return image;
+            }
+        }
+        return null;
+    }
+
+    protected String firstImageValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Iterable<?>) {
+            for (Object item : (Iterable<?>) value) {
+                String image = firstNonBlank(item);
+                if (StringUtils.hasText(image)) {
+                    return cleanImageText(image);
+                }
+            }
+            return null;
+        }
+        Class<?> valueClass = value.getClass();
+        if (valueClass.isArray()) {
+            int length = Array.getLength(value);
+            for (int i = 0; i < length; i++) {
+                String image = firstNonBlank(Array.get(value, i));
+                if (StringUtils.hasText(image)) {
+                    return cleanImageText(image);
+                }
+            }
+            return null;
+        }
+        String text = firstNonBlank(value);
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        text = cleanImageText(text);
+        if (text.startsWith("[") && text.endsWith("]")) {
+            String body = text.substring(1, text.length() - 1).trim();
+            if (!StringUtils.hasText(body)) {
+                return null;
+            }
+            String[] parts = body.split(",");
+            for (String part : parts) {
+                String image = cleanImageText(part);
+                if (StringUtils.hasText(image)) {
+                    return image;
+                }
+            }
+            return null;
+        }
+        return text;
+    }
+
+    protected String cleanImageText(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        String cleaned = text.trim();
+        while (cleaned.startsWith("\"") || cleaned.startsWith("'") || cleaned.startsWith("`")) {
+            cleaned = cleaned.substring(1).trim();
+        }
+        while (cleaned.endsWith("\"") || cleaned.endsWith("'") || cleaned.endsWith("`")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 1).trim();
+        }
+        return firstNonBlank(cleaned);
+    }
+
     protected String buildTimeText(Map<String, Object> item) {
-        String date = firstNonBlank(item.get("date"), item.get("activityDate"), item.get("startDate"));
+        String date = firstNonBlank(item.get("date"), item.get("activityDate"), item.get("startDate"), item.get("startAt"), item.get("start_at"));
         String start = firstNonBlank(item.get("timeStart"), item.get("startTime"));
         String end = firstNonBlank(item.get("timeEnd"), item.get("endTime"));
         List<String> parts = new ArrayList<String>();

@@ -6,7 +6,7 @@
         <p class="eyebrow">发布活动</p>
         <h1>把一场社区活动，整理成清晰好参与的入口</h1>
         <p class="subtitle">
-          填写活动信息、报名规则和提醒设置，系统会生成活动卡片并同步到本地活动页。
+          填写活动信息、报名规则和提醒设置，提交后进入活动审核。
         </p>
       </div>
       <div class="hero-side">
@@ -20,8 +20,8 @@
         <p class="progress-tip">{{ progressTip }}</p>
         <div class="hero-actions">
           <button class="btn btn-light" :disabled="saving" @click="handleSubmit('DRAFT')">保存草稿</button>
-          <button class="btn btn-primary" :disabled="saving" @click="handleSubmit('PUBLISHED')">
-            {{ saving ? '发布中...' : '发布活动' }}
+          <button class="btn btn-primary" :disabled="saving" @click="handleSubmit('REVIEWING')">
+            {{ saving ? '提交中...' : '提交审核' }}
           </button>
         </div>
       </div>
@@ -71,6 +71,21 @@
                 {{ locating ? '定位中...' : '当前位置' }}
               </button>
             </div>
+            <div v-if="locationDebug" class="location-debug">
+              <p>
+                浏览器原始坐标：
+                {{ locationDebug.rawLng.toFixed(6) }},
+                {{ locationDebug.rawLat.toFixed(6) }}
+                <span v-if="locationDebug.accuracy != null">，精度约 {{ Math.round(locationDebug.accuracy) }}m</span>
+              </p>
+              <p>
+                高德转换坐标：
+                {{ locationDebug.convertedLng.toFixed(6) }},
+                {{ locationDebug.convertedLat.toFixed(6) }}
+              </p>
+              <p>定位时间：{{ locationDebug.time }}</p>
+              <p v-if="locationDebug.address">解析地址：{{ locationDebug.address }}</p>
+            </div>
           </label>
           <label class="field">
             <span>人数上限</span>
@@ -90,6 +105,29 @@
             placeholder="说明活动内容、适合人群、参与方式和注意事项"
           ></textarea>
         </label>
+
+        <div class="field block-field">
+          <span>活动封面 <em>*</em></span>
+          <input ref="coverInput" class="file-input" type="file" accept="image/*" @change="handleCoverChange" />
+          <div :class="['cover-uploader', { ready: coverPreviewUrl }]">
+            <div v-if="coverPreviewUrl" class="cover-preview">
+              <img :src="coverPreviewUrl" alt="活动封面预览" />
+            </div>
+            <div v-else class="cover-empty">
+              <i class="far fa-image"></i>
+              <strong>上传横向封面图</strong>
+              <p>建议 1200×600，支持 JPG、PNG、WebP、GIF，单张不超过 5MB。</p>
+            </div>
+            <div class="cover-actions">
+              <button class="btn btn-light sm" type="button" :disabled="coverUploading" @click="selectCover">
+                {{ coverUploading ? '上传中...' : coverPreviewUrl ? '更换图片' : '选择图片' }}
+              </button>
+              <button v-if="coverPreviewUrl" class="btn btn-light sm" type="button" :disabled="coverUploading" @click="removeCover">
+                移除
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div class="field block-field">
           <span>活动标签</span>
@@ -142,13 +180,17 @@
 
         <div class="form-actions">
           <button class="btn btn-light" :disabled="saving" @click="handleSubmit('DRAFT')">保存草稿</button>
-          <button class="btn btn-primary" :disabled="saving" @click="handleSubmit('PUBLISHED')">发布活动</button>
+          <button class="btn btn-primary" :disabled="saving" @click="handleSubmit('REVIEWING')">提交审核</button>
         </div>
         <p v-if="message" :class="['submit-msg', messageType]">{{ message }}</p>
       </section>
 
       <aside class="preview-panel">
         <div class="panel preview-card">
+          <div :class="['preview-cover', { empty: !coverPreviewUrl }]">
+            <img v-if="coverPreviewUrl" :src="coverPreviewUrl" alt="活动封面预览" />
+            <span v-else>封面预览</span>
+          </div>
           <div class="preview-head">
             <p class="eyebrow">实时预览</p>
             <span class="state-chip">{{ registrationLabel }}</span>
@@ -196,15 +238,27 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { createLocalActivity, uploadLocalActMedia } from '@/api/localAct';
 import dhstyle from '../../dhstyle/dhstyle.vue';
 
-type PublishStatus = 'DRAFT' | 'PUBLISHED';
+type PublishStatus = 'DRAFT' | 'REVIEWING';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080';
+type LocationDebug = {
+  rawLat: number;
+  rawLng: number;
+  convertedLat: number;
+  convertedLng: number;
+  accuracy: number | null;
+  time: string;
+  address: string;
+};
+
 const AMAP_KEY = import.meta.env.VITE_AMAP_KEY || '';
 const GEOCODER_BASE = 'https://restapi.amap.com/v3/geocode/geo';
 const REVERSE_GEOCODER_BASE = 'https://restapi.amap.com/v3/geocode/regeo';
 const COORD_CONVERT_BASE = 'https://restapi.amap.com/v3/assistant/coordinate/convert';
+const router = useRouter();
 const username = ref(localStorage.getItem('username') || '');
 
 const categories = [
@@ -220,7 +274,7 @@ const tagSuggestions = ['报名中', '适合亲子', '免费', '邻里互助', '
 const steps = [
   { title: '补充信息', desc: '填写标题、时间、地点和说明' },
   { title: '确认规则', desc: '设置报名、提醒和签到方式' },
-  { title: '发布上线', desc: '保存后同步到本地活动页' }
+  { title: '提交审核', desc: '通过审核后同步到本地活动页' }
 ];
 
 const form = ref({
@@ -234,6 +288,7 @@ const form = ref({
   capacity: 20,
   fee: '免费',
   description: '',
+  coverUrl: '',
   tags: [] as string[],
   registration: 'auto',
   reminder: '24h',
@@ -247,6 +302,10 @@ const messageType = ref<'success' | 'error'>('success');
 const lat = ref<number | null>(null);
 const lng = ref<number | null>(null);
 const locating = ref(false);
+const locationDebug = ref<LocationDebug | null>(null);
+const coverInput = ref<HTMLInputElement | null>(null);
+const coverPreviewUrl = ref('');
+const coverUploading = ref(false);
 
 const requiredKeys: (keyof typeof form.value)[] = [
   'title',
@@ -266,7 +325,7 @@ const publishProgress = computed(() => {
 const progressTip = computed(() => {
   if (publishProgress.value < 40) return '先补齐标题、分类、时间和地点。';
   if (publishProgress.value < 80) return '再完善介绍和报名设置，活动会更容易被理解。';
-  return '信息已经比较完整，可以保存草稿或直接发布。';
+  return '信息已经比较完整，可以保存草稿或提交审核。';
 });
 
 const preview = computed(() => ({
@@ -299,6 +358,44 @@ const toggleTag = (tag: string) => {
   form.value.tags = form.value.tags.includes(tag)
     ? form.value.tags.filter((value) => value !== tag)
     : [...form.value.tags, tag];
+};
+
+const selectCover = () => {
+  coverInput.value?.click();
+};
+
+const removeCover = () => {
+  form.value.coverUrl = '';
+  coverPreviewUrl.value = '';
+};
+
+const handleCoverChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    message.value = '请选择图片文件';
+    messageType.value = 'error';
+    input.value = '';
+    return;
+  }
+  coverUploading.value = true;
+  message.value = '';
+  try {
+    const result = await uploadLocalActMedia(file, 'activity');
+    form.value.coverUrl = result.objectKey;
+    coverPreviewUrl.value = result.url || result.publicUrl || URL.createObjectURL(file);
+    message.value = '封面上传成功';
+    messageType.value = 'success';
+  } catch (error) {
+    form.value.coverUrl = '';
+    coverPreviewUrl.value = '';
+    message.value = error instanceof Error ? error.message : '封面上传失败';
+    messageType.value = 'error';
+  } finally {
+    coverUploading.value = false;
+    input.value = '';
+  }
 };
 
 const locateByAddress = async () => {
@@ -351,9 +448,14 @@ const locateCurrent = async () => {
 
   locating.value = true;
   try {
-    const coords = await new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
+    const coords = await new Promise<{ latitude: number; longitude: number; accuracy: number | null; timestamp: number }>((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        (pos) => resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: typeof pos.coords.accuracy === 'number' ? pos.coords.accuracy : null,
+          timestamp: pos.timestamp
+        }),
         (err) => reject(err),
         { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
       );
@@ -361,6 +463,7 @@ const locateCurrent = async () => {
 
     let useLat = coords.latitude;
     let useLng = coords.longitude;
+    let resolvedAddress = '';
 
     try {
       const convertResp = await fetch(`${COORD_CONVERT_BASE}?key=${AMAP_KEY}&locations=${useLng},${useLat}&coordsys=gps`);
@@ -380,7 +483,8 @@ const locateCurrent = async () => {
       const reverseResp = await fetch(`${REVERSE_GEOCODER_BASE}?key=${AMAP_KEY}&location=${useLng},${useLat}&extensions=base`);
       const reverseData = await reverseResp.json();
       if (reverseResp.ok && reverseData.status === '1' && reverseData.regeocode?.formatted_address) {
-        form.value.location = reverseData.regeocode.formatted_address;
+        resolvedAddress = reverseData.regeocode.formatted_address;
+        form.value.location = resolvedAddress;
       }
     } catch (_) {
       // Keep coordinate values even if reverse geocode fails.
@@ -388,7 +492,18 @@ const locateCurrent = async () => {
 
     lat.value = useLat;
     lng.value = useLng;
-    message.value = '已获取当前位置并尝试回填地址';
+    locationDebug.value = {
+      rawLat: coords.latitude,
+      rawLng: coords.longitude,
+      convertedLat: useLat,
+      convertedLng: useLng,
+      accuracy: coords.accuracy,
+      time: new Date(coords.timestamp).toLocaleString('zh-CN'),
+      address: resolvedAddress
+    };
+    message.value = coords.accuracy != null && coords.accuracy > 1000
+      ? '已获取定位，但精度偏低，可能是浏览器按网络/IP 粗定位'
+      : '已获取当前位置并尝试回填地址';
     messageType.value = 'success';
   } catch (error: any) {
     const code = Number(error?.code);
@@ -408,42 +523,44 @@ const handleSubmit = async (status: PublishStatus) => {
     messageType.value = 'error';
     return;
   }
+  if (status === 'REVIEWING' && !form.value.coverUrl) {
+    message.value = '请先上传活动封面图';
+    messageType.value = 'error';
+    return;
+  }
 
   saving.value = true;
   message.value = '';
   try {
-    const resp = await fetch(`${API_BASE}/api/local-act/activities`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: username.value,
-        title: form.value.title,
-        subtitle: form.value.subtitle,
-        category: form.value.category,
-        date: form.value.date,
-        timeStart: form.value.timeStart,
-        timeEnd: form.value.timeEnd,
-        location: form.value.location,
-        latitude: lat.value,
-        longitude: lng.value,
-        capacity: form.value.capacity,
-        fee: form.value.fee,
-        description: form.value.description,
-        tags: form.value.tags,
-        registration: form.value.registration,
-        reminder: form.value.reminder,
-        checkin: form.value.checkin,
-        waiting: form.value.waiting,
-        status
-      })
+    await createLocalActivity({
+      username: username.value,
+      title: form.value.title,
+      subtitle: form.value.subtitle,
+      category: form.value.category,
+      date: form.value.date,
+      timeStart: form.value.timeStart,
+      timeEnd: form.value.timeEnd,
+      location: form.value.location,
+      address: form.value.location,
+      latitude: lat.value,
+      longitude: lng.value,
+      capacity: form.value.capacity,
+      fee: form.value.fee,
+      description: form.value.description,
+      coverUrl: form.value.coverUrl,
+      tags: form.value.tags,
+      registration: form.value.registration,
+      reminder: form.value.reminder,
+      checkin: form.value.checkin,
+      waiting: form.value.waiting,
+      status
     });
 
-    if (!resp.ok) {
-      throw new Error(await resp.text());
-    }
-
-    message.value = status === 'DRAFT' ? '草稿已保存' : '活动已发布，等待同步展示';
+    message.value = status === 'DRAFT' ? '草稿已保存，即将进入我的发布' : '活动已提交审核，即将进入我的发布';
     messageType.value = 'success';
+    window.setTimeout(() => {
+      router.push('/local-act/my-activities');
+    }, 500);
   } catch (error) {
     message.value = error instanceof Error ? error.message : '活动提交失败';
     messageType.value = 'error';
@@ -588,6 +705,11 @@ const handleSubmit = async (status: PublishStatus) => {
   color: #64748b;
 }
 
+.field span em {
+  color: #ff6b2c;
+  font-style: normal;
+}
+
 .field input,
 .field select,
 .field textarea {
@@ -629,11 +751,91 @@ const handleSubmit = async (status: PublishStatus) => {
   grid-column: 1 / -1;
 }
 
+.file-input {
+  display: none;
+}
+
+.cover-uploader {
+  border-radius: 16px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.cover-uploader.ready {
+  border-style: solid;
+  background: #ffffff;
+}
+
+.cover-preview,
+.cover-empty {
+  aspect-ratio: 16 / 7;
+}
+
+.cover-preview img,
+.preview-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cover-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 24px;
+}
+
+.cover-empty i {
+  font-size: 28px;
+  color: #cbd5e1;
+}
+
+.cover-empty strong {
+  color: #475569;
+  font-size: 14px;
+}
+
+.cover-empty p {
+  margin: 0;
+  max-width: 420px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.cover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid #edf2f7;
+  background: #ffffff;
+}
+
 .address-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
+}
+
+.location-debug {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.location-debug p {
+  margin: 0;
 }
 
 .tag-suggestions {
@@ -747,6 +949,22 @@ const handleSubmit = async (status: PublishStatus) => {
 .steps-card,
 .tips-card {
   padding: 24px;
+}
+
+.preview-cover {
+  margin-bottom: 18px;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+.preview-cover.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 13px;
 }
 
 .preview-head {
